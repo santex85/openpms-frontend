@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom";
 
+import { PropertySwitcher } from "@/components/layout/PropertySwitcher";
 import { cn } from "@/lib/utils";
 
 const navItems: { to: string; label: string }[] = [
@@ -38,10 +39,11 @@ export function AppLayout() {
         </nav>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 items-center border-b border-border bg-background px-6">
+        <header className="flex h-14 items-center justify-between gap-4 border-b border-border bg-background px-6">
           <h1 className="text-sm font-medium text-muted-foreground">
             Панель управления
           </h1>
+          <PropertySwitcher />
         </header>
         <main className="flex-1 overflow-auto p-6">
           <Outlet />
