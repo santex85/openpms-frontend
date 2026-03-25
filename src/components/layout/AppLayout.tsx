@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from "react-router-dom";
 
 import { PropertySwitcher } from "@/components/layout/PropertySwitcher";
+import { usePrefetchBoardData } from "@/hooks/usePrefetchBoardData";
 import { cn } from "@/lib/utils";
 
 const navItems: { to: string; label: string }[] = [
@@ -10,6 +11,8 @@ const navItems: { to: string; label: string }[] = [
 ];
 
 export function AppLayout() {
+  usePrefetchBoardData();
+
   return (
     <div className="flex min-h-screen bg-background">
       <aside className="flex w-56 flex-col border-r border-border bg-card">

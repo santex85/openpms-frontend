@@ -19,8 +19,15 @@ export function PropertySwitcher() {
 
   useEffect(() => {
     if (properties === undefined || properties.length === 0) return;
-    if (selectedPropertyId !== null) return;
-    setSelectedPropertyId(properties[0].id);
+    const ids = new Set(properties.map((p) => p.id));
+
+    if (selectedPropertyId !== null && !ids.has(selectedPropertyId)) {
+      setSelectedPropertyId(properties[0].id);
+      return;
+    }
+    if (selectedPropertyId === null) {
+      setSelectedPropertyId(properties[0].id);
+    }
   }, [properties, selectedPropertyId, setSelectedPropertyId]);
 
   if (isLoading) {
@@ -46,11 +53,14 @@ export function PropertySwitcher() {
     );
   }
 
+  const propertyIds = new Set(properties.map((p) => p.id));
+  const selectValue =
+    selectedPropertyId !== null && propertyIds.has(selectedPropertyId)
+      ? selectedPropertyId
+      : properties[0].id;
+
   return (
-    <Select
-      value={selectedPropertyId ?? undefined}
-      onValueChange={setSelectedPropertyId}
-    >
+    <Select value={selectValue} onValueChange={setSelectedPropertyId}>
       <SelectTrigger className="w-[220px]" aria-label="Выбор отеля">
         <SelectValue placeholder="Выберите отель" />
       </SelectTrigger>

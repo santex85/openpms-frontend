@@ -4,6 +4,7 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AUTH_STORAGE_KEY, MVP_DEMO_TOKEN } from "@/lib/constants";
+import { usePropertyStore } from "@/stores/property-store";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -21,6 +22,7 @@ export function LoginPage() {
     e.preventDefault();
     const value = tokenInput.trim() !== "" ? tokenInput.trim() : MVP_DEMO_TOKEN;
     localStorage.setItem(AUTH_STORAGE_KEY, value);
+    usePropertyStore.getState().setSelectedPropertyId(null);
     const from =
       (location.state as { from?: string } | null)?.from ?? "/";
     navigate(from, { replace: true });
@@ -28,6 +30,7 @@ export function LoginPage() {
 
   function handleQuickMvp(): void {
     localStorage.setItem(AUTH_STORAGE_KEY, MVP_DEMO_TOKEN);
+    usePropertyStore.getState().setSelectedPropertyId(null);
     const from =
       (location.state as { from?: string } | null)?.from ?? "/";
     navigate(from, { replace: true });

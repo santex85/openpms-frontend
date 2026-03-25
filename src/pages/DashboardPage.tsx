@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -32,7 +33,15 @@ export function DashboardPage() {
       <div>
         <h2 className="text-lg font-semibold text-foreground">Dashboard</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Обзор и быстрые действия.
+          Обзор и быстрые действия. Календарь размещений и остатки по дням — на
+          странице{" "}
+          <Link
+            to="/board"
+            className="font-medium text-primary underline-offset-4 hover:underline"
+          >
+            Шахматка
+          </Link>
+          .
         </p>
       </div>
       <div className="flex flex-wrap gap-3">
