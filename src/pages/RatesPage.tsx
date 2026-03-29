@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import axios from "axios";
 import { Link } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -12,14 +13,26 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useBulkUpsertRates } from "@/hooks/useBulkUpsertRates";
+import { useCreateRatePlan } from "@/hooks/useCreateRatePlan";
 import { useNightlyRates } from "@/hooks/useNightlyRates";
 import { useRatePlans } from "@/hooks/useRatePlans";
 import { useRoomTypes } from "@/hooks/useRoomTypes";
 import { formatApiError } from "@/lib/formatApiError";
 import { canManagePropertiesFromToken } from "@/lib/jwtPayload";
 import { usePropertyStore } from "@/stores/property-store";
-import type { BulkRateSegment } from "@/types/rates";
+import type { BulkRateSegment, RatePlanCreate } from "@/types/rates";
+import { cn } from "@/lib/utils";
 import { getMonthRange, shiftMonthAnchor } from "@/utils/boardDates";
+
+const DEFAULT_CANCELLATION_POLICY =
+  "Отмена бесплатно не позднее чем за 24 часа до заезда; при более поздней отмене может удерживаться стоимость первой ночи.";
+
+function formatCreateRatePlanError(err: unknown): string {
+  if (axios.isAxiosError(err) && err.response?.status === 403) {
+    return "Недостаточно прав: тарифные планы создают owner и manager.";
+  }
+  return formatApiError(err);
+}
 
 function monthTitleRu(anchor: Date): string {
   return anchor.toLocaleDateString("ru-RU", {
@@ -89,11 +102,56 @@ export function RatesPage() {
   const [bulkMessage, setBulkMessage] = useState<string | null>(null);
   const [bulkError, setBulkError] = useState<string | null>(null);
   const bulkMutation = useBulkUpsertRates();
+  const createRatePlanMutation = useCreateRatePlan();
+
+  const [newPlanName, setNewPlanName] = useState("");
+  const [newPlanPolicy, setNewPlanPolicy] = useState(
+    DEFAULT_CANCELLATION_POLICY
+  );
+  const [newPlanError, setNewPlanError] = useState<string | null>(null);
 
   useEffect(() => {
     setBulkStart(month.startIso);
     setBulkEnd(month.endIso);
   }, [month.startIso, month.endIso]);
+
+  async function handleCreateRatePlan(
+    e: FormEvent<HTMLFormElement>
+  ): Promise<void> {
+    e.preventDefault();
+    setNewPlanError(null);
+
+    if (selectedPropertyId === null) {
+      setNewPlanError("Выберите отель в шапке.");
+      return;
+    }
+
+    const nameTrim = newPlanName.trim();
+    if (nameTrim === "") {
+      setNewPlanError("Введите название тарифного плана.");
+      return;
+    }
+
+    const policyTrim = newPlanPolicy.trim();
+    if (policyTrim === "") {
+      setNewPlanError("Укажите политику отмены.");
+      return;
+    }
+
+    const body: RatePlanCreate = {
+      property_id: selectedPropertyId,
+      name: nameTrim,
+      cancellation_policy: policyTrim,
+    };
+
+    try {
+      await createRatePlanMutation.mutateAsync(body);
+      setNewPlanName("");
+      setNewPlanPolicy(DEFAULT_CANCELLATION_POLICY);
+    } catch (err) {
+      setNewPlanError(formatCreateRatePlanError(err));
+    }
+  }
 
   async function handleBulkApply(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
@@ -221,17 +279,81 @@ export function RatesPage() {
             .
           </p>
         ) : !hasRatePlans ? (
-          <p className="text-sm text-muted-foreground">
-            Нет тарифных планов для этого отеля. Создайте план через{" "}
-            <code className="rounded bg-muted px-1 font-mono text-xs">
-              POST /rate-plans
-            </code>{" "}
-            в{" "}
-            <code className="rounded bg-muted px-1 font-mono text-xs">
-              /docs
-            </code>
-            .
-          </p>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Для сетки цен нужен хотя бы один тарифный план (BAR, пакет и т.д.).
+              Его можно создать здесь или через{" "}
+              <code className="rounded bg-muted px-1 font-mono text-xs">
+                POST /rate-plans
+              </code>{" "}
+              в{" "}
+              <code className="rounded bg-muted px-1 font-mono text-xs">
+                /docs
+              </code>
+              .
+            </p>
+            {canWriteRates ? (
+              <form
+                className="max-w-lg space-y-3 rounded-md border border-dashed bg-muted/20 p-3"
+                onSubmit={(e) => void handleCreateRatePlan(e)}
+              >
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Новый тарифный план
+                </p>
+                {newPlanError !== null ? (
+                  <p className="text-sm text-destructive" role="alert">
+                    {newPlanError}
+                  </p>
+                ) : null}
+                <div className="space-y-2">
+                  <label htmlFor="rate-plan-name" className="text-sm font-medium">
+                    Название
+                  </label>
+                  <Input
+                    id="rate-plan-name"
+                    value={newPlanName}
+                    onChange={(ev) => {
+                      setNewPlanName(ev.target.value);
+                    }}
+                    placeholder="Например, BAR или Стандарт"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label
+                    htmlFor="rate-plan-policy"
+                    className="text-sm font-medium"
+                  >
+                    Политика отмены
+                  </label>
+                  <textarea
+                    id="rate-plan-policy"
+                    className={cn(
+                      "flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-base shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                    )}
+                    value={newPlanPolicy}
+                    onChange={(ev) => {
+                      setNewPlanPolicy(ev.target.value);
+                    }}
+                    rows={3}
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  disabled={createRatePlanMutation.isPending}
+                >
+                  {createRatePlanMutation.isPending
+                    ? "Создаём…"
+                    : "Создать тарифный план"}
+                </Button>
+              </form>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Создание планов доступно ролям owner и manager; при
+                необходимости обратитесь к администратору отеля.
+              </p>
+            )}
+          </div>
         ) : (
           <>
             <div className="grid gap-3 sm:grid-cols-2">

@@ -8,6 +8,13 @@ export interface RatePlanRead {
   cancellation_policy: string;
 }
 
+/** POST /rate-plans body */
+export interface RatePlanCreate {
+  property_id: string;
+  name: string;
+  cancellation_policy: string;
+}
+
 export interface RateRead {
   id: string;
   tenant_id: string;
