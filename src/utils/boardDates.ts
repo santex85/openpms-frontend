@@ -11,6 +11,12 @@ export interface MonthDayMeta {
   date: Date;
 }
 
+/** Move calendar anchor by `deltaMonths` (e.g. -1 / +1). */
+export function shiftMonthAnchor(anchor: Date, deltaMonths: number): Date {
+  const d = new Date(anchor.getFullYear(), anchor.getMonth() + deltaMonths, 1);
+  return d;
+}
+
 /** Inclusive range: first and last day of the month containing `anchor`. */
 export function getMonthRange(anchor: Date): {
   startIso: string;

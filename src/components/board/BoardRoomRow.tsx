@@ -1,11 +1,16 @@
 import { useDroppable } from "@dnd-kit/core";
 import { Fragment } from "react";
 
-import { BookingBlock } from "@/components/board/BookingBlock";
+import {
+  type BoardBookingMenuApi,
+  BookingBlock,
+} from "@/components/board/BookingBlock";
 import { dndRoomId, dndRoomLabelId } from "@/lib/boardDnd";
 import { cn } from "@/lib/utils";
 import type { Booking, RoomRow } from "@/types/api";
 import type { MonthDayMeta } from "@/utils/boardDates";
+
+export type { BoardBookingMenuApi };
 
 interface BoardRoomRowProps {
   room: RoomRow;
@@ -13,6 +18,7 @@ interface BoardRoomRowProps {
   innerColTemplate: string;
   roomBookings: Booking[];
   cellBorder: string;
+  bookingMenuApi?: BoardBookingMenuApi | null;
 }
 
 export function BoardRoomRow({
@@ -21,6 +27,7 @@ export function BoardRoomRow({
   innerColTemplate,
   roomBookings,
   cellBorder,
+  bookingMenuApi,
 }: BoardRoomRowProps) {
   const { setNodeRef: setTimelineRef, isOver: isOverTimeline } = useDroppable({
     id: dndRoomId(room.id),
@@ -70,7 +77,12 @@ export function BoardRoomRow({
         </div>
         <div className="pointer-events-none absolute inset-0">
           {roomBookings.map((b) => (
-            <BookingBlock key={b.id} booking={b} days={days} />
+            <BookingBlock
+              key={b.id}
+              booking={b}
+              days={days}
+              menuApi={bookingMenuApi}
+            />
           ))}
         </div>
       </div>

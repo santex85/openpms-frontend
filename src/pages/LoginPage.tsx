@@ -1,39 +1,124 @@
-import { FormEvent, useState } from "react";
+import {
+  FormEvent,
+  useLayoutEffect,
+  useState,
+} from "react";
+import axios from "axios";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 
+import { loginRequest } from "@/api/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { AUTH_STORAGE_KEY, MVP_DEMO_TOKEN } from "@/lib/constants";
+import { getAccessToken, setSession } from "@/lib/authSession";
 import { usePropertyStore } from "@/stores/property-store";
+
+function shouldParseDevTokenHash(): boolean {
+  return (
+    import.meta.env.DEV &&
+    typeof window !== "undefined" &&
+    window.location.hash.startsWith("#dev_token=")
+  );
+}
+
+function parseJwtTenantId(token: string): string | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length < 2) {
+      return null;
+    }
+    const b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const pad = b64.length % 4 === 0 ? "" : "=".repeat(4 - (b64.length % 4));
+    const json = atob(b64 + pad);
+    const payload = JSON.parse(json) as { tenant_id?: string };
+    return typeof payload.tenant_id === "string" ? payload.tenant_id : null;
+  } catch {
+    return null;
+  }
+}
 
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [tokenInput, setTokenInput] = useState("");
+  const [tenantId, setTenantId] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [devHashResolved, setDevHashResolved] = useState(
+    () => !shouldParseDevTokenHash()
+  );
 
-  const existing = localStorage.getItem(AUTH_STORAGE_KEY);
-  if (existing !== null && existing !== "") {
+  useLayoutEffect(() => {
+    if (!import.meta.env.DEV) {
+      return;
+    }
+    if (!window.location.hash.startsWith("#dev_token=")) {
+      return;
+    }
+    try {
+      const encoded = window.location.hash.slice("#dev_token=".length);
+      const token = decodeURIComponent(encoded).trim();
+      if (token !== "") {
+        const tid = parseJwtTenantId(token);
+        if (tid !== null) {
+          setSession(token, tid);
+          usePropertyStore.getState().setSelectedPropertyId(null);
+          window.history.replaceState(
+            null,
+            "",
+            window.location.pathname + window.location.search
+          );
+          const from =
+            (location.state as { from?: string } | null)?.from ?? "/";
+          navigate(from, { replace: true });
+          return;
+        }
+      }
+    } catch {
+      /* invalid fragment */
+    }
+    setDevHashResolved(true);
+  }, [navigate, location.state]);
+
+  if (!devHashResolved) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
+        <p className="text-sm text-muted-foreground">Вход…</p>
+      </div>
+    );
+  }
+
+  const tok = getAccessToken();
+  if (tok !== null && tok !== "") {
     const from =
       (location.state as { from?: string } | null)?.from ?? "/";
     return <Navigate to={from} replace />;
   }
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>): void {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
-    const value = tokenInput.trim() !== "" ? tokenInput.trim() : MVP_DEMO_TOKEN;
-    localStorage.setItem(AUTH_STORAGE_KEY, value);
-    usePropertyStore.getState().setSelectedPropertyId(null);
+    setError(null);
+    setPending(true);
     const from =
       (location.state as { from?: string } | null)?.from ?? "/";
-    navigate(from, { replace: true });
-  }
-
-  function handleQuickMvp(): void {
-    localStorage.setItem(AUTH_STORAGE_KEY, MVP_DEMO_TOKEN);
-    usePropertyStore.getState().setSelectedPropertyId(null);
-    const from =
-      (location.state as { from?: string } | null)?.from ?? "/";
-    navigate(from, { replace: true });
+    try {
+      await loginRequest(tenantId.trim(), email.trim(), password);
+      usePropertyStore.getState().setSelectedPropertyId(null);
+      navigate(from, { replace: true });
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.data !== undefined) {
+        const data = err.response.data as { detail?: unknown };
+        if (typeof data.detail === "string") {
+          setError(data.detail);
+        } else {
+          setError("Не удалось войти");
+        }
+      } else {
+        setError("Не удалось войти");
+      }
+    } finally {
+      setPending(false);
+    }
   }
 
   return (
@@ -42,47 +127,82 @@ export function LoginPage() {
         <div className="space-y-1 text-center">
           <h1 className="text-xl font-semibold text-foreground">OpenPMS</h1>
           <p className="text-sm text-muted-foreground">
-            Вход (MVP): укажите Bearer-токен или используйте демо.
+            Вход: tenant, email и пароль (POST /auth/login).
           </p>
         </div>
-        <form className="space-y-4" onSubmit={handleSubmit}>
+        {import.meta.env.DEV ? (
+          <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+            Dev: одноразовый JWT без cookie —{" "}
+            <code className="font-mono text-foreground">npm run mint:jwt</code>{" "}
+            и ссылка с{" "}
+            <code className="font-mono text-foreground">#dev_token=</code>.
+          </p>
+        ) : null}
+        <form className="space-y-4" onSubmit={(e) => void handleSubmit(e)}>
+          {error !== null ? (
+            <p className="text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          ) : null}
           <div className="space-y-2">
             <label
-              htmlFor="token"
+              htmlFor="tenant_id"
               className="text-sm font-medium text-foreground"
             >
-              Токен
+              Tenant ID (UUID)
             </label>
             <Input
-              id="token"
-              name="token"
-              type="password"
+              id="tenant_id"
+              name="tenant_id"
+              type="text"
               autoComplete="off"
-              placeholder="Вставьте токен API"
-              value={tokenInput}
-              onChange={(e) => setTokenInput(e.target.value)}
+              placeholder="00000000-0000-0000-0000-000000000000"
+              value={tenantId}
+              onChange={(e) => {
+                setTenantId(e.target.value);
+              }}
             />
           </div>
-          <Button type="submit" className="w-full">
-            Войти
+          <div className="space-y-2">
+            <label
+              htmlFor="email"
+              className="text-sm font-medium text-foreground"
+            >
+              Email
+            </label>
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="username"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+              }}
+            />
+          </div>
+          <div className="space-y-2">
+            <label
+              htmlFor="password"
+              className="text-sm font-medium text-foreground"
+            >
+              Пароль
+            </label>
+            <Input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+              }}
+            />
+          </div>
+          <Button type="submit" className="w-full" disabled={pending}>
+            {pending ? "Входим…" : "Войти"}
           </Button>
         </form>
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-border" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-card px-2 text-muted-foreground">или</span>
-          </div>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full"
-          onClick={handleQuickMvp}
-        >
-          Войти с демо-токеном
-        </Button>
       </div>
     </div>
   );

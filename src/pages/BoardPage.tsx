@@ -13,10 +13,27 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { snapCenterToCursor } from "@dnd-kit/modifiers";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
+import {
+  type BookingPatchBody,
+  patchBooking,
+} from "@/api/bookings";
 import { BoardTapeGrid } from "@/components/board/BoardTapeGrid";
+import type { BoardBookingMenuApi } from "@/components/board/BookingBlock";
 import { UnassignedPool } from "@/components/board/UnassignedPool";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { useAvailabilityGrid } from "@/hooks/useAvailabilityGrid";
 import { useAssignBookingRoom } from "@/hooks/useAssignBookingRoom";
 import { useBookings } from "@/hooks/useBookings";
@@ -30,7 +47,7 @@ import { formatApiError } from "@/lib/formatApiError";
 import { usePropertyStore } from "@/stores/property-store";
 import type { Booking, RoomRow } from "@/types/api";
 import { cn } from "@/lib/utils";
-import { getMonthRange } from "@/utils/boardDates";
+import { getMonthRange, shiftMonthAnchor } from "@/utils/boardDates";
 import { sumAvailableByDate } from "@/utils/inventoryAggregate";
 
 const boardCollisionDetection: CollisionDetection = (args) => {
@@ -71,8 +88,24 @@ function DragOverlayCard({ booking }: { booking: Booking }) {
 }
 
 export function BoardPage() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
-  const month = useMemo(() => getMonthRange(new Date()), []);
+  const [monthAnchor, setMonthAnchor] = useState(() => new Date());
+
+  const month = useMemo(
+    () => getMonthRange(monthAnchor),
+    [monthAnchor]
+  );
+
+  const monthTitle = useMemo(
+    () =>
+      new Intl.DateTimeFormat("ru-RU", {
+        month: "long",
+        year: "numeric",
+      }).format(monthAnchor),
+    [monthAnchor]
+  );
 
   const { data: roomTypes, isPending: roomTypesPending } = useRoomTypes();
   const { data: rooms, isPending: roomsPending } = useRooms();
@@ -88,9 +121,39 @@ export function BoardPage() {
 
   const assignRoom = useAssignBookingRoom();
 
+  const patchBookingMut = useMutation({
+    mutationFn: ({
+      bookingId,
+      body,
+    }: {
+      bookingId: string;
+      body: BookingPatchBody;
+    }) => patchBooking(bookingId, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["inventory", "availability"],
+      });
+    },
+  });
+
   const [activeBooking, setActiveBooking] = useState<Booking | null>(null);
   const [boardMessage, setBoardMessage] = useState<string | null>(null);
   const activeBookingByDndIdRef = useRef<Map<string, Booking>>(new Map());
+
+  const [rescheduleBooking, setRescheduleBooking] = useState<Booking | null>(
+    null
+  );
+  const [rescheduleCheckIn, setRescheduleCheckIn] = useState("");
+  const [rescheduleCheckOut, setRescheduleCheckOut] = useState("");
+
+  useEffect(() => {
+    if (rescheduleBooking === null) {
+      return;
+    }
+    setRescheduleCheckIn(rescheduleBooking.check_in_date ?? "");
+    setRescheduleCheckOut(rescheduleBooking.check_out_date ?? "");
+  }, [rescheduleBooking]);
 
   useEffect(() => {
     if (boardMessage === null) {
@@ -159,6 +222,38 @@ export function BoardPage() {
   const showAvailabilityPending =
     Boolean(selectedPropertyId) && availabilityPending;
 
+  const bookingMenuApi = useMemo<BoardBookingMenuApi | null>(() => {
+    if (selectedPropertyId === null) {
+      return null;
+    }
+    return {
+      patchBooking: (bookingId, body) => {
+        setBoardMessage(null);
+        patchBookingMut.mutate(
+          { bookingId, body },
+          {
+            onError: (e) => {
+              setBoardMessage(formatApiError(e));
+            },
+          }
+        );
+      },
+      openFolio: (bookingId) => {
+        navigate(`/bookings/${bookingId}`);
+      },
+      openReschedule: (b) => {
+        setRescheduleBooking(b);
+      },
+      patchIsPending: patchBookingMut.isPending,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- track isPending + stable mutate only
+  }, [
+    selectedPropertyId,
+    navigate,
+    patchBookingMut.isPending,
+    patchBookingMut.mutate,
+  ]);
+
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
       assignRoom.reset();
@@ -215,13 +310,75 @@ export function BoardPage() {
     activeBookingByDndIdRef.current.clear();
   }, []);
 
+  function applyReschedule(): void {
+    if (rescheduleBooking === null) {
+      return;
+    }
+    patchBookingMut.mutate(
+      {
+        bookingId: rescheduleBooking.id,
+        body: {
+          check_in: rescheduleCheckIn,
+          check_out: rescheduleCheckOut,
+        },
+      },
+      {
+        onSuccess: () => {
+          setRescheduleBooking(null);
+        },
+        onError: (e) => {
+          setBoardMessage(formatApiError(e));
+        },
+      }
+    );
+  }
+
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">Шахматка</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Текущий месяц: остатки по датам в шапке, категории и номера слева.
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Шахматка</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Остатки в шапке, категории и номера слева. Месяц:{" "}
+            <span className="font-medium text-foreground capitalize">
+              {monthTitle}
+            </span>
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            aria-label="Предыдущий месяц"
+            onClick={() => {
+              setMonthAnchor((a) => shiftMonthAnchor(a, -1));
+            }}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setMonthAnchor(new Date());
+            }}
+          >
+            Сегодня
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            aria-label="Следующий месяц"
+            onClick={() => {
+              setMonthAnchor((a) => shiftMonthAnchor(a, 1));
+            }}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {selectedPropertyId === null ? (
@@ -246,11 +403,13 @@ export function BoardPage() {
           onDragEnd={handleDragEnd}
           onDragCancel={handleDragCancel}
         >
-          {(boardMessage !== null || assignRoom.isError) && (
+          {(boardMessage !== null ||
+            assignRoom.isError ||
+            patchBookingMut.isError) && (
             <div
               className={cn(
                 "mb-3 rounded-md border px-3 py-2 text-sm",
-                assignRoom.isError
+                assignRoom.isError || patchBookingMut.isError
                   ? "border-destructive/60 bg-destructive/10 text-destructive"
                   : "border-amber-500/50 bg-amber-500/10 text-amber-950 dark:text-amber-100"
               )}
@@ -258,11 +417,13 @@ export function BoardPage() {
             >
               {assignRoom.isError
                 ? formatApiError(assignRoom.error)
-                : boardMessage}
+                : patchBookingMut.isError
+                  ? formatApiError(patchBookingMut.error)
+                  : boardMessage}
             </div>
           )}
-          <div className="flex flex-row items-start gap-4">
-            <div className="min-w-0 flex-1">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+            <div className="min-w-0 flex-1 overflow-x-auto">
               <BoardTapeGrid
                 days={month.days}
                 roomTypes={sortedRoomTypes}
@@ -271,6 +432,7 @@ export function BoardPage() {
                 sumsByDate={sumsByDate}
                 availabilityPending={showAvailabilityPending}
                 availabilityError={availabilityError}
+                bookingMenuApi={bookingMenuApi}
               />
             </div>
             <UnassignedPool
@@ -289,6 +451,67 @@ export function BoardPage() {
           </DragOverlay>
         </DndContext>
       )}
+
+      <Dialog
+        open={rescheduleBooking !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRescheduleBooking(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Перенос дат брони</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="space-y-2">
+              <label htmlFor="res-ci" className="text-sm font-medium">
+                Заезд (check_in)
+              </label>
+              <Input
+                id="res-ci"
+                type="date"
+                value={rescheduleCheckIn}
+                onChange={(e) => {
+                  setRescheduleCheckIn(e.target.value);
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="res-co" className="text-sm font-medium">
+                Выезд (check_out, эксклюзивно)
+              </label>
+              <Input
+                id="res-co"
+                type="date"
+                value={rescheduleCheckOut}
+                onChange={(e) => {
+                  setRescheduleCheckOut(e.target.value);
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setRescheduleBooking(null);
+              }}
+            >
+              Отмена
+            </Button>
+            <Button
+              type="button"
+              disabled={patchBookingMut.isPending}
+              onClick={applyReschedule}
+            >
+              Сохранить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

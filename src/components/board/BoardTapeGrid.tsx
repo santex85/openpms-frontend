@@ -1,5 +1,6 @@
 import { Fragment, useMemo } from "react";
 
+import type { BoardBookingMenuApi } from "@/components/board/BookingBlock";
 import { BoardRoomRow } from "@/components/board/BoardRoomRow";
 import { cn } from "@/lib/utils";
 import type { Booking, RoomRow, RoomType } from "@/types/api";
@@ -17,6 +18,7 @@ interface BoardTapeGridProps {
   sumsByDate: Map<string, number>;
   availabilityPending: boolean;
   availabilityError: boolean;
+  bookingMenuApi?: BoardBookingMenuApi | null;
 }
 
 export function BoardTapeGrid({
@@ -27,6 +29,7 @@ export function BoardTapeGrid({
   sumsByDate,
   availabilityPending,
   availabilityError,
+  bookingMenuApi,
 }: BoardTapeGridProps) {
   const colTemplate = useMemo(() => {
     const n = days.length;
@@ -164,6 +167,7 @@ export function BoardTapeGrid({
                   innerColTemplate={innerColTemplate}
                   roomBookings={bookingsByRoomId.get(room.id) ?? []}
                   cellBorder={cellBorder}
+                  bookingMenuApi={bookingMenuApi}
                 />
               ))}
             </Fragment>

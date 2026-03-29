@@ -26,26 +26,36 @@ export async function fetchBookings(
 const mockAssign =
   import.meta.env.VITE_MOCK_BOOKING_ASSIGN === "true";
 
-export async function assignBookingToRoom(
+export interface BookingPatchBody {
+  room_id?: string | null;
+  status?: string | null;
+  check_in?: string | null;
+  check_out?: string | null;
+  cancellation_reason?: string | null;
+}
+
+export async function patchBooking(
   bookingId: string,
-  roomId: string
+  body: BookingPatchBody
 ): Promise<void> {
   try {
-    await apiClient.patch(`/bookings/${bookingId}`, {
-      room_id: roomId,
-    });
+    await apiClient.patch(`/bookings/${bookingId}`, body);
   } catch (err) {
     if (
       mockAssign &&
       axios.isAxiosError(err) &&
       (err.response?.status === 404 || err.response?.status === 405)
     ) {
-      console.warn(
-        "assignBookingToRoom: mock mode, PATCH missing — skipping",
-        err
-      );
+      console.warn("patchBooking: mock mode — skipping", err);
       return;
     }
     throw err;
   }
+}
+
+export async function assignBookingToRoom(
+  bookingId: string,
+  roomId: string
+): Promise<void> {
+  await patchBooking(bookingId, { room_id: roomId });
 }

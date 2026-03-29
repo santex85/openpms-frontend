@@ -3,8 +3,14 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { RequireAuth } from "@/components/auth/RequireAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { BoardPage } from "@/pages/BoardPage";
+import { BookingDetailPage } from "@/pages/BookingDetailPage";
+import { BookingsListPage } from "@/pages/BookingsListPage";
 import { DashboardPage } from "@/pages/DashboardPage";
+import { GuestsPage } from "@/pages/GuestsPage";
+import { HousekeepingPage } from "@/pages/HousekeepingPage";
 import { LoginPage } from "@/pages/LoginPage";
+import { RatesPage } from "@/pages/RatesPage";
+import { RoomsPage } from "@/pages/RoomsPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 
 export default function App() {
@@ -26,6 +32,12 @@ export default function App() {
         >
           <Route index element={<DashboardPage />} />
           <Route path="board" element={<BoardPage />} />
+          <Route path="bookings" element={<BookingsListPage />} />
+          <Route path="bookings/:id" element={<BookingDetailPage />} />
+          <Route path="guests" element={<GuestsPage />} />
+          <Route path="rates" element={<RatesPage />} />
+          <Route path="rooms" element={<RoomsPage />} />
+          <Route path="housekeeping" element={<HousekeepingPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

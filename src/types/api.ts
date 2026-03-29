@@ -1,3 +1,13 @@
+/** Authenticated user from POST /auth/login or GET /auth/me. */
+export interface UserRead {
+  id: string;
+  tenant_id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  is_active: boolean;
+}
+
 /** Property (hotel) as returned by GET /properties. */
 export interface Property {
   id: string;

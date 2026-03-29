@@ -1,7 +1,10 @@
 /** localStorage key for Bearer token (MVP). */
 export const AUTH_STORAGE_KEY = "openpms_auth_token";
 
-/** Hardcoded demo token for one-click MVP login. */
+/**
+ * Placeholder string for one-click login when the API does not validate JWT
+ * (not accepted by real OpenPMS — use `npm run mint:jwt` against Docker API).
+ */
 export const MVP_DEMO_TOKEN = "mvp-demo-bearer-token";
 
 /** Query parameter name for scoping API calls to a property (FastAPI). */
