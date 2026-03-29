@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,8 +10,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCreateProperty } from "@/hooks/useCreateProperty";
+import { useCreateRoomType } from "@/hooks/useCreateRoomType";
+import { useProperties } from "@/hooks/useProperties";
+import { useRoomTypes } from "@/hooks/useRoomTypes";
 import { canManagePropertiesFromToken } from "@/lib/jwtPayload";
-import type { PropertyCreate } from "@/types/api";
+import { usePropertyStore } from "@/stores/property-store";
+import type { PropertyCreate, RoomTypeCreate } from "@/types/api";
 
 const TIMEZONE_PRESETS = [
   { value: "Europe/Moscow", label: "Europe/Moscow" },
@@ -56,9 +60,109 @@ function formatCreatePropertyError(err: unknown): string {
   return "Не удалось создать отель.";
 }
 
+function formatRoomTypeMutationError(err: unknown): string {
+  if (axios.isAxiosError(err) && err.response?.data !== undefined) {
+    const data = err.response.data as { detail?: unknown };
+    if (typeof data.detail === "string") {
+      return data.detail;
+    }
+    if (Array.isArray(data.detail)) {
+      const parts = data.detail.map((item) => {
+        if (typeof item === "object" && item !== null && "msg" in item) {
+          return String((item as { msg: string }).msg);
+        }
+        return "";
+      });
+      const joined = parts.filter(Boolean).join("; ");
+      if (joined !== "") {
+        return joined;
+      }
+    }
+    if (err.response.status === 403) {
+      return "Недостаточно прав: типы номеров создают owner и manager.";
+    }
+    if (err.response.status === 404) {
+      return "Отель не найден или не принадлежит вашей организации.";
+    }
+  }
+  return "Не удалось создать тип номера.";
+}
+
 export function SettingsPage() {
   const canManage = canManagePropertiesFromToken();
   const createMutation = useCreateProperty();
+  const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
+  const { data: properties } = useProperties();
+  const {
+    data: roomTypes,
+    isPending: roomTypesPending,
+    isError: roomTypesError,
+  } = useRoomTypes();
+  const createRoomTypeMutation = useCreateRoomType();
+
+  const selectedPropertyName = useMemo(() => {
+    if (selectedPropertyId === null || properties === undefined) {
+      return null;
+    }
+    return properties.find((p) => p.id === selectedPropertyId)?.name ?? null;
+  }, [selectedPropertyId, properties]);
+
+  const [rtName, setRtName] = useState("");
+  const [rtBase, setRtBase] = useState("2");
+  const [rtMax, setRtMax] = useState("4");
+  const [rtFormError, setRtFormError] = useState<string | null>(null);
+  const [rtFormSuccess, setRtFormSuccess] = useState<string | null>(null);
+
+  async function handleCreateRoomType(
+    e: FormEvent<HTMLFormElement>
+  ): Promise<void> {
+    e.preventDefault();
+    setRtFormError(null);
+    setRtFormSuccess(null);
+
+    if (selectedPropertyId === null) {
+      setRtFormError("Выберите отель в шапке.");
+      return;
+    }
+
+    const nameTrim = rtName.trim();
+    if (nameTrim === "") {
+      setRtFormError("Введите название категории.");
+      return;
+    }
+
+    const base = Number.parseInt(rtBase, 10);
+    const max = Number.parseInt(rtMax, 10);
+    if (!Number.isFinite(base) || base < 1) {
+      setRtFormError("Базовая вместимость — целое число от 1.");
+      return;
+    }
+    if (!Number.isFinite(max) || max < 1) {
+      setRtFormError("Максимальная вместимость — целое число от 1.");
+      return;
+    }
+    if (max < base) {
+      setRtFormError("Максимальная вместимость не может быть меньше базовой.");
+      return;
+    }
+
+    const body: RoomTypeCreate = {
+      property_id: selectedPropertyId,
+      name: nameTrim,
+      base_occupancy: base,
+      max_occupancy: max,
+    };
+
+    try {
+      await createRoomTypeMutation.mutateAsync(body);
+      setRtFormSuccess("Тип номера создан.");
+      setRtName("");
+      setRtBase("2");
+      setRtMax("4");
+    } catch (err) {
+      setRtFormError(formatRoomTypeMutationError(err));
+    }
+  }
 
   const [name, setName] = useState("");
   const [timezoneMode, setTimezoneMode] = useState<string>(
@@ -272,19 +376,153 @@ export function SettingsPage() {
       </section>
       <section
         id="room-types-hint"
-        className="space-y-2 rounded-lg border border-border bg-card p-4"
+        className="space-y-4 rounded-lg border border-border bg-card p-4"
       >
-        <h3 className="text-sm font-semibold text-foreground">Типы номеров</h3>
-        <p className="text-sm text-muted-foreground">
-          Перед добавлением физических номеров нужна хотя бы одна категория
-          (тип номера). Создание через{" "}
-          <code className="rounded bg-muted px-1 font-mono text-xs">
-            POST /room-types
-          </code>{" "}
-          в документации API{" "}
-          <code className="rounded bg-muted px-1 font-mono text-xs">/docs</code>{" "}
-          (форма на фронте — позже).
-        </p>
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">
+            Типы номеров
+            {selectedPropertyName !== null ? (
+              <span className="ml-2 font-normal text-muted-foreground">
+                ({selectedPropertyName})
+              </span>
+            ) : null}
+          </h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Категории для физических номеров выбранного отеля (
+            <code className="rounded bg-muted px-1 font-mono text-xs">
+              POST /room-types
+            </code>
+            ).
+          </p>
+        </div>
+
+        {selectedPropertyId === null ? (
+          <p className="text-sm text-muted-foreground">
+            Выберите отель в шапке, чтобы добавить или просмотреть типы номеров.
+          </p>
+        ) : !canManage ? (
+          <p className="text-sm text-muted-foreground">
+            Создание типов номеров доступно ролям owner и manager.
+          </p>
+        ) : (
+          <>
+            <form
+              className="max-w-md space-y-4"
+              onSubmit={(e) => void handleCreateRoomType(e)}
+            >
+              {rtFormError !== null ? (
+                <p className="text-sm text-destructive" role="alert">
+                  {rtFormError}
+                </p>
+              ) : null}
+              {rtFormSuccess !== null ? (
+                <p className="text-sm text-emerald-600 dark:text-emerald-400">
+                  {rtFormSuccess}
+                </p>
+              ) : null}
+              <div className="space-y-2">
+                <label htmlFor="rt-name" className="text-sm font-medium">
+                  Название категории
+                </label>
+                <Input
+                  id="rt-name"
+                  value={rtName}
+                  onChange={(e) => {
+                    setRtName(e.target.value);
+                  }}
+                  placeholder="Стандарт"
+                  autoComplete="off"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label htmlFor="rt-base" className="text-sm font-medium">
+                    Базовая вместимость
+                  </label>
+                  <Input
+                    id="rt-base"
+                    type="number"
+                    min={1}
+                    value={rtBase}
+                    onChange={(e) => {
+                      setRtBase(e.target.value);
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="rt-max" className="text-sm font-medium">
+                    Макс. вместимость
+                  </label>
+                  <Input
+                    id="rt-max"
+                    type="number"
+                    min={1}
+                    value={rtMax}
+                    onChange={(e) => {
+                      setRtMax(e.target.value);
+                    }}
+                  />
+                </div>
+              </div>
+              <Button
+                type="submit"
+                disabled={createRoomTypeMutation.isPending}
+              >
+                {createRoomTypeMutation.isPending
+                  ? "Создаём…"
+                  : "Создать тип номера"}
+              </Button>
+            </form>
+
+            <div>
+              <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Уже созданные
+              </h4>
+              {roomTypesError ? (
+                <p className="text-sm text-destructive">
+                  Не удалось загрузить типы номеров.
+                </p>
+              ) : roomTypesPending ? (
+                <div
+                  className="h-24 animate-pulse rounded-md bg-muted"
+                  aria-hidden
+                />
+              ) : (roomTypes ?? []).length === 0 ? (
+                <p className="rounded-md border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
+                  Пока нет категорий. Добавьте первую формой выше.
+                </p>
+              ) : (
+                <div className="overflow-x-auto rounded-md border">
+                  <table className="w-full min-w-[420px] text-left text-sm">
+                    <thead className="border-b bg-muted/50">
+                      <tr>
+                        <th className="px-3 py-2 font-medium">Название</th>
+                        <th className="px-3 py-2 font-medium">База / Макс.</th>
+                        <th className="px-3 py-2 font-medium">id</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(roomTypes ?? []).map((rt) => (
+                        <tr
+                          key={rt.id}
+                          className="border-b border-border/80"
+                        >
+                          <td className="px-3 py-2">{rt.name}</td>
+                          <td className="px-3 py-2">
+                            {rt.base_occupancy} / {rt.max_occupancy}
+                          </td>
+                          <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
+                            {rt.id}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </section>
       <section className="space-y-2 rounded-lg border border-border bg-card p-4">
         <h3 className="text-sm font-semibold text-foreground">Пользователи</h3>
