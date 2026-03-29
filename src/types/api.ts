@@ -8,10 +8,25 @@ export interface UserRead {
   is_active: boolean;
 }
 
-/** Property (hotel) as returned by GET /properties. */
-export interface Property {
-  id: string;
+/** Property (hotel): POST body for create. */
+export interface PropertyCreate {
   name: string;
+  timezone: string;
+  currency: string;
+  /** ISO-like time string e.g. "14:00:00" */
+  checkin_time: string;
+  checkout_time: string;
+}
+
+/** Property as returned by GET/POST /properties. */
+export interface PropertyRead {
+  id: string;
+  tenant_id: string;
+  name: string;
+  timezone: string;
+  currency: string;
+  checkin_time: string;
+  checkout_time: string;
 }
 
 /** Room type as returned by GET /room-types?property_id=… */

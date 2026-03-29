@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { Link } from "react-router-dom";
 
 import {
   Select,
@@ -49,7 +50,15 @@ export function PropertySwitcher() {
 
   if (properties === undefined || properties.length === 0) {
     return (
-      <span className="text-sm text-muted-foreground">Нет отелей</span>
+      <span className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+        Нет отелей
+        <Link
+          to="/settings#properties-hotels"
+          className="text-primary underline underline-offset-2"
+        >
+          Добавить отель
+        </Link>
+      </span>
     );
   }
 
