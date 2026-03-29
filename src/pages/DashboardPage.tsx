@@ -39,7 +39,7 @@ export function DashboardPage() {
             to="/board"
             className="font-medium text-primary underline-offset-4 hover:underline"
           >
-            Шахматка
+            Сетка
           </Link>
           .
         </p>

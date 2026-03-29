@@ -12,7 +12,7 @@ import { getMonthRange } from "@/utils/boardDates";
 /**
  * When a property is selected anywhere under AppLayout, warm the cache for
  * /board (room types + availability) so Network shows those requests and
- * navigation to Шахматка is instant.
+ * navigation to the room grid is instant.
  */
 export function usePrefetchBoardData() {
   const queryClient = useQueryClient();

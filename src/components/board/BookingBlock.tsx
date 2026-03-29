@@ -119,7 +119,7 @@ function DraggableBookingTile({
           onSelect={() => {
             menuApi.patchBooking(booking.id, {
               status: "cancelled",
-              cancellation_reason: "Отмена с шахматки",
+              cancellation_reason: "Отмена из сетки",
             });
           }}
         >

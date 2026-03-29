@@ -337,7 +337,7 @@ export function BoardPage() {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Шахматка</h2>
+          <h2 className="text-lg font-semibold text-foreground">Сетка</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Остатки в шапке, категории и номера слева. Месяц:{" "}
             <span className="font-medium text-foreground capitalize">
@@ -383,7 +383,7 @@ export function BoardPage() {
 
       {selectedPropertyId === null ? (
         <p className="text-sm text-muted-foreground">
-          Выберите отель в шапке, чтобы загрузить шахматку.
+          Выберите отель в шапке, чтобы загрузить сетку.
         </p>
       ) : roomTypesPending || roomsPending ? (
         <div

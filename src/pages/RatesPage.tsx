@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useAvailabilityGrid } from "@/hooks/useAvailabilityGrid";
 import { useBulkUpsertRates } from "@/hooks/useBulkUpsertRates";
 import { useCreateRatePlan } from "@/hooks/useCreateRatePlan";
 import { useNightlyRatesMatrix } from "@/hooks/useNightlyRatesMatrix";
@@ -29,6 +30,7 @@ import { useRoomTypes } from "@/hooks/useRoomTypes";
 import { formatApiError } from "@/lib/formatApiError";
 import { canManagePropertiesFromToken } from "@/lib/jwtPayload";
 import { usePropertyStore } from "@/stores/property-store";
+import type { AvailabilityCell } from "@/types/inventory";
 import type { BulkRateSegment, RatePlanCreate } from "@/types/rates";
 import { cn } from "@/lib/utils";
 import { getMonthRange, shiftMonthAnchor } from "@/utils/boardDates";
@@ -51,6 +53,38 @@ function monthTitleRu(anchor: Date): string {
     month: "long",
     year: "numeric",
   });
+}
+
+function availabilityOccupancyLine(
+  cell: AvailabilityCell | undefined,
+  availabilityPending: boolean,
+  availabilityErrored: boolean
+): JSX.Element | null {
+  if (availabilityErrored) {
+    return null;
+  }
+  if (availabilityPending) {
+    return (
+      <span className="block text-[10px] leading-tight text-muted-foreground">
+        …
+      </span>
+    );
+  }
+  if (cell === undefined) {
+    return (
+      <span className="block text-[10px] leading-tight text-muted-foreground">
+        —
+      </span>
+    );
+  }
+  const blockedSuffix =
+    cell.blocked_rooms > 0 ? ` · блок ${String(cell.blocked_rooms)}` : "";
+  return (
+    <span className="block text-[10px] leading-tight text-muted-foreground">
+      занято {cell.booked_rooms}
+      {blockedSuffix} · свободно {cell.available_rooms}
+    </span>
+  );
 }
 
 export function RatesPage() {
@@ -100,6 +134,21 @@ export function RatesPage() {
     month.startIso,
     month.endIso
   );
+
+  const {
+    data: availabilityGrid,
+    isPending: availabilityPending,
+    isError: availabilityError,
+    error: availabilityErrorObj,
+  } = useAvailabilityGrid(month.startIso, month.endIso);
+
+  const availabilityByKey = useMemo(() => {
+    const m = new Map<string, AvailabilityCell>();
+    for (const cell of availabilityGrid?.cells ?? []) {
+      m.set(`${cell.date}_${cell.room_type_id}`, cell);
+    }
+    return m;
+  }, [availabilityGrid?.cells]);
 
   const allRatesStillPending =
     matrixRows.length > 0 && matrixRows.every((r) => r.isPending);
@@ -410,13 +459,22 @@ export function RatesPage() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Сетка показывает все категории номеров для выбранного плана.
+                Сетка показывает все категории номеров для выбранного плана. Во
+                второй строке ячейки — остатки из инвентаря (не зависят от
+                тарифа).
               </p>
             </div>
 
             {ratesError && ratesErrorObj !== null ? (
               <p className="text-sm text-destructive" role="alert">
                 {formatApiError(ratesErrorObj)}
+              </p>
+            ) : null}
+
+            {availabilityError && availabilityErrorObj !== null ? (
+              <p className="text-sm text-amber-700 dark:text-amber-400" role="status">
+                Не удалось загрузить остатки номеров:{" "}
+                {formatApiError(availabilityErrorObj)}
               </p>
             ) : null}
 
@@ -446,7 +504,7 @@ export function RatesPage() {
                         return (
                           <th
                             key={d.iso}
-                            className="min-w-[3rem] border-b bg-muted/40 px-0.5 py-2 text-center font-medium leading-tight text-foreground"
+                            className="min-w-[3.25rem] border-b bg-muted/40 px-0.5 py-2 text-center font-medium leading-tight text-foreground"
                           >
                             <div className="text-[10px] uppercase text-muted-foreground">
                               {weekday}
@@ -477,19 +535,30 @@ export function RatesPage() {
                           </th>
                           {month.days.map((d) => {
                             const p = priceByDate.get(d.iso);
+                            const availKey = `${d.iso}_${rt.id}`;
+                            const availCell = availabilityByKey.get(availKey);
                             return (
                               <td
                                 key={d.iso}
                                 className={cn(
-                                  "border-b border-border/80 px-0.5 py-2 text-center tabular-nums text-foreground",
+                                  "border-b border-border/80 px-0.5 py-1.5 align-top text-center tabular-nums text-foreground",
                                   rowPending && "animate-pulse bg-muted/30"
                                 )}
                               >
-                                {rowPending
-                                  ? "…"
-                                  : p !== undefined
-                                    ? p
-                                    : "—"}
+                                <div className="flex min-h-[2.5rem] flex-col items-center justify-center gap-0.5 leading-tight">
+                                  <span>
+                                    {rowPending
+                                      ? "…"
+                                      : p !== undefined
+                                        ? p
+                                        : "—"}
+                                  </span>
+                                  {availabilityOccupancyLine(
+                                    availCell,
+                                    availabilityPending,
+                                    availabilityError
+                                  )}
+                                </div>
                               </td>
                             );
                           })}

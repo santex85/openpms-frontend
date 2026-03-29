@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 
 const navItems: { to: string; label: string }[] = [
   { to: "/", label: "Dashboard" },
-  { to: "/board", label: "Шахматка" },
+  { to: "/board", label: "Сетка" },
   { to: "/bookings", label: "Брони" },
   { to: "/guests", label: "Гости" },
   { to: "/rates", label: "Тарифы" },

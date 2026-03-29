@@ -42,3 +42,14 @@ export function canManagePropertiesFromToken(): boolean {
   }
   return role === "owner" || role === "manager";
 }
+
+/** owner / manager / receptionist — POST /bookings and аналогичные действия. */
+export function canWriteBookingsFromToken(): boolean {
+  const role = getRoleFromAccessToken();
+  if (role === null) {
+    return true;
+  }
+  return (
+    role === "owner" || role === "manager" || role === "receptionist"
+  );
+}

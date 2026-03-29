@@ -91,7 +91,7 @@ export function BoardTapeGrid({
     return (
       <p className="text-sm text-muted-foreground">
         Нет физических номеров для отеля. Добавьте комнаты, чтобы отобразить
-        строки шахматки и брони.
+        строки сетки и брони.
       </p>
     );
   }

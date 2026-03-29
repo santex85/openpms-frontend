@@ -62,6 +62,23 @@ export interface Guest {
   last_name: string;
 }
 
+/** Guest profile row (GET /guests). */
+export interface GuestRead {
+  id: string;
+  tenant_id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  passport_data: string | null;
+  nationality: string | null;
+  date_of_birth: string | null;
+  notes: string | null;
+  vip_status: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 /** Booking row for board (GET /bookings), snake_case from API. */
 export interface Booking {
   id: string;
@@ -77,6 +94,40 @@ export interface Booking {
   room_id: string | null;
   /** Present when all booking lines share one room type. */
   room_type_id?: string | null;
+}
+
+/** Guest on POST /bookings body */
+export interface BookingGuestPayload {
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  passport_data?: string | null;
+}
+
+/** POST /bookings body */
+export interface BookingCreateRequest {
+  property_id: string;
+  room_type_id: string;
+  rate_plan_id: string;
+  check_in: string;
+  check_out: string;
+  guest: BookingGuestPayload;
+  status?: string;
+  source?: string;
+}
+
+export interface NightlyPriceLine {
+  date: string;
+  price: string;
+}
+
+/** POST /bookings response */
+export interface BookingCreateResponse {
+  booking_id: string;
+  guest_id: string;
+  total_amount: string;
+  nights: NightlyPriceLine[];
 }
 
 /** Physical room for board rows (GET/POST /rooms?property_id=…). */

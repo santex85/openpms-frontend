@@ -2,7 +2,11 @@ import axios from "axios";
 
 import { apiClient } from "@/lib/api";
 import { PROPERTY_ID_QUERY_PARAM } from "@/lib/constants";
-import type { Booking } from "@/types/api";
+import type {
+  Booking,
+  BookingCreateRequest,
+  BookingCreateResponse,
+} from "@/types/api";
 
 export interface FetchBookingsParams {
   propertyId: string;
@@ -20,6 +24,16 @@ export async function fetchBookings(
       end_date: params.endDate,
     },
   });
+  return data;
+}
+
+export async function createBooking(
+  body: BookingCreateRequest
+): Promise<BookingCreateResponse> {
+  const { data } = await apiClient.post<BookingCreateResponse>(
+    "/bookings",
+    body
+  );
   return data;
 }
 
