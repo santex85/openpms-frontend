@@ -1,5 +1,11 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactElement,
+} from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
 
@@ -59,7 +65,7 @@ function availabilityOccupancyLine(
   cell: AvailabilityCell | undefined,
   availabilityPending: boolean,
   availabilityErrored: boolean
-): JSX.Element | null {
+): ReactElement | null {
   if (availabilityErrored) {
     return null;
   }

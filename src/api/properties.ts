@@ -12,3 +12,15 @@ export async function createProperty(
   const { data } = await apiClient.post<PropertyRead>("/properties", body);
   return data;
 }
+
+/** PATCH /properties/{property_id} — те же поля, что и при создании. */
+export async function updateProperty(
+  propertyId: string,
+  body: PropertyCreate
+): Promise<PropertyRead> {
+  const { data } = await apiClient.patch<PropertyRead>(
+    `/properties/${propertyId}`,
+    body
+  );
+  return data;
+}

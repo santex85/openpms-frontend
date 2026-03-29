@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import {
 import { useCreateProperty } from "@/hooks/useCreateProperty";
 import { useCreateRoomType } from "@/hooks/useCreateRoomType";
 import { useProperties } from "@/hooks/useProperties";
+import { useUpdateProperty } from "@/hooks/useUpdateProperty";
 import { useRoomTypes } from "@/hooks/useRoomTypes";
 import { canManagePropertiesFromToken } from "@/lib/jwtPayload";
 import { usePropertyStore } from "@/stores/property-store";
@@ -35,7 +36,16 @@ function timeToApi(value: string): string {
   return v;
 }
 
-function formatCreatePropertyError(err: unknown): string {
+/** API times like `14:00:00` → value for `<input type="time" />`. */
+function apiTimeToInput(value: string): string {
+  const v = value.trim();
+  if (/^\d{2}:\d{2}/.test(v)) {
+    return v.slice(0, 5);
+  }
+  return "00:00";
+}
+
+function formatPropertyFormError(err: unknown, mode: "create" | "update"): string {
   if (axios.isAxiosError(err) && err.response?.data !== undefined) {
     const data = err.response.data as { detail?: unknown };
     if (typeof data.detail === "string") {
@@ -54,10 +64,17 @@ function formatCreatePropertyError(err: unknown): string {
       }
     }
     if (err.response.status === 403) {
-      return "Недостаточно прав: создание отеля доступно ролям owner и manager.";
+      return mode === "create"
+        ? "Недостаточно прав: создание отеля доступно ролям owner и manager."
+        : "Недостаточно прав: изменение отеля доступно ролям owner и manager.";
+    }
+    if (err.response.status === 405 && mode === "update") {
+      return "Сервер не поддерживает PATCH для отеля (405). Нужен другой метод или версия API.";
     }
   }
-  return "Не удалось создать отель.";
+  return mode === "create"
+    ? "Не удалось создать отель."
+    : "Не удалось сохранить настройки отеля.";
 }
 
 function formatRoomTypeMutationError(err: unknown): string {
@@ -91,6 +108,7 @@ function formatRoomTypeMutationError(err: unknown): string {
 export function SettingsPage() {
   const canManage = canManagePropertiesFromToken();
   const createMutation = useCreateProperty();
+  const updateMutation = useUpdateProperty();
   const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
   const { data: properties } = useProperties();
   const {
@@ -175,7 +193,44 @@ export function SettingsPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
 
-  async function handleCreateProperty(e: FormEvent<HTMLFormElement>) {
+  useEffect(() => {
+    if (selectedPropertyId === null) {
+      setName("");
+      setCurrency("");
+      setTimezoneCustom("");
+      setTimezoneMode(TIMEZONE_PRESETS[0].value);
+      setCheckinTime("14:00");
+      setCheckoutTime("11:00");
+      return;
+    }
+    if (properties === undefined) {
+      return;
+    }
+    const prop = properties.find((p) => p.id === selectedPropertyId);
+    if (prop === undefined) {
+      return;
+    }
+    setName(prop.name);
+    setCurrency(prop.currency);
+    const tz = (prop.timezone ?? "").trim();
+    const presetHit = TIMEZONE_PRESETS.find(
+      (p) => p.value.toLowerCase() === tz.toLowerCase()
+    );
+    if (presetHit !== undefined) {
+      setTimezoneMode(presetHit.value);
+      setTimezoneCustom("");
+    } else if (tz !== "") {
+      setTimezoneMode(CUSTOM_TZ);
+      setTimezoneCustom(tz);
+    } else {
+      setTimezoneMode(CUSTOM_TZ);
+      setTimezoneCustom("");
+    }
+    setCheckinTime(apiTimeToInput(prop.checkin_time));
+    setCheckoutTime(apiTimeToInput(prop.checkout_time));
+  }, [selectedPropertyId, properties]);
+
+  async function handlePropertyForm(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setFormError(null);
     setFormSuccess(null);
@@ -209,16 +264,29 @@ export function SettingsPage() {
     }
 
     try {
-      await createMutation.mutateAsync(body);
-      setFormSuccess("Отель создан. Он выбран в переключателе в шапке.");
-      setName("");
-      setCurrency("");
-      setTimezoneCustom("");
-      setTimezoneMode(TIMEZONE_PRESETS[0].value);
-      setCheckinTime("14:00");
-      setCheckoutTime("11:00");
+      if (selectedPropertyId !== null) {
+        await updateMutation.mutateAsync({
+          propertyId: selectedPropertyId,
+          body,
+        });
+        setFormSuccess("Настройки отеля сохранены.");
+      } else {
+        await createMutation.mutateAsync(body);
+        setFormSuccess("Отель создан. Он выбран в переключателе в шапке.");
+        setName("");
+        setCurrency("");
+        setTimezoneCustom("");
+        setTimezoneMode(TIMEZONE_PRESETS[0].value);
+        setCheckinTime("14:00");
+        setCheckoutTime("11:00");
+      }
     } catch (err) {
-      setFormError(formatCreatePropertyError(err));
+      setFormError(
+        formatPropertyFormError(
+          err,
+          selectedPropertyId !== null ? "update" : "create"
+        )
+      );
     }
   }
 
@@ -244,13 +312,12 @@ export function SettingsPage() {
             администратору тенанта.
           </p>
         ) : (
-          <form className="max-w-md space-y-4" onSubmit={handleCreateProperty}>
+          <form
+            className="max-w-md space-y-4"
+            onSubmit={(e) => void handlePropertyForm(e)}
+          >
             <p className="text-sm text-muted-foreground">
-              Новое свойство создаётся через{" "}
-              <code className="rounded bg-muted px-1 font-mono text-xs">
-                POST /properties
-              </code>
-              . Часовой пояс — имя IANA (
+              Часовой пояс — имя IANA (
               <a
                 className="text-primary underline underline-offset-2"
                 href="https://en.wikipedia.org/wiki/List_of_tz_database_time_zones"
@@ -259,7 +326,28 @@ export function SettingsPage() {
               >
                 справочник
               </a>
-              ).
+              ).{" "}
+              {selectedPropertyId !== null ? (
+                <>
+                  Редактируете выбранный в шапке отель: сохранение вызывает{" "}
+                  <code className="rounded bg-muted px-1 font-mono text-xs">
+                    PATCH /properties/{"{"}id{"}"}
+                  </code>
+                  . Поля подгружаются из{" "}
+                  <code className="rounded bg-muted px-1 font-mono text-xs">
+                    GET /properties
+                  </code>
+                  .
+                </>
+              ) : (
+                <>
+                  Новый отель создаётся через{" "}
+                  <code className="rounded bg-muted px-1 font-mono text-xs">
+                    POST /properties
+                  </code>
+                  . Выберите отель в шапке, чтобы править существующий.
+                </>
+              )}
             </p>
             {formError !== null ? (
               <p className="text-sm text-destructive" role="alert">
@@ -288,13 +376,14 @@ export function SettingsPage() {
             <div className="space-y-2">
               <span className="text-sm font-medium">Часовой пояс</span>
               <Select
+                key={selectedPropertyId ?? "new-property"}
                 value={timezoneMode}
                 onValueChange={(v) => {
                   setTimezoneMode(v);
                 }}
               >
                 <SelectTrigger aria-label="Часовой пояс">
-                  <SelectValue placeholder="Выберите" />
+                  <SelectValue placeholder="Выберите часовой пояс" />
                 </SelectTrigger>
                 <SelectContent>
                   {TIMEZONE_PRESETS.map((p) => (
@@ -367,9 +456,15 @@ export function SettingsPage() {
             </div>
             <Button
               type="submit"
-              disabled={createMutation.isPending}
+              disabled={createMutation.isPending || updateMutation.isPending}
             >
-              {createMutation.isPending ? "Создаём…" : "Создать отель"}
+              {selectedPropertyId !== null
+                ? updateMutation.isPending
+                  ? "Сохраняем…"
+                  : "Сохранить"
+                : createMutation.isPending
+                  ? "Создаём…"
+                  : "Создать отель"}
             </Button>
           </form>
         )}

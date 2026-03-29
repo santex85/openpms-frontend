@@ -67,10 +67,8 @@ export function BookingsListPage() {
     };
   }, []);
 
-  const { data: bookings, isPending, isError } = useBookings(
-    range.startIso,
-    range.endIso
-  );
+  const { data: bookings, isPending, isError, error: bookingsError } =
+    useBookings(range.startIso, range.endIso);
 
   const { data: roomTypes, isPending: roomTypesPending } = useRoomTypes();
   const { data: ratePlans, isPending: ratePlansPending } = useRatePlans();
@@ -147,7 +145,6 @@ export function BookingsListPage() {
   async function handleCreateBooking(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
     setCreateError(null);
-    setCreateSuccess(null);
 
     if (selectedPropertyId === null) {
       setCreateError("Выберите отель в шапке.");
@@ -274,7 +271,10 @@ export function BookingsListPage() {
         />
       </div>
       {isError ? (
-        <p className="text-sm text-destructive">Не удалось загрузить брони.</p>
+        <p className="text-sm text-destructive" role="alert">
+          Не удалось загрузить брони.
+          {bookingsError !== null ? ` ${formatApiError(bookingsError)}` : ""}
+        </p>
       ) : isPending ? (
         <div className="h-40 animate-pulse rounded-md bg-muted" aria-hidden />
       ) : (
