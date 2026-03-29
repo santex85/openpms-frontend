@@ -36,6 +36,14 @@ export interface RoomType {
   property_id?: string;
 }
 
+/** POST /rooms body */
+export interface RoomCreate {
+  room_type_id: string;
+  name: string;
+  /** Optional; backend default "available" */
+  status?: string;
+}
+
 /** Guest summary on booking tape (GET /bookings). */
 export interface Guest {
   id: string;
@@ -60,9 +68,10 @@ export interface Booking {
   room_type_id?: string | null;
 }
 
-/** Physical room for board rows (GET /rooms?property_id=…). */
+/** Physical room for board rows (GET/POST /rooms?property_id=…). */
 export interface RoomRow {
   id: string;
   room_type_id: string;
   name: string;
+  status: string;
 }

@@ -270,6 +270,22 @@ export function SettingsPage() {
           </form>
         )}
       </section>
+      <section
+        id="room-types-hint"
+        className="space-y-2 rounded-lg border border-border bg-card p-4"
+      >
+        <h3 className="text-sm font-semibold text-foreground">Типы номеров</h3>
+        <p className="text-sm text-muted-foreground">
+          Перед добавлением физических номеров нужна хотя бы одна категория
+          (тип номера). Создание через{" "}
+          <code className="rounded bg-muted px-1 font-mono text-xs">
+            POST /room-types
+          </code>{" "}
+          в документации API{" "}
+          <code className="rounded bg-muted px-1 font-mono text-xs">/docs</code>{" "}
+          (форма на фронте — позже).
+        </p>
+      </section>
       <section className="space-y-2 rounded-lg border border-border bg-card p-4">
         <h3 className="text-sm font-semibold text-foreground">Пользователи</h3>
         <p className="text-sm text-muted-foreground">
