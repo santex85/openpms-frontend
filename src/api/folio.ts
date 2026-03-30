@@ -11,6 +11,25 @@ export interface FolioTransactionRead {
   created_at: string;
   created_by: string | null;
   category: string;
+  /** Если true, можно отправить сторно по этой строке. */
+  voidable?: boolean;
+}
+
+export interface FolioChargeCreate {
+  amount: string;
+  category: string;
+  description?: string | null;
+}
+
+export interface FolioPaymentCreate {
+  amount: string;
+  payment_method: string;
+  description?: string | null;
+}
+
+export interface FolioReversalCreate {
+  reverses_transaction_id: string;
+  reason?: string | null;
 }
 
 export interface FolioListResponse {
@@ -25,4 +44,26 @@ export async function fetchBookingFolio(
     `/bookings/${bookingId}/folio`
   );
   return data;
+}
+
+export async function postFolioCharge(
+  bookingId: string,
+  body: FolioChargeCreate
+): Promise<void> {
+  await apiClient.post(`/bookings/${bookingId}/folio/charges`, body);
+}
+
+export async function postFolioPayment(
+  bookingId: string,
+  body: FolioPaymentCreate
+): Promise<void> {
+  await apiClient.post(`/bookings/${bookingId}/folio/payments`, body);
+}
+
+/** Сторно проводки (новая оборотная запись или void по политике бэкенда). */
+export async function postFolioReversal(
+  bookingId: string,
+  body: FolioReversalCreate
+): Promise<void> {
+  await apiClient.post(`/bookings/${bookingId}/folio/reversals`, body);
 }

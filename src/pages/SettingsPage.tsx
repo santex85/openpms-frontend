@@ -1,5 +1,8 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { SettingsApiKeysSection } from "@/components/settings/SettingsApiKeysSection";
+import { SettingsUsersSection } from "@/components/settings/SettingsUsersSection";
+import { SettingsWebhooksSection } from "@/components/settings/SettingsWebhooksSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -619,36 +622,9 @@ export function SettingsPage() {
           </>
         )}
       </section>
-      <section className="space-y-2 rounded-lg border border-border bg-card p-4">
-        <h3 className="text-sm font-semibold text-foreground">Пользователи</h3>
-        <p className="text-sm text-muted-foreground">
-          Приглашения:{" "}
-          <code className="rounded bg-muted px-1 font-mono text-xs">
-            POST /auth/invite
-          </code>{" "}
-          (роли owner/manager JWT).
-        </p>
-      </section>
-      <section className="space-y-2 rounded-lg border border-border bg-card p-4">
-        <h3 className="text-sm font-semibold text-foreground">API-ключи</h3>
-        <p className="text-sm text-muted-foreground">
-          Управление интеграционными ключами:{" "}
-          <code className="rounded bg-muted px-1 font-mono text-xs">
-            /api-keys
-          </code>
-          .
-        </p>
-      </section>
-      <section className="space-y-2 rounded-lg border border-border bg-card p-4">
-        <h3 className="text-sm font-semibold text-foreground">Вебхуки</h3>
-        <p className="text-sm text-muted-foreground">
-          Подписки и логи:{" "}
-          <code className="rounded bg-muted px-1 font-mono text-xs">
-            /webhooks
-          </code>
-          .
-        </p>
-      </section>
+      <SettingsUsersSection canManage={canManage} />
+      <SettingsApiKeysSection canManage={canManage} />
+      <SettingsWebhooksSection canManage={canManage} />
     </div>
   );
 }

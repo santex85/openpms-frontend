@@ -27,6 +27,12 @@ export async function fetchBookings(
   return data;
 }
 
+/** GET /bookings/{booking_id} — полная карточка вне окна списка по датам. */
+export async function fetchBooking(bookingId: string): Promise<Booking> {
+  const { data } = await apiClient.get<Booking>(`/bookings/${bookingId}`);
+  return data;
+}
+
 export async function createBooking(
   body: BookingCreateRequest
 ): Promise<BookingCreateResponse> {
