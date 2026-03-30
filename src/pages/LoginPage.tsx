@@ -4,7 +4,7 @@ import {
   useState,
 } from "react";
 import axios from "axios";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 
 import { loginRequest } from "@/api/auth";
 import { Button } from "@/components/ui/button";
@@ -203,6 +203,15 @@ export function LoginPage() {
             {pending ? "Входим…" : "Войти"}
           </Button>
         </form>
+        <p className="text-center text-sm text-muted-foreground">
+          Нет аккаунта?{" "}
+          <Link
+            to="/register"
+            className="font-medium text-primary underline underline-offset-2"
+          >
+            Регистрация
+          </Link>
+        </p>
       </div>
     </div>
   );

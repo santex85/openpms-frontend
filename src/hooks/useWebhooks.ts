@@ -1,13 +1,30 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { fetchWebhooks } from "@/api/webhooks-admin";
+import {
+  fetchWebhookDeliveryLogs,
+  fetchWebhookSubscriptions,
+} from "@/api/webhooks-admin";
 import { authQueryKeyPart } from "@/lib/authQueryKey";
+import { usePropertyStore } from "@/stores/property-store";
 
-export function useWebhooks(propertyId: string | null) {
+export function useWebhookSubscriptions(enabled: boolean) {
+  const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
   const authKey = authQueryKeyPart();
+
   return useQuery({
-    queryKey: ["webhooks", authKey, propertyId],
-    queryFn: () => fetchWebhooks(propertyId!),
-    enabled: Boolean(propertyId),
+    queryKey: ["webhooks", "subscriptions", authKey, selectedPropertyId],
+    queryFn: () => fetchWebhookSubscriptions(selectedPropertyId),
+    enabled,
+  });
+}
+
+export function useWebhookDeliveryLogs(enabled: boolean) {
+  const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
+  const authKey = authQueryKeyPart();
+
+  return useQuery({
+    queryKey: ["webhooks", "delivery-logs", authKey, selectedPropertyId],
+    queryFn: () => fetchWebhookDeliveryLogs(selectedPropertyId),
+    enabled,
   });
 }

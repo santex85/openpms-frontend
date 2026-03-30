@@ -8,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { POST_REGISTER_STORAGE_KEY } from "@/lib/constants";
 import { useProperties } from "@/hooks/useProperties";
 import { usePropertyStore } from "@/stores/property-store";
 
@@ -17,6 +18,16 @@ export function PropertySwitcher() {
   const setSelectedPropertyId = usePropertyStore(
     (s) => s.setSelectedPropertyId
   );
+
+  useEffect(() => {
+    if (properties !== undefined && properties.length > 0) {
+      try {
+        localStorage.removeItem(POST_REGISTER_STORAGE_KEY);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [properties]);
 
   useEffect(() => {
     if (properties === undefined || properties.length === 0) return;
@@ -49,14 +60,29 @@ export function PropertySwitcher() {
   }
 
   if (properties === undefined || properties.length === 0) {
+    let postRegister = false;
+    try {
+      postRegister = localStorage.getItem(POST_REGISTER_STORAGE_KEY) === "1";
+    } catch {
+      postRegister = false;
+    }
     return (
       <span className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         Нет отелей
         <Link
+          to="/onboarding"
+          className="font-medium text-primary underline underline-offset-2"
+        >
+          {postRegister ? "Мастер настройки" : "Первичная настройка"}
+        </Link>
+        <span aria-hidden className="text-border">
+          ·
+        </span>
+        <Link
           to="/settings#properties-hotels"
           className="text-primary underline underline-offset-2"
         >
-          Добавить отель
+          В настройках
         </Link>
       </span>
     );

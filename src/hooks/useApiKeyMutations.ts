@@ -1,34 +1,39 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { createApiKey, revokeApiKey } from "@/api/api-keys";
+import {
+  createApiKey,
+  deactivateApiKey,
+} from "@/api/api-keys";
 import { authQueryKeyPart } from "@/lib/authQueryKey";
-import type { ApiKeyCreateRequest, ApiKeyCreateResponse } from "@/types/tenant-admin";
+import { usePropertyStore } from "@/stores/property-store";
+import type { ApiKeyCreateRequest } from "@/types/tenant-admin";
 
 export function useCreateApiKey() {
   const queryClient = useQueryClient();
   const authKey = authQueryKeyPart();
+  const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
 
   return useMutation({
-    mutationFn: (args: { propertyId: string; body: ApiKeyCreateRequest }) =>
-      createApiKey(args.propertyId, args.body),
-    onSuccess: (_data: ApiKeyCreateResponse, args) => {
+    mutationFn: (body: ApiKeyCreateRequest) =>
+      createApiKey(selectedPropertyId, body),
+    onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["api-keys", authKey, args.propertyId],
+        queryKey: ["api-keys", authKey, selectedPropertyId],
       });
     },
   });
 }
 
-export function useRevokeApiKey() {
+export function useDeactivateApiKey() {
   const queryClient = useQueryClient();
   const authKey = authQueryKeyPart();
+  const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
 
   return useMutation({
-    mutationFn: (args: { keyId: string; propertyId: string }) =>
-      revokeApiKey(args.keyId),
-    onSuccess: (_void, args) => {
+    mutationFn: (keyId: string) => deactivateApiKey(keyId),
+    onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["api-keys", authKey, args.propertyId],
+        queryKey: ["api-keys", authKey, selectedPropertyId],
       });
     },
   });

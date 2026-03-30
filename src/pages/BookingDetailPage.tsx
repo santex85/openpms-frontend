@@ -14,12 +14,13 @@ import { Input } from "@/components/ui/input";
 import { useBooking } from "@/hooks/useBooking";
 import { useBookingFolio } from "@/hooks/useBookingFolio";
 import {
-  useFolioCharge,
-  useFolioPayment,
-  useFolioReversal,
+  useFolioDeleteTransaction,
+  useFolioEntry,
 } from "@/hooks/useFolioMutations";
+import { usePatchBooking } from "@/hooks/usePatchBooking";
 import { formatApiError } from "@/lib/formatApiError";
 import { canWriteBookingsFromToken } from "@/lib/jwtPayload";
+import { formatIsoDateLocal } from "@/utils/boardDates";
 
 export function BookingDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -36,9 +37,9 @@ export function BookingDetailPage() {
   const { data: folio, isPending: folioPending, isError: folioError } =
     useBookingFolio(bookingId || undefined);
 
-  const chargeMutation = useFolioCharge();
-  const paymentMutation = useFolioPayment();
-  const reversalMutation = useFolioReversal();
+  const folioEntryMutation = useFolioEntry();
+  const deleteTxMutation = useFolioDeleteTransaction();
+  const patchBookingMutation = usePatchBooking(bookingId);
 
   const [chargeOpen, setChargeOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
@@ -49,6 +50,7 @@ export function BookingDetailPage() {
   const [paymentMethod, setPaymentMethod] = useState("card");
   const [paymentDescription, setPaymentDescription] = useState("");
   const [folioFormError, setFolioFormError] = useState<string | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
 
   async function submitCharge(e: FormEvent): Promise<void> {
     e.preventDefault();
@@ -59,9 +61,10 @@ export function BookingDetailPage() {
       return;
     }
     try {
-      await chargeMutation.mutateAsync({
+      await folioEntryMutation.mutateAsync({
         bookingId,
         body: {
+          entry_type: "charge",
           amount: amt,
           category: chargeCategory.trim() || "misc",
           description: chargeDescription.trim() || null,
@@ -84,9 +87,10 @@ export function BookingDetailPage() {
       return;
     }
     try {
-      await paymentMutation.mutateAsync({
+      await folioEntryMutation.mutateAsync({
         bookingId,
         body: {
+          entry_type: "payment",
           amount: amt,
           payment_method: paymentMethod.trim() || "card",
           description: paymentDescription.trim() || null,
@@ -100,13 +104,19 @@ export function BookingDetailPage() {
     }
   }
 
-  function reversalLabel(err: unknown): string {
+  function deleteTxLabel(err: unknown): string {
     const msg = formatApiError(err);
     if (msg.includes("404") || msg.includes("405")) {
-      return "Сторно недоступно (API не реализован или строка не подлежит отмене).";
+      return "Удаление строки недоступно (API или политика фолио).";
     }
     return msg;
   }
+
+  const bookingStatus = booking?.status.trim().toLowerCase() ?? "";
+  const canChangeStatus =
+    canWriteFolio &&
+    booking !== undefined &&
+    bookingStatus !== "cancelled";
 
   if (bookingId === "") {
     return (
@@ -134,29 +144,108 @@ export function BookingDetailPage() {
         ) : booking === undefined ? (
           <p className="text-sm text-muted-foreground">Нет данных брони.</p>
         ) : (
-          <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-            <div>
-              <dt className="text-muted-foreground">Гость</dt>
-              <dd className="font-medium">
-                {booking.guest.last_name} {booking.guest.first_name}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Статус</dt>
-              <dd>{booking.status}</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Заезд / выезд</dt>
-              <dd className="tabular-nums">
-                {booking.check_in_date ?? "—"} →{" "}
-                {booking.check_out_date ?? "—"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Сумма брони</dt>
-              <dd className="tabular-nums">{booking.total_amount}</dd>
-            </div>
-          </dl>
+          <>
+            <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-muted-foreground">Гость</dt>
+                <dd className="font-medium">
+                  {booking.guest.last_name} {booking.guest.first_name}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Статус</dt>
+                <dd>{booking.status}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Заезд / выезд</dt>
+                <dd className="tabular-nums">
+                  {booking.check_in_date ?? "—"} →{" "}
+                  {booking.check_out_date ?? "—"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Сумма брони</dt>
+                <dd className="tabular-nums">{booking.total_amount}</dd>
+              </div>
+            </dl>
+            {patchBookingMutation.isError ? (
+              <p className="mt-2 text-sm text-destructive" role="alert">
+                {formatApiError(patchBookingMutation.error)}
+              </p>
+            ) : null}
+            {canChangeStatus ? (
+              <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Действия с бронью (PATCH /bookings/…)
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {bookingStatus !== "checked_in" &&
+                  bookingStatus !== "checked_out" ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      disabled={patchBookingMutation.isPending}
+                      onClick={() => {
+                        patchBookingMutation.mutate({
+                          status: "checked_in",
+                          check_in: formatIsoDateLocal(new Date()),
+                        });
+                      }}
+                    >
+                      Заезд (check-in)
+                    </Button>
+                  ) : null}
+                  {bookingStatus === "checked_in" ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      disabled={patchBookingMutation.isPending}
+                      onClick={() => {
+                        patchBookingMutation.mutate({
+                          status: "checked_out",
+                          check_out: formatIsoDateLocal(new Date()),
+                        });
+                      }}
+                    >
+                      Выезд (check-out)
+                    </Button>
+                  ) : null}
+                  {bookingStatus !== "cancelled" ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="text-destructive"
+                      disabled={patchBookingMutation.isPending}
+                      onClick={() => {
+                        patchBookingMutation.mutate({
+                          status: "cancelled",
+                          cancellation_reason:
+                            cancelReason.trim() !== ""
+                              ? cancelReason.trim()
+                              : "Отмена с карточки брони",
+                        });
+                      }}
+                    >
+                      Отменить
+                    </Button>
+                  ) : null}
+                </div>
+                {bookingStatus !== "cancelled" ? (
+                  <Input
+                    placeholder="Причина отмены (необязательно)"
+                    value={cancelReason}
+                    onChange={(e) => {
+                      setCancelReason(e.target.value);
+                    }}
+                    className="max-w-md"
+                  />
+                ) : null}
+              </div>
+            ) : null}
+          </>
         )}
       </div>
 
@@ -236,33 +325,31 @@ export function BookingDetailPage() {
                       </td>
                       {canWriteFolio ? (
                         <td className="px-2 py-1.5 text-right">
-                          {t.voidable === true ? (
+                          {t.voidable === false ? (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          ) : (
                             <Button
                               type="button"
                               variant="ghost"
                               size="sm"
                               className="h-7 text-destructive"
-                              disabled={reversalMutation.isPending}
+                              disabled={deleteTxMutation.isPending}
                               onClick={() => {
                                 void (async () => {
                                   setFolioFormError(null);
                                   try {
-                                    await reversalMutation.mutateAsync({
+                                    await deleteTxMutation.mutateAsync({
                                       bookingId,
-                                      body: {
-                                        reverses_transaction_id: t.id,
-                                      },
+                                      transactionId: t.id,
                                     });
                                   } catch (err) {
-                                    setFolioFormError(reversalLabel(err));
+                                    setFolioFormError(deleteTxLabel(err));
                                   }
                                 })();
                               }}
                             >
                               Сторно
                             </Button>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
                           )}
                         </td>
                       ) : null}
@@ -287,7 +374,8 @@ export function BookingDetailPage() {
               <DialogTitle>Начисление</DialogTitle>
               <DialogDescription>
                 POST{" "}
-                <code className="text-xs">/bookings/…/folio/charges</code>
+                <code className="text-xs">/bookings/…/folio</code> с{" "}
+                <code className="text-xs">entry_type=charge</code>
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-3 py-2">
@@ -342,8 +430,8 @@ export function BookingDetailPage() {
               >
                 Отмена
               </Button>
-              <Button type="submit" disabled={chargeMutation.isPending}>
-                {chargeMutation.isPending ? "Отправка…" : "Добавить"}
+              <Button type="submit" disabled={folioEntryMutation.isPending}>
+                {folioEntryMutation.isPending ? "Отправка…" : "Добавить"}
               </Button>
             </DialogFooter>
           </form>
@@ -356,8 +444,8 @@ export function BookingDetailPage() {
             <DialogHeader>
               <DialogTitle>Оплата</DialogTitle>
               <DialogDescription>
-                POST{" "}
-                <code className="text-xs">/bookings/…/folio/payments</code>
+                POST <code className="text-xs">/bookings/…/folio</code> с{" "}
+                <code className="text-xs">entry_type=payment</code>
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-3 py-2">
@@ -412,8 +500,8 @@ export function BookingDetailPage() {
               >
                 Отмена
               </Button>
-              <Button type="submit" disabled={paymentMutation.isPending}>
-                {paymentMutation.isPending ? "Отправка…" : "Провести оплату"}
+              <Button type="submit" disabled={folioEntryMutation.isPending}>
+                {folioEntryMutation.isPending ? "Отправка…" : "Провести оплату"}
               </Button>
             </DialogFooter>
           </form>

@@ -1,6 +1,13 @@
 import { FormEvent, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -11,7 +18,9 @@ import {
 } from "@/components/ui/select";
 import { useInviteUser } from "@/hooks/useInviteUser";
 import { useTenantUsers } from "@/hooks/useTenantUsers";
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { formatApiError } from "@/lib/formatApiError";
+import { toastError, toastSuccess } from "@/lib/toast";
 
 const ROLE_OPTIONS = [
   { value: "manager", label: "manager" },
@@ -30,26 +39,36 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<string>(ROLE_OPTIONS[0].value);
   const [formError, setFormError] = useState<string | null>(null);
-  const [formSuccess, setFormSuccess] = useState<string | null>(null);
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [invitePasswordPayload, setInvitePasswordPayload] = useState<{
+    email: string;
+    temporary_password: string;
+  } | null>(null);
 
   async function onInvite(e: FormEvent): Promise<void> {
     e.preventDefault();
     setFormError(null);
-    setFormSuccess(null);
     const em = email.trim();
+    const fn = fullName.trim();
     if (em === "") {
       setFormError("Укажите email.");
       return;
     }
+    if (fn === "") {
+      setFormError("Укажите полное имя (full_name).");
+      return;
+    }
     try {
-      await inviteMutation.mutateAsync({
+      const res = await inviteMutation.mutateAsync({
         email: em,
         role,
-        ...(fullName.trim() !== ""
-          ? { full_name: fullName.trim() }
-          : {}),
+        full_name: fn,
       });
-      setFormSuccess("Приглашение отправлено.");
+      setInvitePasswordPayload({
+        email: res.email,
+        temporary_password: res.temporary_password,
+      });
+      setPasswordModalOpen(true);
       setEmail("");
       setFullName("");
     } catch (err) {
@@ -74,7 +93,7 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
         <h3 className="text-sm font-semibold text-foreground">Пользователи</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           <code className="rounded bg-muted px-1 font-mono text-xs">
-            GET /users
+            GET /auth/users
           </code>
           ,{" "}
           <code className="rounded bg-muted px-1 font-mono text-xs">
@@ -127,11 +146,6 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
             {formError}
           </p>
         ) : null}
-        {formSuccess !== null ? (
-          <p className="text-sm text-emerald-600 dark:text-emerald-400">
-            {formSuccess}
-          </p>
-        ) : null}
         <div className="space-y-1">
           <label htmlFor="inv-email" className="text-sm font-medium">
             Email
@@ -148,7 +162,7 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
         </div>
         <div className="space-y-1">
           <label htmlFor="inv-name" className="text-sm font-medium">
-            Имя (необязательно)
+            Полное имя (full_name)
           </label>
           <Input
             id="inv-name"
@@ -178,6 +192,50 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
           {inviteMutation.isPending ? "Отправка…" : "Отправить приглашение"}
         </Button>
       </form>
+
+      <Dialog open={passwordModalOpen} onOpenChange={setPasswordModalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Временный пароль</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Сообщите пользователю{" "}
+            <span className="font-medium text-foreground">
+              {invitePasswordPayload?.email}
+            </span>{" "}
+            одноразовый пароль. При следующем входе попросите сменить пароль.
+          </p>
+          {invitePasswordPayload !== null ? (
+            <pre className="overflow-x-auto rounded-md bg-muted p-3 text-sm">
+              {invitePasswordPayload.temporary_password}
+            </pre>
+          ) : null}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                if (invitePasswordPayload === null) return;
+                void (async () => {
+                  try {
+                    await copyToClipboard(
+                      invitePasswordPayload.temporary_password
+                    );
+                    toastSuccess("Пароль скопирован");
+                  } catch {
+                    toastError("Не удалось скопировать");
+                  }
+                })();
+              }}
+            >
+              Копировать
+            </Button>
+            <Button type="button" onClick={() => setPasswordModalOpen(false)}>
+              Закрыть
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

@@ -79,6 +79,13 @@ export interface GuestRead {
   updated_at: string;
 }
 
+/** Строка GET /bookings/unpaid-folio-summary (или аналог на бэке). */
+export interface BookingUnpaidFolioRow {
+  booking_id: string;
+  balance: string;
+  guest_name?: string;
+}
+
 /** Booking row for board (GET /bookings), snake_case from API. */
 export interface Booking {
   id: string;

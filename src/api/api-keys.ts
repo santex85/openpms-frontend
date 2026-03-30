@@ -6,23 +6,35 @@ import type {
   ApiKeyRead,
 } from "@/types/tenant-admin";
 
-export async function fetchApiKeys(propertyId: string): Promise<ApiKeyRead[]> {
+export async function fetchApiKeys(
+  propertyId: string | null
+): Promise<ApiKeyRead[]> {
+  const params =
+    propertyId !== null && propertyId !== ""
+      ? { [PROPERTY_ID_QUERY_PARAM]: propertyId }
+      : {};
   const { data } = await apiClient.get<ApiKeyRead[]>("/api-keys", {
-    params: { [PROPERTY_ID_QUERY_PARAM]: propertyId },
+    params,
   });
   return data;
 }
 
 export async function createApiKey(
-  propertyId: string,
+  propertyId: string | null,
   body: ApiKeyCreateRequest
 ): Promise<ApiKeyCreateResponse> {
-  const { data } = await apiClient.post<ApiKeyCreateResponse>("/api-keys", body, {
-    params: { [PROPERTY_ID_QUERY_PARAM]: propertyId },
-  });
+  const params =
+    propertyId !== null && propertyId !== ""
+      ? { [PROPERTY_ID_QUERY_PARAM]: propertyId }
+      : {};
+  const { data } = await apiClient.post<ApiKeyCreateResponse>(
+    "/api-keys",
+    body,
+    { params }
+  );
   return data;
 }
 
-export async function revokeApiKey(keyId: string): Promise<void> {
-  await apiClient.delete(`/api-keys/${keyId}`);
+export async function deactivateApiKey(keyId: string): Promise<void> {
+  await apiClient.patch(`/api-keys/${keyId}`, { is_active: false });
 }

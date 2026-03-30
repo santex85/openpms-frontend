@@ -11,26 +11,24 @@ export interface FolioTransactionRead {
   created_at: string;
   created_by: string | null;
   category: string;
-  /** Если true, можно отправить сторно по этой строке. */
+  /** Если false — строку нельзя сторнировать через DELETE. */
   voidable?: boolean;
 }
 
-export interface FolioChargeCreate {
-  amount: string;
-  category: string;
-  description?: string | null;
-}
-
-export interface FolioPaymentCreate {
-  amount: string;
-  payment_method: string;
-  description?: string | null;
-}
-
-export interface FolioReversalCreate {
-  reverses_transaction_id: string;
-  reason?: string | null;
-}
+/** POST /bookings/{id}/folio — единое тело проводки. */
+export type FolioEntryCreate =
+  | {
+      entry_type: "charge";
+      amount: string;
+      category: string;
+      description?: string | null;
+    }
+  | {
+      entry_type: "payment";
+      amount: string;
+      payment_method: string;
+      description?: string | null;
+    };
 
 export interface FolioListResponse {
   transactions: FolioTransactionRead[];
@@ -46,24 +44,16 @@ export async function fetchBookingFolio(
   return data;
 }
 
-export async function postFolioCharge(
+export async function postFolioEntry(
   bookingId: string,
-  body: FolioChargeCreate
+  body: FolioEntryCreate
 ): Promise<void> {
-  await apiClient.post(`/bookings/${bookingId}/folio/charges`, body);
+  await apiClient.post(`/bookings/${bookingId}/folio`, body);
 }
 
-export async function postFolioPayment(
+export async function deleteFolioTransaction(
   bookingId: string,
-  body: FolioPaymentCreate
+  transactionId: string
 ): Promise<void> {
-  await apiClient.post(`/bookings/${bookingId}/folio/payments`, body);
-}
-
-/** Сторно проводки (новая оборотная запись или void по политике бэкенда). */
-export async function postFolioReversal(
-  bookingId: string,
-  body: FolioReversalCreate
-): Promise<void> {
-  await apiClient.post(`/bookings/${bookingId}/folio/reversals`, body);
+  await apiClient.delete(`/bookings/${bookingId}/folio/${transactionId}`);
 }

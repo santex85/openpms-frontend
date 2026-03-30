@@ -6,6 +6,7 @@ import type {
   Booking,
   BookingCreateRequest,
   BookingCreateResponse,
+  BookingUnpaidFolioRow,
 } from "@/types/api";
 
 export interface FetchBookingsParams {
@@ -30,6 +31,19 @@ export async function fetchBookings(
 /** GET /bookings/{booking_id} — полная карточка вне окна списка по датам. */
 export async function fetchBooking(bookingId: string): Promise<Booking> {
   const { data } = await apiClient.get<Booking>(`/bookings/${bookingId}`);
+  return data;
+}
+
+/** Брони с положительным балансом фолио (агрегат на бэке). */
+export async function fetchBookingsUnpaidFolio(
+  propertyId: string
+): Promise<BookingUnpaidFolioRow[]> {
+  const { data } = await apiClient.get<BookingUnpaidFolioRow[]>(
+    "/bookings/unpaid-folio-summary",
+    {
+      params: { [PROPERTY_ID_QUERY_PARAM]: propertyId },
+    }
+  );
   return data;
 }
 

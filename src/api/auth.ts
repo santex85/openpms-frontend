@@ -17,6 +17,29 @@ export interface AccessTokenResponse {
   token_type: string;
 }
 
+export interface AuthRegisterRequest {
+  tenant_name: string;
+  email: string;
+  password: string;
+  full_name: string;
+}
+
+export async function registerRequest(
+  body: AuthRegisterRequest
+): Promise<AuthLoginPublicResponse> {
+  const { data } = await authHttp.post<AuthLoginPublicResponse>(
+    "/auth/register",
+    {
+      tenant_name: body.tenant_name.trim(),
+      email: body.email.trim(),
+      password: body.password,
+      full_name: body.full_name.trim(),
+    }
+  );
+  setSession(data.access_token, String(data.user.tenant_id));
+  return data;
+}
+
 export async function loginRequest(
   tenantId: string,
   email: string,

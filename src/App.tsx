@@ -1,17 +1,76 @@
+import { lazy, Suspense, type ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { RequireAuth } from "@/components/auth/RequireAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { BoardPage } from "@/pages/BoardPage";
-import { BookingDetailPage } from "@/pages/BookingDetailPage";
-import { BookingsListPage } from "@/pages/BookingsListPage";
-import { DashboardPage } from "@/pages/DashboardPage";
-import { GuestsPage } from "@/pages/GuestsPage";
-import { HousekeepingPage } from "@/pages/HousekeepingPage";
-import { LoginPage } from "@/pages/LoginPage";
-import { RatesPage } from "@/pages/RatesPage";
-import { RoomsPage } from "@/pages/RoomsPage";
-import { SettingsPage } from "@/pages/SettingsPage";
+
+const DashboardPage = lazy(() =>
+  import("@/pages/DashboardPage").then((m) => ({ default: m.DashboardPage }))
+);
+const BoardPage = lazy(() =>
+  import("@/pages/BoardPage").then((m) => ({ default: m.BoardPage }))
+);
+const BookingDetailPage = lazy(() =>
+  import("@/pages/BookingDetailPage").then((m) => ({
+    default: m.BookingDetailPage,
+  }))
+);
+const BookingsListPage = lazy(() =>
+  import("@/pages/BookingsListPage").then((m) => ({
+    default: m.BookingsListPage,
+  }))
+);
+const GuestsPage = lazy(() =>
+  import("@/pages/GuestsPage").then((m) => ({ default: m.GuestsPage }))
+);
+const RatesPage = lazy(() =>
+  import("@/pages/RatesPage").then((m) => ({ default: m.RatesPage }))
+);
+const RoomsPage = lazy(() =>
+  import("@/pages/RoomsPage").then((m) => ({ default: m.RoomsPage }))
+);
+const HousekeepingPage = lazy(() =>
+  import("@/pages/HousekeepingPage").then((m) => ({
+    default: m.HousekeepingPage,
+  }))
+);
+const SettingsPage = lazy(() =>
+  import("@/pages/SettingsPage").then((m) => ({ default: m.SettingsPage }))
+);
+const OnboardingPage = lazy(() =>
+  import("@/pages/OnboardingPage").then((m) => ({ default: m.OnboardingPage }))
+);
+
+const LoginPage = lazy(() =>
+  import("@/pages/LoginPage").then((m) => ({ default: m.LoginPage }))
+);
+const RegisterPage = lazy(() =>
+  import("@/pages/RegisterPage").then((m) => ({ default: m.RegisterPage }))
+);
+
+function FullScreenFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <p className="text-sm text-muted-foreground">Загрузка…</p>
+    </div>
+  );
+}
+
+function PageFallback() {
+  return (
+    <div className="flex min-h-[40vh] items-center justify-center">
+      <p className="text-sm text-muted-foreground">Загрузка…</p>
+    </div>
+  );
+}
+
+function AuthSuspense({ children }: { children: ReactNode }) {
+  return <Suspense fallback={<FullScreenFallback />}>{children}</Suspense>;
+}
+
+function LazyPage({ children }: { children: ReactNode }) {
+  return <Suspense fallback={<PageFallback />}>{children}</Suspense>;
+}
 
 export default function App() {
   return (
@@ -22,7 +81,22 @@ export default function App() {
       }}
     >
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
+        <Route
+          path="/login"
+          element={
+            <AuthSuspense>
+              <LoginPage />
+            </AuthSuspense>
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            <AuthSuspense>
+              <RegisterPage />
+            </AuthSuspense>
+          }
+        />
         <Route
           element={
             <RequireAuth>
@@ -30,15 +104,86 @@ export default function App() {
             </RequireAuth>
           }
         >
-          <Route index element={<DashboardPage />} />
-          <Route path="board" element={<BoardPage />} />
-          <Route path="bookings" element={<BookingsListPage />} />
-          <Route path="bookings/:id" element={<BookingDetailPage />} />
-          <Route path="guests" element={<GuestsPage />} />
-          <Route path="rates" element={<RatesPage />} />
-          <Route path="rooms" element={<RoomsPage />} />
-          <Route path="housekeeping" element={<HousekeepingPage />} />
-          <Route path="settings" element={<SettingsPage />} />
+          <Route
+            index
+            element={
+              <LazyPage>
+                <DashboardPage />
+              </LazyPage>
+            }
+          />
+          <Route
+            path="onboarding"
+            element={
+              <LazyPage>
+                <OnboardingPage />
+              </LazyPage>
+            }
+          />
+          <Route
+            path="board"
+            element={
+              <LazyPage>
+                <BoardPage />
+              </LazyPage>
+            }
+          />
+          <Route
+            path="bookings"
+            element={
+              <LazyPage>
+                <BookingsListPage />
+              </LazyPage>
+            }
+          />
+          <Route
+            path="bookings/:id"
+            element={
+              <LazyPage>
+                <BookingDetailPage />
+              </LazyPage>
+            }
+          />
+          <Route
+            path="guests"
+            element={
+              <LazyPage>
+                <GuestsPage />
+              </LazyPage>
+            }
+          />
+          <Route
+            path="rates"
+            element={
+              <LazyPage>
+                <RatesPage />
+              </LazyPage>
+            }
+          />
+          <Route
+            path="rooms"
+            element={
+              <LazyPage>
+                <RoomsPage />
+              </LazyPage>
+            }
+          />
+          <Route
+            path="housekeeping"
+            element={
+              <LazyPage>
+                <HousekeepingPage />
+              </LazyPage>
+            }
+          />
+          <Route
+            path="settings"
+            element={
+              <LazyPage>
+                <SettingsPage />
+              </LazyPage>
+            }
+          />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

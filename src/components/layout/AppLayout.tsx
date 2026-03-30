@@ -1,4 +1,4 @@
-import { Menu } from "lucide-react";
+import { Menu, Moon, Sun } from "lucide-react";
 import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
@@ -7,6 +7,7 @@ import { PropertySwitcher } from "@/components/layout/PropertySwitcher";
 import { Button } from "@/components/ui/button";
 import { usePrefetchBoardData } from "@/hooks/usePrefetchBoardData";
 import { cn } from "@/lib/utils";
+import { useThemeStore } from "@/stores/theme-store";
 
 const navItems: { to: string; label: string }[] = [
   { to: "/", label: "Dashboard" },
@@ -32,6 +33,8 @@ export function AppLayout() {
   usePrefetchBoardData();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const themeMode = useThemeStore((s) => s.mode);
+  const toggleTheme = useThemeStore((s) => s.toggle);
 
   function handleLogout(): void {
     logoutSession();
@@ -102,6 +105,26 @@ export function AppLayout() {
             </h1>
             <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
               <PropertySwitcher />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="shrink-0"
+                aria-label={
+                  themeMode === "dark"
+                    ? "Переключить на светлую тему"
+                    : "Переключить на тёмную тему"
+                }
+                onClick={() => {
+                  toggleTheme();
+                }}
+              >
+                {themeMode === "dark" ? (
+                  <Sun className="h-4 w-4" />
+                ) : (
+                  <Moon className="h-4 w-4" />
+                )}
+              </Button>
               <Button
                 type="button"
                 variant="outline"

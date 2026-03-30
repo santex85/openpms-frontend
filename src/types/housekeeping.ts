@@ -1,9 +1,40 @@
-/** Статус номера для канбана housekeeping (совпадает с колонками UI). */
+/** Колонки канбана по ТЗ: dirty / clean / inspected / out_of_service */
 export type HousekeepingStatus =
   | "dirty"
-  | "cleaning"
   | "clean"
-  | "inspected";
+  | "inspected"
+  | "out_of_service";
+
+/** Все колонки по порядку отображения */
+export const HOUSEKEEPING_COLUMN_STATUSES: readonly HousekeepingStatus[] = [
+  "dirty",
+  "clean",
+  "inspected",
+  "out_of_service",
+] as const;
+
+/** Легаси-значения с бэка → нормализация для UI */
+const LEGACY_STATUS_MAP: Record<string, HousekeepingStatus> = {
+  cleaning: "clean",
+  inspected: "inspected",
+  dirty: "dirty",
+  clean: "clean",
+  out_of_service: "out_of_service",
+};
+
+export function normalizeHousekeepingStatus(
+  raw: string
+): HousekeepingStatus {
+  const s = raw.trim().toLowerCase();
+  const hit = LEGACY_STATUS_MAP[s];
+  if (hit !== undefined) {
+    return hit;
+  }
+  if (HOUSEKEEPING_COLUMN_STATUSES.includes(s as HousekeepingStatus)) {
+    return s as HousekeepingStatus;
+  }
+  return "dirty";
+}
 
 export interface HousekeepingRoomCard {
   id: string;
@@ -17,6 +48,6 @@ export interface HousekeepingRoomCard {
 
 export interface HousekeepingListResponse {
   items: HousekeepingRoomCard[];
-  /** Дата снимка такая же, как в запросе (YYYY-MM-DD). */
-  date: string;
+  /** Опционально, если бэк отдаёт дату снимка. */
+  date?: string;
 }

@@ -12,26 +12,32 @@ import { Input } from "@/components/ui/input";
 import { useApiKeys } from "@/hooks/useApiKeys";
 import {
   useCreateApiKey,
-  useRevokeApiKey,
+  useDeactivateApiKey,
 } from "@/hooks/useApiKeyMutations";
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { formatApiError } from "@/lib/formatApiError";
-import { usePropertyStore } from "@/stores/property-store";
+import { toastError, toastSuccess } from "@/lib/toast";
 
 interface SettingsApiKeysSectionProps {
   canManage: boolean;
 }
 
+function parseScopes(raw: string): string[] {
+  return raw
+    .split(/[,\s]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 export function SettingsApiKeysSection({
   canManage,
 }: SettingsApiKeysSectionProps) {
-  const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
-  const { data: keys, isPending, isError } = useApiKeys(
-    canManage ? selectedPropertyId : null
-  );
+  const { data: keys, isPending, isError } = useApiKeys(canManage);
   const createMutation = useCreateApiKey();
-  const revokeMutation = useRevokeApiKey();
+  const deactivateMutation = useDeactivateApiKey();
 
   const [name, setName] = useState("");
+  const [scopesRaw, setScopesRaw] = useState("read:bookings write:bookings");
   const [formError, setFormError] = useState<string | null>(null);
   const [newKeyOpen, setNewKeyOpen] = useState(false);
   const [createdKey, setCreatedKey] = useState<string | null>(null);
@@ -39,20 +45,18 @@ export function SettingsApiKeysSection({
   async function onCreate(e: FormEvent): Promise<void> {
     e.preventDefault();
     setFormError(null);
-    if (selectedPropertyId === null) {
-      setFormError("Выберите отель в шапке.");
-      return;
-    }
     const n = name.trim();
     if (n === "") {
       setFormError("Укажите название ключа.");
       return;
     }
+    const scopes = parseScopes(scopesRaw);
+    if (scopes.length === 0) {
+      setFormError("Укажите хотя бы одну область (scopes), через запятую.");
+      return;
+    }
     try {
-      const res = await createMutation.mutateAsync({
-        propertyId: selectedPropertyId,
-        body: { name: n },
-      });
+      const res = await createMutation.mutateAsync({ name: n, scopes });
       setCreatedKey(res.key);
       setNewKeyOpen(true);
       setName("");
@@ -78,31 +82,33 @@ export function SettingsApiKeysSection({
         <h3 className="text-sm font-semibold text-foreground">API-ключи</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           <code className="rounded bg-muted px-1 font-mono text-xs">
-            GET/POST /api-keys
-          </code>{" "}
-          с{" "}
+            GET /api-keys
+          </code>
+          ,{" "}
           <code className="rounded bg-muted px-1 font-mono text-xs">
-            property_id
+            POST /api-keys
+          </code>
+          ,{" "}
+          <code className="rounded bg-muted px-1 font-mono text-xs">
+            PATCH /api-keys/{"{"}id{"}"}
           </code>
           .
         </p>
       </div>
 
-      {selectedPropertyId === null ? (
-        <p className="text-sm text-muted-foreground">
-          Выберите отель в шапке.
-        </p>
-      ) : isError ? (
+      {isError ? (
         <p className="text-sm text-destructive">Не удалось загрузить ключи.</p>
       ) : isPending ? (
         <div className="h-24 animate-pulse rounded-md bg-muted" aria-hidden />
       ) : (
         <div className="overflow-x-auto rounded-md border">
-          <table className="w-full min-w-[420px] text-left text-sm">
+          <table className="w-full min-w-[520px] text-left text-sm">
             <thead className="border-b bg-muted/50">
               <tr>
                 <th className="px-3 py-2 font-medium">Название</th>
                 <th className="px-3 py-2 font-medium">Префикс</th>
+                <th className="px-3 py-2 font-medium">Scopes</th>
+                <th className="px-3 py-2 font-medium">Активен</th>
                 <th className="px-3 py-2 font-medium">Создан</th>
                 <th className="px-3 py-2 font-medium" />
               </tr>
@@ -112,25 +118,30 @@ export function SettingsApiKeysSection({
                 <tr key={k.id} className="border-b border-border/80">
                   <td className="px-3 py-2">{k.name}</td>
                   <td className="px-3 py-2 font-mono text-xs">{k.prefix}</td>
+                  <td className="max-w-[180px] truncate px-3 py-2 text-xs text-muted-foreground">
+                    {k.scopes?.join(", ") ?? "—"}
+                  </td>
+                  <td className="px-3 py-2">{k.is_active ? "да" : "нет"}</td>
                   <td className="px-3 py-2 tabular-nums text-muted-foreground">
                     {k.created_at.slice(0, 10)}
                   </td>
                   <td className="px-3 py-2 text-right">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive"
-                      disabled={revokeMutation.isPending}
-                      onClick={() => {
-                        void revokeMutation.mutateAsync({
-                          keyId: k.id,
-                          propertyId: selectedPropertyId,
-                        });
-                      }}
-                    >
-                      Отозвать
-                    </Button>
+                    {k.is_active ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive"
+                        disabled={deactivateMutation.isPending}
+                        onClick={() => {
+                          void deactivateMutation.mutateAsync(k.id);
+                        }}
+                      >
+                        Деактивировать
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -140,7 +151,7 @@ export function SettingsApiKeysSection({
       )}
 
       <form
-        className="max-w-md space-y-3 border-t border-border pt-4"
+        className="max-w-xl space-y-3 border-t border-border pt-4"
         onSubmit={(e) => void onCreate(e)}
       >
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -151,24 +162,25 @@ export function SettingsApiKeysSection({
             {formError}
           </p>
         ) : null}
-        <div className="flex flex-wrap gap-2">
+        <div className="grid gap-2 sm:grid-cols-2">
           <Input
             value={name}
             onChange={(e) => {
               setName(e.target.value);
             }}
-            placeholder="Название (например PMS integration)"
-            className="max-w-xs"
+            placeholder="Название"
           />
-          <Button
-            type="submit"
-            disabled={
-              createMutation.isPending || selectedPropertyId === null
-            }
-          >
-            {createMutation.isPending ? "Создание…" : "Создать ключ"}
-          </Button>
+          <Input
+            value={scopesRaw}
+            onChange={(e) => {
+              setScopesRaw(e.target.value);
+            }}
+            placeholder="scopes через запятую"
+          />
         </div>
+        <Button type="submit" disabled={createMutation.isPending}>
+          {createMutation.isPending ? "Создание…" : "Создать ключ"}
+        </Button>
       </form>
 
       <Dialog open={newKeyOpen} onOpenChange={setNewKeyOpen}>
@@ -184,7 +196,24 @@ export function SettingsApiKeysSection({
               {createdKey}
             </pre>
           ) : null}
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                if (createdKey === null) return;
+                void (async () => {
+                  try {
+                    await copyToClipboard(createdKey);
+                    toastSuccess("Ключ скопирован");
+                  } catch {
+                    toastError("Не удалось скопировать");
+                  }
+                })();
+              }}
+            >
+              Копировать
+            </Button>
             <Button type="button" onClick={() => setNewKeyOpen(false)}>
               Закрыть
             </Button>
