@@ -22,6 +22,7 @@ export interface BoardBookingMenuApi {
   patchBooking: (bookingId: string, body: BookingPatchBody) => void;
   openFolio: (bookingId: string) => void;
   openReschedule: (booking: Booking) => void;
+  openBookingSummary: (booking: Booking) => void;
   patchIsPending: boolean;
 }
 
@@ -85,6 +86,19 @@ function DraggableBookingTile({
       title={`${booking.guest.last_name} ${booking.guest.first_name}`}
       {...listeners}
       {...attributes}
+      onClick={() => {
+        if (!isDragging && menuApi !== undefined && menuApi !== null) {
+          menuApi.openBookingSummary(booking);
+        }
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+          e.preventDefault();
+          if (!isDragging && menuApi !== undefined && menuApi !== null) {
+            menuApi.openBookingSummary(booking);
+          }
+        }
+      }}
     >
       <span className="block truncate">{booking.guest.last_name}</span>
     </div>

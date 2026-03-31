@@ -1,5 +1,5 @@
 import { Menu, Moon, Sun } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
 import { logoutSession } from "@/api/auth";
@@ -22,10 +22,29 @@ const navItems: { to: string; label: string }[] = [
 
 function NavClasses(isActive: boolean): string {
   return cn(
-    "whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium transition-colors",
+    "shrink-0 whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors md:px-3 md:py-2",
     isActive
       ? "bg-accent text-accent-foreground"
       : "text-muted-foreground hover:bg-muted hover:text-foreground"
+  );
+}
+
+function MainNavLinks(props: { onNavigate?: () => void }): ReactNode {
+  const { onNavigate } = props;
+  return (
+    <>
+      {navItems.map((item) => (
+        <NavLink
+          key={item.to}
+          to={item.to}
+          end={item.to === "/"}
+          onClick={onNavigate}
+          className={({ isActive }) => NavClasses(isActive)}
+        >
+          {item.label}
+        </NavLink>
+      ))}
+    </>
   );
 }
 
@@ -42,104 +61,82 @@ export function AppLayout() {
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <aside className="hidden w-56 shrink-0 flex-col border-r border-border bg-card md:flex">
-        <div className="border-b border-border px-4 py-4">
+    <div className="flex min-h-screen flex-col bg-background">
+      <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div className="flex h-14 items-center gap-2 px-3 md:hidden">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="shrink-0"
+            aria-label="Меню"
+            aria-expanded={mobileOpen}
+            onClick={() => {
+              setMobileOpen((o) => !o);
+            }}
+          >
+            <Menu className="h-4 w-4" />
+          </Button>
           <span className="text-sm font-semibold tracking-tight text-foreground">
             OpenPMS
           </span>
         </div>
-        <nav className="flex flex-col gap-0.5 p-2">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === "/"}
-              className={({ isActive }) => NavClasses(isActive)}
-            >
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-      </aside>
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-          <div className="flex h-14 items-center gap-2 border-b border-border px-3 md:hidden">
+        {mobileOpen ? (
+          <nav className="flex max-h-[50vh] flex-col gap-0.5 overflow-y-auto border-t border-border p-2 md:hidden">
+            <MainNavLinks
+              onNavigate={() => {
+                setMobileOpen(false);
+              }}
+            />
+          </nav>
+        ) : null}
+        <div className="flex h-14 min-h-14 items-center gap-2 border-t border-border px-4 sm:px-6 md:border-t-0 md:px-6">
+          <span className="hidden shrink-0 text-sm font-semibold tracking-tight text-foreground md:inline">
+            OpenPMS
+          </span>
+          <nav
+            className="hidden min-w-0 flex-1 items-center gap-0.5 overflow-x-auto overscroll-x-contain md:flex"
+            aria-label="Основные разделы"
+          >
+            <MainNavLinks />
+          </nav>
+          <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2 sm:flex-nowrap md:flex-initial md:shrink-0">
+            <PropertySwitcher />
             <Button
               type="button"
               variant="outline"
               size="icon"
               className="shrink-0"
-              aria-label="Меню"
-              aria-expanded={mobileOpen}
+              aria-label={
+                themeMode === "dark"
+                  ? "Переключить на светлую тему"
+                  : "Переключить на тёмную тему"
+              }
               onClick={() => {
-                setMobileOpen((o) => !o);
+                toggleTheme();
               }}
             >
-              <Menu className="h-4 w-4" />
+              {themeMode === "dark" ? (
+                <Sun className="h-4 w-4" />
+              ) : (
+                <Moon className="h-4 w-4" />
+              )}
             </Button>
-            <span className="text-sm font-semibold text-foreground">
-              OpenPMS
-            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={handleLogout}
+            >
+              Выйти
+            </Button>
           </div>
-          {mobileOpen ? (
-            <nav className="flex max-h-[50vh] flex-col gap-0.5 overflow-y-auto border-b border-border p-2 md:hidden">
-              {navItems.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={item.to === "/"}
-                  onClick={() => {
-                    setMobileOpen(false);
-                  }}
-                  className={({ isActive }) => NavClasses(isActive)}
-                >
-                  {item.label}
-                </NavLink>
-              ))}
-            </nav>
-          ) : null}
-          <div className="flex h-14 flex-wrap items-center justify-between gap-2 px-4 py-2 sm:px-6">
-            <h1 className="text-sm font-medium text-muted-foreground">
-              Панель управления
-            </h1>
-            <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-              <PropertySwitcher />
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="shrink-0"
-                aria-label={
-                  themeMode === "dark"
-                    ? "Переключить на светлую тему"
-                    : "Переключить на тёмную тему"
-                }
-                onClick={() => {
-                  toggleTheme();
-                }}
-              >
-                {themeMode === "dark" ? (
-                  <Sun className="h-4 w-4" />
-                ) : (
-                  <Moon className="h-4 w-4" />
-                )}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleLogout}
-              >
-                Выйти
-              </Button>
-            </div>
-          </div>
-        </header>
-        <main className="min-h-0 flex-1 overflow-auto p-4 sm:p-6">
-          <Outlet />
-        </main>
-      </div>
+        </div>
+      </header>
+      <main className="min-h-0 flex-1 overflow-auto p-4 sm:p-6">
+        <Outlet />
+      </main>
     </div>
   );
 }

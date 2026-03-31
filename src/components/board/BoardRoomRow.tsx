@@ -12,6 +12,16 @@ import type { MonthDayMeta } from "@/utils/boardDates";
 
 export type { BoardBookingMenuApi };
 
+function isNightBooked(roomBookings: Booking[], nightIso: string): boolean {
+  return roomBookings.some(
+    (b) =>
+      b.check_in_date !== null &&
+      b.check_out_date !== null &&
+      b.check_in_date <= nightIso &&
+      b.check_out_date > nightIso
+  );
+}
+
 interface BoardRoomRowProps {
   room: RoomRow;
   days: MonthDayMeta[];
@@ -19,6 +29,7 @@ interface BoardRoomRowProps {
   roomBookings: Booking[];
   cellBorder: string;
   bookingMenuApi?: BoardBookingMenuApi | null;
+  onEmptyCellClick?: (payload: { room: RoomRow; nightIso: string }) => void;
 }
 
 export function BoardRoomRow({
@@ -28,6 +39,7 @@ export function BoardRoomRow({
   roomBookings,
   cellBorder,
   bookingMenuApi,
+  onEmptyCellClick,
 }: BoardRoomRowProps) {
   const { setNodeRef: setTimelineRef, isOver: isOverTimeline } = useDroppable({
     id: dndRoomId(room.id),
@@ -64,16 +76,35 @@ export function BoardRoomRow({
           className="grid min-h-10"
           style={{ gridTemplateColumns: innerColTemplate }}
         >
-          {days.map((day) => (
-            <div
-              key={day.iso}
-              className={cn(
-                "min-h-10 border-r border-border last:border-r-0",
-                "hover:bg-muted/20"
-              )}
-              aria-hidden
-            />
-          ))}
+          {days.map((day) => {
+            const booked = isNightBooked(roomBookings, day.iso);
+            const clickable =
+              onEmptyCellClick !== undefined && !booked && !isOver;
+            return (
+              <button
+                key={day.iso}
+                type="button"
+                className={cn(
+                  "block w-full min-h-10 appearance-none border-b-0 border-l-0 border-r border-t-0 border-border bg-transparent p-0 text-left last:border-r-0",
+                  "hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                  clickable && "cursor-pointer",
+                  !clickable && "cursor-default"
+                )}
+                aria-label={
+                  booked
+                    ? undefined
+                    : `Действия: ${room.name}, ${day.iso}`
+                }
+                disabled={!clickable}
+                tabIndex={clickable ? 0 : -1}
+                onClick={() => {
+                  if (clickable) {
+                    onEmptyCellClick({ room, nightIso: day.iso });
+                  }
+                }}
+              />
+            );
+          })}
         </div>
         <div className="pointer-events-none absolute inset-0">
           {roomBookings.map((b) => (

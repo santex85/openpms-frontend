@@ -19,6 +19,7 @@ interface BoardTapeGridProps {
   availabilityPending: boolean;
   availabilityError: boolean;
   bookingMenuApi?: BoardBookingMenuApi | null;
+  onEmptyCellClick?: (payload: { room: RoomRow; nightIso: string }) => void;
 }
 
 export function BoardTapeGrid({
@@ -30,15 +31,16 @@ export function BoardTapeGrid({
   availabilityPending,
   availabilityError,
   bookingMenuApi,
+  onEmptyCellClick,
 }: BoardTapeGridProps) {
   const colTemplate = useMemo(() => {
     const n = days.length;
-    return `minmax(10rem, 14rem) repeat(${n}, minmax(3.5rem, 1fr))`;
+    return `minmax(9rem, 12rem) repeat(${n}, minmax(3rem, 1fr))`;
   }, [days.length]);
 
   const innerColTemplate = useMemo(() => {
     const n = days.length;
-    return `repeat(${n}, minmax(3.5rem, 1fr))`;
+    return `repeat(${n}, minmax(3rem, 1fr))`;
   }, [days.length]);
 
   const dayFormatter = useMemo(
@@ -168,6 +170,7 @@ export function BoardTapeGrid({
                   roomBookings={bookingsByRoomId.get(room.id) ?? []}
                   cellBorder={cellBorder}
                   bookingMenuApi={bookingMenuApi}
+                  onEmptyCellClick={onEmptyCellClick}
                 />
               ))}
             </Fragment>

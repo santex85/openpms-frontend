@@ -1,6 +1,10 @@
 import { apiClient } from "@/lib/api";
 import { PROPERTY_ID_QUERY_PARAM } from "@/lib/constants";
-import type { AvailabilityGridResponse } from "@/types/inventory";
+import type {
+  AvailabilityGridResponse,
+  AvailabilityOverridePutBody,
+  AvailabilityOverridePutResponse,
+} from "@/types/inventory";
 
 export interface FetchAvailabilityGridParams {
   propertyId: string;
@@ -20,6 +24,16 @@ export async function fetchAvailabilityGrid(
         end_date: params.endDate,
       },
     }
+  );
+  return data;
+}
+
+export async function putAvailabilityOverride(
+  body: AvailabilityOverridePutBody
+): Promise<AvailabilityOverridePutResponse> {
+  const { data } = await apiClient.put<AvailabilityOverridePutResponse>(
+    "/inventory/availability/overrides",
+    body
   );
   return data;
 }

@@ -69,7 +69,7 @@ export function UnassignedPool({
   isLoading = false,
 }: UnassignedPoolProps) {
   return (
-    <aside className="w-[min(100%,280px)] shrink-0 rounded-md border border-border bg-muted/20 p-3">
+    <aside className="w-full max-w-[220px] shrink-0 rounded-md border border-border bg-muted/20 p-2 sm:p-3 lg:w-[min(100%,220px)]">
       <h3 className="text-sm font-semibold text-foreground">Без номера</h3>
       <p className="mt-0.5 text-xs text-muted-foreground">
         Перетащите бронь на строку номера той же категории.

@@ -15,3 +15,15 @@ export interface AvailabilityGridResponse {
   end_date: string;
   cells: AvailabilityCell[];
 }
+
+/** PUT /inventory/availability/overrides */
+export interface AvailabilityOverridePutBody {
+  room_type_id: string;
+  start_date: string;
+  end_date: string;
+  blocked_rooms: number;
+}
+
+export interface AvailabilityOverridePutResponse {
+  dates_updated: number;
+}

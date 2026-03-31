@@ -43,6 +43,11 @@ export function canManagePropertiesFromToken(): boolean {
   return role === "owner" || role === "manager";
 }
 
+/** owner / manager — PUT /inventory/availability/overrides (matches API roles). */
+export function canWriteInventoryFromToken(): boolean {
+  return canManagePropertiesFromToken();
+}
+
 /** owner / manager / receptionist — POST /bookings and аналогичные действия. */
 export function canWriteBookingsFromToken(): boolean {
   const role = getRoleFromAccessToken();
