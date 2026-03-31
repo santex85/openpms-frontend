@@ -21,13 +21,11 @@ export interface AuthInviteResponse {
 
 export interface ApiKeyRead {
   id: string;
+  tenant_id: string;
   name: string;
-  /** Короткий префикс для отображения (полный ключ не хранится). */
-  prefix: string;
   scopes: string[];
   is_active: boolean;
-  created_at: string;
-  last_used_at: string | null;
+  expires_at: string | null;
 }
 
 export interface ApiKeyCreateRequest {

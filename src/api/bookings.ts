@@ -15,17 +15,24 @@ export interface FetchBookingsParams {
   endDate: string;
 }
 
+interface BookingTapePage {
+  items: Booking[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export async function fetchBookings(
   params: FetchBookingsParams
 ): Promise<Booking[]> {
-  const { data } = await apiClient.get<Booking[]>("/bookings", {
+  const { data } = await apiClient.get<BookingTapePage>("/bookings", {
     params: {
       [PROPERTY_ID_QUERY_PARAM]: params.propertyId,
       start_date: params.startDate,
       end_date: params.endDate,
     },
   });
-  return data;
+  return data.items;
 }
 
 /** GET /bookings/{booking_id} — полная карточка вне окна списка по датам. */

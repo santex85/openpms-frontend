@@ -22,6 +22,15 @@ import { formatApiError } from "@/lib/formatApiError";
 import { canWriteBookingsFromToken } from "@/lib/jwtPayload";
 import { formatIsoDateLocal } from "@/utils/boardDates";
 
+const ALLOWED_TRANSITIONS: Record<string, string[]> = {
+  pending: ["confirmed", "cancelled"],
+  confirmed: ["checked_in", "cancelled", "no_show"],
+  checked_in: ["checked_out"],
+  checked_out: [],
+  cancelled: [],
+  no_show: [],
+};
+
 export function BookingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const bookingId = id ?? "";
@@ -113,10 +122,11 @@ export function BookingDetailPage() {
   }
 
   const bookingStatus = booking?.status.trim().toLowerCase() ?? "";
-  const canChangeStatus =
+  const allowedTransitions = ALLOWED_TRANSITIONS[bookingStatus] ?? [];
+  const canShowStatusActions =
     canWriteFolio &&
     booking !== undefined &&
-    bookingStatus !== "cancelled";
+    allowedTransitions.length > 0;
 
   if (bookingId === "") {
     return (
@@ -173,14 +183,28 @@ export function BookingDetailPage() {
                 {formatApiError(patchBookingMutation.error)}
               </p>
             ) : null}
-            {canChangeStatus ? (
+            {canShowStatusActions ? (
               <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4">
                 <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Действия с бронью (PATCH /bookings/…)
                 </span>
                 <div className="flex flex-wrap gap-2">
-                  {bookingStatus !== "checked_in" &&
-                  bookingStatus !== "checked_out" ? (
+                  {allowedTransitions.includes("confirmed") ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      disabled={patchBookingMutation.isPending}
+                      onClick={() => {
+                        patchBookingMutation.mutate({
+                          status: "confirmed",
+                        });
+                      }}
+                    >
+                      Подтвердить
+                    </Button>
+                  ) : null}
+                  {allowedTransitions.includes("checked_in") ? (
                     <Button
                       type="button"
                       size="sm"
@@ -196,7 +220,7 @@ export function BookingDetailPage() {
                       Заезд (check-in)
                     </Button>
                   ) : null}
-                  {bookingStatus === "checked_in" ? (
+                  {allowedTransitions.includes("checked_out") ? (
                     <Button
                       type="button"
                       size="sm"
@@ -212,7 +236,22 @@ export function BookingDetailPage() {
                       Выезд (check-out)
                     </Button>
                   ) : null}
-                  {bookingStatus !== "cancelled" ? (
+                  {allowedTransitions.includes("no_show") ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={patchBookingMutation.isPending}
+                      onClick={() => {
+                        patchBookingMutation.mutate({
+                          status: "no_show",
+                        });
+                      }}
+                    >
+                      Не заехал (no-show)
+                    </Button>
+                  ) : null}
+                  {allowedTransitions.includes("cancelled") ? (
                     <Button
                       type="button"
                       size="sm"
@@ -233,7 +272,7 @@ export function BookingDetailPage() {
                     </Button>
                   ) : null}
                 </div>
-                {bookingStatus !== "cancelled" ? (
+                {allowedTransitions.includes("cancelled") ? (
                   <Input
                     placeholder="Причина отмены (необязательно)"
                     value={cancelReason}

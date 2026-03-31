@@ -106,10 +106,9 @@ export function SettingsApiKeysSection({
             <thead className="border-b bg-muted/50">
               <tr>
                 <th className="px-3 py-2 font-medium">Название</th>
-                <th className="px-3 py-2 font-medium">Префикс</th>
                 <th className="px-3 py-2 font-medium">Scopes</th>
                 <th className="px-3 py-2 font-medium">Активен</th>
-                <th className="px-3 py-2 font-medium">Создан</th>
+                <th className="px-3 py-2 font-medium">Истекает</th>
                 <th className="px-3 py-2 font-medium" />
               </tr>
             </thead>
@@ -117,13 +116,12 @@ export function SettingsApiKeysSection({
               {(keys ?? []).map((k) => (
                 <tr key={k.id} className="border-b border-border/80">
                   <td className="px-3 py-2">{k.name}</td>
-                  <td className="px-3 py-2 font-mono text-xs">{k.prefix}</td>
                   <td className="max-w-[180px] truncate px-3 py-2 text-xs text-muted-foreground">
                     {k.scopes?.join(", ") ?? "—"}
                   </td>
                   <td className="px-3 py-2">{k.is_active ? "да" : "нет"}</td>
                   <td className="px-3 py-2 tabular-nums text-muted-foreground">
-                    {k.created_at.slice(0, 10)}
+                    {k.expires_at !== null ? k.expires_at.slice(0, 10) : "—"}
                   </td>
                   <td className="px-3 py-2 text-right">
                     {k.is_active ? (

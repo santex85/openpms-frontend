@@ -13,10 +13,23 @@ export interface FetchHousekeepingParams {
   date?: string;
 }
 
+/** Плоский элемент ответа GET /housekeeping (схема бэка). */
+interface HousekeepingRoomRead {
+  id: string;
+  tenant_id: string;
+  property_id: string;
+  room_type_id: string;
+  room_type_name: string;
+  name: string;
+  status: string;
+  housekeeping_status: string;
+  housekeeping_priority: string;
+}
+
 export async function fetchHousekeeping(
   params: FetchHousekeepingParams
 ): Promise<HousekeepingListResponse> {
-  const { data } = await apiClient.get<HousekeepingListResponse>("/housekeeping", {
+  const { data } = await apiClient.get<HousekeepingRoomRead[]>("/housekeeping", {
     params: {
       [PROPERTY_ID_QUERY_PARAM]: params.propertyId,
       status: params.status,
@@ -26,10 +39,12 @@ export async function fetchHousekeeping(
     },
   });
   return {
-    ...data,
-    items: (data.items ?? []).map((item) => ({
-      ...item,
-      status: normalizeHousekeepingStatus(String(item.status)),
+    items: data.map((r) => ({
+      id: r.id,
+      room_id: r.id,
+      label: r.name,
+      status: normalizeHousekeepingStatus(r.housekeeping_status),
+      notes: null,
     })),
   };
 }
@@ -42,5 +57,7 @@ export async function patchHousekeepingRoom(
   roomId: string,
   body: PatchHousekeepingRoomBody
 ): Promise<void> {
-  await apiClient.patch(`/housekeeping/${roomId}`, body);
+  await apiClient.patch(`/housekeeping/${roomId}`, {
+    housekeeping_status: body.status,
+  });
 }

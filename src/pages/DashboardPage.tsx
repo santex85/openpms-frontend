@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 
 import { useAvailabilityGrid } from "@/hooks/useAvailabilityGrid";
 import { useBookings } from "@/hooks/useBookings";
-import { useBookingsUnpaidFolio } from "@/hooks/useBookingsUnpaidFolio";
 import { useHousekeepingColumn } from "@/hooks/useHousekeepingColumn";
 import { formatApiError } from "@/lib/formatApiError";
 import { usePropertyStore } from "@/stores/property-store";
@@ -16,7 +15,6 @@ export function DashboardPage() {
   const bookingsToday = useBookings(today, today);
   const availabilityToday = useAvailabilityGrid(today, today);
   const dirtyColumn = useHousekeepingColumn("dirty", today);
-  const unpaidFolio = useBookingsUnpaidFolio(true);
 
   const arrivalsToday = useMemo(() => {
     const list = bookingsToday.data ?? [];
@@ -42,9 +40,6 @@ export function DashboardPage() {
   }, [availabilityToday.data?.cells, today]);
 
   const dirtyCount = dirtyColumn.data?.items.length ?? 0;
-
-  const unpaidCount = unpaidFolio.data?.length;
-  const unpaidList = unpaidFolio.data ?? [];
 
   if (selectedPropertyId === null) {
     return (
@@ -110,47 +105,7 @@ export function DashboardPage() {
           }
           hint={dirtyColumn.isError ? formatApiError(dirtyColumn.error) : null}
         />
-        <MetricCard
-          label="Неоплаченные брони (фолио)"
-          value={
-            unpaidFolio.isPending
-              ? "…"
-              : unpaidFolio.isError
-                ? "—"
-                : String(unpaidCount ?? 0)
-          }
-          hint={
-            unpaidFolio.isError
-              ? `${formatApiError(unpaidFolio.error)} (нужен GET /bookings/unpaid-folio-summary)`
-              : null
-          }
-          className="sm:col-span-2"
-        />
       </div>
-
-      {unpaidList.length > 0 ? (
-        <div className="rounded-md border">
-          <h3 className="border-b px-3 py-2 text-sm font-medium">
-            Баланс к оплате (первые {unpaidList.length})
-          </h3>
-          <ul className="divide-y text-sm">
-            {unpaidList.slice(0, 8).map((row) => (
-              <li
-                key={row.booking_id}
-                className="flex flex-wrap justify-between gap-2 px-3 py-2"
-              >
-                <Link
-                  to={`/bookings/${row.booking_id}`}
-                  className="text-primary underline-offset-2 hover:underline"
-                >
-                  {row.guest_name ?? row.booking_id.slice(0, 8)}
-                </Link>
-                <span className="tabular-nums font-medium">{row.balance}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -160,7 +115,7 @@ function PageTitle() {
     <div>
       <h2 className="text-lg font-semibold text-foreground">Dashboard</h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Показатели на сегодня из броней, остатков, housekeeping и сводки фолио.
+        Показатели на сегодня из броней, доступности номеров и housekeeping.
         Календарь — на странице{" "}
         <Link
           to="/board"
