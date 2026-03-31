@@ -15,3 +15,7 @@ export async function createRatePlan(
   const { data } = await apiClient.post<RatePlanRead>("/rate-plans", body);
   return data;
 }
+
+export async function deleteRatePlan(ratePlanId: string): Promise<void> {
+  await apiClient.delete(`/rate-plans/${ratePlanId}`);
+}

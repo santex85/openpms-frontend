@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import {
   FormEvent,
   useEffect,
@@ -6,6 +6,7 @@ import {
   useState,
   type ReactElement,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { Link } from "react-router-dom";
 
@@ -30,14 +31,17 @@ import {
 import { useAvailabilityGrid } from "@/hooks/useAvailabilityGrid";
 import { useBulkUpsertRates } from "@/hooks/useBulkUpsertRates";
 import { useCreateRatePlan } from "@/hooks/useCreateRatePlan";
+import { useDeleteRatePlan } from "@/hooks/useDeleteRatePlan";
 import { useNightlyRatesMatrix } from "@/hooks/useNightlyRatesMatrix";
 import { useRatePlans } from "@/hooks/useRatePlans";
 import { useRoomTypes } from "@/hooks/useRoomTypes";
+import { authQueryKeyPart } from "@/lib/authQueryKey";
 import { formatApiError } from "@/lib/formatApiError";
+import { toastError, toastSuccess } from "@/lib/toast";
 import { canManagePropertiesFromToken } from "@/lib/jwtPayload";
 import { usePropertyStore } from "@/stores/property-store";
 import type { AvailabilityCell } from "@/types/inventory";
-import type { BulkRateSegment, RatePlanCreate } from "@/types/rates";
+import type { BulkRateSegment, RatePlanCreate, RatePlanRead } from "@/types/rates";
 import { cn } from "@/lib/utils";
 import { getMonthRange, shiftMonthAnchor } from "@/utils/boardDates";
 
@@ -94,6 +98,7 @@ function availabilityOccupancyLine(
 }
 
 export function RatesPage() {
+  const queryClient = useQueryClient();
   const canWriteRates = canManagePropertiesFromToken();
   const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
   const [monthAnchor, setMonthAnchor] = useState(() => new Date());
@@ -166,6 +171,7 @@ export function RatesPage() {
   const [bulkError, setBulkError] = useState<string | null>(null);
   const bulkMutation = useBulkUpsertRates();
   const createRatePlanMutation = useCreateRatePlan();
+  const deleteRatePlanMutation = useDeleteRatePlan();
 
   const [newPlanName, setNewPlanName] = useState("");
   const [newPlanPolicy, setNewPlanPolicy] = useState(
@@ -173,6 +179,11 @@ export function RatesPage() {
   );
   const [newPlanError, setNewPlanError] = useState<string | null>(null);
   const [addRatePlanDialogOpen, setAddRatePlanDialogOpen] = useState(false);
+  const [deleteRatePlanDialogOpen, setDeleteRatePlanDialogOpen] =
+    useState(false);
+
+  const selectedRatePlanName =
+    ratePlans?.find((r) => r.id === ratePlanId)?.name ?? "";
 
   useEffect(() => {
     setBulkStart(month.startIso);
@@ -429,41 +440,59 @@ export function RatesPage() {
           </div>
         ) : (
           <>
-            <div className="max-w-md space-y-2">
+            <div className="max-w-xl space-y-2">
               <span className="text-sm font-medium">Тарифный план</span>
-              <Select
-                value={ratePlanId}
-                onValueChange={(v) => {
-                  if (v === NEW_RATE_PLAN_SELECT_VALUE) {
-                    setNewPlanError(null);
-                    setAddRatePlanDialogOpen(true);
-                    return;
-                  }
-                  setRatePlanId(v);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="BAR / пакет" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ratePlans?.map((rp) => (
-                    <SelectItem key={rp.id} value={rp.id}>
-                      {rp.name}
-                    </SelectItem>
-                  ))}
-                  {canWriteRates ? (
-                    <>
-                      <SelectSeparator />
-                      <SelectItem
-                        value={NEW_RATE_PLAN_SELECT_VALUE}
-                        className="text-primary focus:text-primary"
-                      >
-                        + Добавить новый тариф
-                      </SelectItem>
-                    </>
-                  ) : null}
-                </SelectContent>
-              </Select>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="min-w-0 flex-1">
+                  <Select
+                    value={ratePlanId}
+                    onValueChange={(v) => {
+                      if (v === NEW_RATE_PLAN_SELECT_VALUE) {
+                        setNewPlanError(null);
+                        setAddRatePlanDialogOpen(true);
+                        return;
+                      }
+                      setRatePlanId(v);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="BAR / пакет" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ratePlans?.map((rp) => (
+                        <SelectItem key={rp.id} value={rp.id}>
+                          {rp.name}
+                        </SelectItem>
+                      ))}
+                      {canWriteRates ? (
+                        <>
+                          <SelectSeparator />
+                          <SelectItem
+                            value={NEW_RATE_PLAN_SELECT_VALUE}
+                            className="text-primary focus:text-primary"
+                          >
+                            + Добавить новый тариф
+                          </SelectItem>
+                        </>
+                      ) : null}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {canWriteRates && ratePlanId !== "" ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    aria-label="Удалить тарифный план"
+                    onClick={() => {
+                      setDeleteRatePlanDialogOpen(true);
+                    }}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Удалить
+                  </Button>
+                ) : null}
+              </div>
               <p className="text-xs text-muted-foreground">
                 Сетка показывает все категории номеров для выбранного плана. Во
                 второй строке ячейки — остатки из инвентаря (не зависят от
@@ -669,6 +698,84 @@ export function RatesPage() {
           </>
         )}
       </section>
+
+      <Dialog
+        open={deleteRatePlanDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteRatePlanDialogOpen(open);
+          if (!open) {
+            deleteRatePlanMutation.reset();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Удалить тарифный план?</DialogTitle>
+            <DialogDescription>
+              План «{selectedRatePlanName !== "" ? selectedRatePlanName : ratePlanId.slice(0, 8)}»
+              и связанные с ним цены на сервере будут удалены. Это действие нельзя
+              отменить.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setDeleteRatePlanDialogOpen(false);
+              }}
+            >
+              Отмена
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleteRatePlanMutation.isPending || ratePlanId === ""}
+              onClick={() => {
+                const id = ratePlanId;
+                if (id === "") return;
+                void (async () => {
+                  try {
+                    await deleteRatePlanMutation.mutateAsync(id);
+                    const authKey = authQueryKeyPart();
+                    const pid = selectedPropertyId;
+                    if (pid !== null) {
+                      await queryClient.refetchQueries({
+                        queryKey: ["rate-plans", authKey, pid],
+                      });
+                      let fresh =
+                        queryClient.getQueryData<RatePlanRead[]>([
+                          "rate-plans",
+                          authKey,
+                          pid,
+                        ]) ?? [];
+                      /** Refetch сразу после 204 может попасть в ответ до commit на бэке. */
+                      if (fresh.some((p) => p.id === id)) {
+                        fresh = fresh.filter((p) => p.id !== id);
+                        queryClient.setQueryData(
+                          ["rate-plans", authKey, pid],
+                          fresh
+                        );
+                      }
+                      setRatePlanId(fresh[0]?.id ?? "");
+                    } else {
+                      setRatePlanId("");
+                    }
+                    setDeleteRatePlanDialogOpen(false);
+                    deleteRatePlanMutation.reset();
+                    toastSuccess("Тарифный план удалён");
+                  } catch (err) {
+                    deleteRatePlanMutation.reset();
+                    toastError(formatApiError(err));
+                  }
+                })();
+              }}
+            >
+              {deleteRatePlanMutation.isPending ? "Удаляем…" : "Удалить"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={addRatePlanDialogOpen}
