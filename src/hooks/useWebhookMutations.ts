@@ -3,10 +3,14 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   createWebhookSubscription,
   deleteWebhookSubscription,
+  patchWebhookSubscription,
 } from "@/api/webhooks-admin";
 import { authQueryKeyPart } from "@/lib/authQueryKey";
 import { usePropertyStore } from "@/stores/property-store";
-import type { WebhookSubscriptionCreateRequest } from "@/types/tenant-admin";
+import type {
+  WebhookSubscriptionCreateRequest,
+  WebhookSubscriptionPatchRequest,
+} from "@/types/tenant-admin";
 
 export function useCreateWebhookSubscription() {
   const queryClient = useQueryClient();
@@ -39,6 +43,30 @@ export function useDeleteWebhookSubscription() {
       void queryClient.invalidateQueries({
         queryKey: ["webhooks", authKey, selectedPropertyId],
         exact: false,
+      });
+    },
+  });
+}
+
+export function usePatchWebhookSubscription() {
+  const queryClient = useQueryClient();
+  const authKey = authQueryKeyPart();
+  const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
+
+  return useMutation({
+    mutationFn: ({
+      subscriptionId,
+      body,
+    }: {
+      subscriptionId: string;
+      body: WebhookSubscriptionPatchRequest;
+    }) => patchWebhookSubscription(subscriptionId, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["webhooks", "subscriptions", authKey, selectedPropertyId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["webhooks", "delivery-logs", authKey, selectedPropertyId],
       });
     },
   });

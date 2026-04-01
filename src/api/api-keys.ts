@@ -38,3 +38,7 @@ export async function createApiKey(
 export async function deactivateApiKey(keyId: string): Promise<void> {
   await apiClient.patch(`/api-keys/${keyId}`, { is_active: false });
 }
+
+export async function deleteApiKey(keyId: string): Promise<void> {
+  await apiClient.delete(`/api-keys/${keyId}`);
+}

@@ -13,6 +13,7 @@ import { WEBHOOK_EVENT_OPTIONS } from "@/constants/webhookEvents";
 import {
   useCreateWebhookSubscription,
   useDeleteWebhookSubscription,
+  usePatchWebhookSubscription,
 } from "@/hooks/useWebhookMutations";
 import {
   useWebhookDeliveryLogs,
@@ -38,6 +39,7 @@ export function SettingsWebhooksSection({
   } = useWebhookDeliveryLogs(canManage);
   const createMutation = useCreateWebhookSubscription();
   const deleteMutation = useDeleteWebhookSubscription();
+  const patchMutation = usePatchWebhookSubscription();
 
   const [url, setUrl] = useState("");
   const [selectedEvents, setSelectedEvents] = useState<Set<string>>(
@@ -105,6 +107,10 @@ export function SettingsWebhooksSection({
           <code className="rounded bg-muted px-1 font-mono text-xs">
             GET /webhooks/delivery-logs
           </code>
+          ,{" "}
+          <code className="rounded bg-muted px-1 font-mono text-xs">
+            PATCH /webhooks/subscriptions/{"{"}id{"}"}
+          </code>
           .
         </p>
       </div>
@@ -131,7 +137,37 @@ export function SettingsWebhooksSection({
                   <td className="px-3 py-2 text-xs text-muted-foreground">
                     {h.events.join(", ")}
                   </td>
-                  <td className="px-3 py-2">{h.is_active ? "да" : "нет"}</td>
+                  <td className="px-3 py-2">
+                    <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="rounded border-input"
+                        checked={h.is_active}
+                        disabled={
+                          patchMutation.isPending &&
+                          patchMutation.variables?.subscriptionId === h.id
+                        }
+                        onChange={(e) => {
+                          void (async () => {
+                            try {
+                              await patchMutation.mutateAsync({
+                                subscriptionId: h.id,
+                                body: { is_active: e.target.checked },
+                              });
+                              toastSuccess(
+                                e.target.checked
+                                  ? "Подписка включена"
+                                  : "Подписка выключена"
+                              );
+                            } catch (err) {
+                              toastError(formatApiError(err));
+                            }
+                          })();
+                        }}
+                      />
+                      <span>{h.is_active ? "да" : "нет"}</span>
+                    </label>
+                  </td>
                   <td className="px-3 py-2 text-right">
                     <Button
                       type="button"

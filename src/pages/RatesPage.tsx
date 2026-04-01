@@ -188,6 +188,13 @@ export function RatesPage() {
   const [editPlanName, setEditPlanName] = useState("");
   const [editPlanPolicy, setEditPlanPolicy] = useState("");
   const [editPlanError, setEditPlanError] = useState<string | null>(null);
+  const [cellEdit, setCellEdit] = useState<{
+    roomTypeId: string;
+    roomTypeName: string;
+    dateIso: string;
+    dateLabel: string;
+    priceDraft: string;
+  } | null>(null);
 
   const selectedRatePlanName =
     ratePlans?.find((r) => r.id === ratePlanId)?.name ?? "";
@@ -196,6 +203,10 @@ export function RatesPage() {
     setBulkStart(month.startIso);
     setBulkEnd(month.endIso);
   }, [month.startIso, month.endIso]);
+
+  useEffect(() => {
+    setCellEdit(null);
+  }, [monthAnchor]);
 
   async function submitNewRatePlan(
     e: FormEvent<HTMLFormElement>,
@@ -284,6 +295,41 @@ export function RatesPage() {
       );
     } catch (err) {
       setBulkError(formatApiError(err));
+    }
+  }
+
+  async function submitCellEdit(e: FormEvent<HTMLFormElement>): Promise<void> {
+    e.preventDefault();
+    if (cellEdit === null) return;
+    if (selectedPropertyId === null || ratePlanId === "") {
+      toastError("Выберите отель и тарифный план.");
+      return;
+    }
+
+    const trimmed = cellEdit.priceDraft.trim().replace(",", ".");
+    if (
+      trimmed === "" ||
+      Number.isNaN(Number(trimmed)) ||
+      Number(trimmed) < 0
+    ) {
+      toastError("Цена — неотрицательное число.");
+      return;
+    }
+
+    const segment: BulkRateSegment = {
+      room_type_id: cellEdit.roomTypeId,
+      rate_plan_id: ratePlanId,
+      start_date: cellEdit.dateIso,
+      end_date: cellEdit.dateIso,
+      price: trimmed,
+    };
+
+    try {
+      await bulkMutation.mutateAsync({ segments: [segment] });
+      toastSuccess("Цена сохранена");
+      setCellEdit(null);
+    } catch (err) {
+      toastError(formatApiError(err));
     }
   }
 
@@ -522,6 +568,13 @@ export function RatesPage() {
                 Сетка показывает все категории номеров для выбранного плана. Во
                 второй строке ячейки — остатки из инвентаря (не зависят от
                 тарифа).
+                {canWriteRates ? (
+                  <>
+                    {" "}
+                    Клик по ячейке с ценой открывает правку на одну ночь (owner /
+                    manager).
+                  </>
+                ) : null}
               </p>
             </div>
 
@@ -585,6 +638,11 @@ export function RatesPage() {
                         }
                       }
                       const rowPending = row?.isPending ?? true;
+                      const cellEditable =
+                        canWriteRates &&
+                        selectedPropertyId !== null &&
+                        ratePlanId !== "" &&
+                        !rowPending;
                       return (
                         <tr key={rt.id}>
                           <th
@@ -597,13 +655,39 @@ export function RatesPage() {
                             const p = priceByDate.get(d.iso);
                             const availKey = `${d.iso}_${rt.id}`;
                             const availCell = availabilityByKey.get(availKey);
+                            function openCellEditor(): void {
+                              if (!cellEditable) return;
+                              setCellEdit({
+                                roomTypeId: rt.id,
+                                roomTypeName: rt.name,
+                                dateIso: d.iso,
+                                dateLabel: d.date.toLocaleDateString("ru-RU", {
+                                  day: "numeric",
+                                  month: "long",
+                                  year: "numeric",
+                                }),
+                                priceDraft: p ?? "",
+                              });
+                            }
                             return (
                               <td
                                 key={d.iso}
+                                role={cellEditable ? "button" : undefined}
+                                tabIndex={cellEditable ? 0 : undefined}
                                 className={cn(
                                   "border-b border-border/80 px-0.5 py-1.5 align-top text-center tabular-nums text-foreground",
-                                  rowPending && "animate-pulse bg-muted/30"
+                                  rowPending && "animate-pulse bg-muted/30",
+                                  cellEditable &&
+                                    "cursor-pointer hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                 )}
+                                onClick={openCellEditor}
+                                onKeyDown={(ev) => {
+                                  if (!cellEditable) return;
+                                  if (ev.key === "Enter" || ev.key === " ") {
+                                    ev.preventDefault();
+                                    openCellEditor();
+                                  }
+                                }}
                               >
                                 <div className="flex min-h-[2.5rem] flex-col items-center justify-center gap-0.5 leading-tight">
                                   <span>
@@ -724,6 +808,60 @@ export function RatesPage() {
         )}
       </section>
 
+      <Dialog
+        open={cellEdit !== null}
+        onOpenChange={(open) => {
+          if (!open) setCellEdit(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Цена за ночь</DialogTitle>
+            <DialogDescription>
+              {cellEdit !== null
+                ? `${cellEdit.roomTypeName} · ${cellEdit.dateLabel}`
+                : null}
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => void submitCellEdit(e)}
+          >
+            <div className="space-y-1">
+              <label htmlFor="cell-rate-price" className="text-sm font-medium">
+                Цена
+              </label>
+              <Input
+                id="cell-rate-price"
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                placeholder="0.00"
+                value={cellEdit?.priceDraft ?? ""}
+                onChange={(ev) => {
+                  setCellEdit((prev) =>
+                    prev === null
+                      ? prev
+                      : { ...prev, priceDraft: ev.target.value }
+                  );
+                }}
+              />
+            </div>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setCellEdit(null)}
+              >
+                Отмена
+              </Button>
+              <Button type="submit" disabled={bulkMutation.isPending}>
+                {bulkMutation.isPending ? "Сохранение…" : "Сохранить"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={editRatePlanDialogOpen}

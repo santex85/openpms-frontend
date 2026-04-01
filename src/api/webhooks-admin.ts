@@ -4,6 +4,7 @@ import type {
   WebhookDeliveryLogRead,
   WebhookSubscriptionCreateRequest,
   WebhookSubscriptionCreateResponse,
+  WebhookSubscriptionPatchRequest,
   WebhookSubscriptionRead,
 } from "@/types/tenant-admin";
 
@@ -40,6 +41,17 @@ export async function deleteWebhookSubscription(
   subscriptionId: string
 ): Promise<void> {
   await apiClient.delete(`/webhooks/subscriptions/${subscriptionId}`);
+}
+
+export async function patchWebhookSubscription(
+  subscriptionId: string,
+  body: WebhookSubscriptionPatchRequest
+): Promise<WebhookSubscriptionRead> {
+  const { data } = await apiClient.patch<WebhookSubscriptionRead>(
+    `/webhooks/subscriptions/${subscriptionId}`,
+    body
+  );
+  return data;
 }
 
 export async function fetchWebhookDeliveryLogs(

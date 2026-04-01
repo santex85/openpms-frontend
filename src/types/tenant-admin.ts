@@ -57,6 +57,13 @@ export interface WebhookSubscriptionRead {
   created_at: string;
 }
 
+/** PATCH /webhooks/subscriptions/{id} */
+export interface WebhookSubscriptionPatchRequest {
+  is_active?: boolean;
+  url?: string;
+  events?: string[];
+}
+
 export interface WebhookSubscriptionCreateRequest {
   url: string;
   events: string[];

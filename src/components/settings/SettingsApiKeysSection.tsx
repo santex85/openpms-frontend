@@ -13,6 +13,7 @@ import { useApiKeys } from "@/hooks/useApiKeys";
 import {
   useCreateApiKey,
   useDeactivateApiKey,
+  useDeleteApiKey,
 } from "@/hooks/useApiKeyMutations";
 import { copyToClipboard } from "@/lib/copyToClipboard";
 import { formatApiError } from "@/lib/formatApiError";
@@ -35,12 +36,17 @@ export function SettingsApiKeysSection({
   const { data: keys, isPending, isError } = useApiKeys(canManage);
   const createMutation = useCreateApiKey();
   const deactivateMutation = useDeactivateApiKey();
+  const deleteMutation = useDeleteApiKey();
 
   const [name, setName] = useState("");
   const [scopesRaw, setScopesRaw] = useState("read:bookings write:bookings");
   const [formError, setFormError] = useState<string | null>(null);
   const [newKeyOpen, setNewKeyOpen] = useState(false);
   const [createdKey, setCreatedKey] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   async function onCreate(e: FormEvent): Promise<void> {
     e.preventDefault();
@@ -92,6 +98,10 @@ export function SettingsApiKeysSection({
           <code className="rounded bg-muted px-1 font-mono text-xs">
             PATCH /api-keys/{"{"}id{"}"}
           </code>
+          ,{" "}
+          <code className="rounded bg-muted px-1 font-mono text-xs">
+            DELETE /api-keys/{"{"}id{"}"}
+          </code>
           .
         </p>
       </div>
@@ -124,22 +134,34 @@ export function SettingsApiKeysSection({
                     {k.expires_at !== null ? k.expires_at.slice(0, 10) : "—"}
                   </td>
                   <td className="px-3 py-2 text-right">
-                    {k.is_active ? (
+                    <div className="flex flex-wrap items-center justify-end gap-1">
+                      {k.is_active ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive"
+                          disabled={deactivateMutation.isPending}
+                          onClick={() => {
+                            void deactivateMutation.mutateAsync(k.id);
+                          }}
+                        >
+                          Деактивировать
+                        </Button>
+                      ) : null}
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
                         className="text-destructive"
-                        disabled={deactivateMutation.isPending}
+                        disabled={deleteMutation.isPending}
                         onClick={() => {
-                          void deactivateMutation.mutateAsync(k.id);
+                          setDeleteTarget({ id: k.id, name: k.name });
                         }}
                       >
-                        Деактивировать
+                        Удалить
                       </Button>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -180,6 +202,51 @@ export function SettingsApiKeysSection({
           {createMutation.isPending ? "Создание…" : "Создать ключ"}
         </Button>
       </form>
+
+      <Dialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Удалить ключ</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Действие необратимо. Ключ «{deleteTarget?.name ?? ""}» будет удалён
+            навсегда.
+          </p>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setDeleteTarget(null)}
+            >
+              Отмена
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleteMutation.isPending || deleteTarget === null}
+              onClick={() => {
+                if (deleteTarget === null) return;
+                void (async () => {
+                  try {
+                    await deleteMutation.mutateAsync(deleteTarget.id);
+                    toastSuccess("Ключ удалён");
+                    setDeleteTarget(null);
+                  } catch (err) {
+                    toastError(formatApiError(err));
+                  }
+                })();
+              }}
+            >
+              {deleteMutation.isPending ? "Удаление…" : "Удалить"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={newKeyOpen} onOpenChange={setNewKeyOpen}>
         <DialogContent className="sm:max-w-lg">
