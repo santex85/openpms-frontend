@@ -9,30 +9,66 @@ import type {
   BookingUnpaidFolioRow,
 } from "@/types/api";
 
-export interface FetchBookingsParams {
-  propertyId: string;
-  startDate: string;
-  endDate: string;
-}
-
-interface BookingTapePage {
+export interface BookingTapePage {
   items: Booking[];
   total: number;
   limit: number;
   offset: number;
 }
 
-export async function fetchBookings(
-  params: FetchBookingsParams
-): Promise<Booking[]> {
+export interface FetchBookingsDateRangeParams {
+  propertyId: string;
+  startDate: string;
+  endDate: string;
+}
+
+export interface FetchBookingsTapeParams extends FetchBookingsDateRangeParams {
+  limit?: number;
+  offset?: number;
+  status?: string;
+}
+
+const BOOKING_PAGE_CHUNK = 500;
+
+export async function fetchBookingsTape(
+  params: FetchBookingsTapeParams
+): Promise<BookingTapePage> {
+  const limit = params.limit ?? 25;
+  const offset = params.offset ?? 0;
+  const statusTrim = params.status?.trim();
   const { data } = await apiClient.get<BookingTapePage>("/bookings", {
     params: {
       [PROPERTY_ID_QUERY_PARAM]: params.propertyId,
       start_date: params.startDate,
       end_date: params.endDate,
+      limit,
+      offset,
+      ...(statusTrim !== undefined && statusTrim !== ""
+        ? { status: statusTrim }
+        : {}),
     },
   });
-  return data.items;
+  return data;
+}
+
+export async function fetchBookingsAllInRange(
+  params: FetchBookingsDateRangeParams
+): Promise<Booking[]> {
+  const items: Booking[] = [];
+  let offset = 0;
+  for (;;) {
+    const page = await fetchBookingsTape({
+      ...params,
+      limit: BOOKING_PAGE_CHUNK,
+      offset,
+    });
+    items.push(...page.items);
+    offset += page.items.length;
+    if (offset >= page.total || page.items.length === 0) {
+      break;
+    }
+  }
+  return items;
 }
 
 /** GET /bookings/{booking_id} — полная карточка вне окна списка по датам. */

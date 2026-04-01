@@ -47,6 +47,13 @@ export interface RoomType {
   max_occupancy: number;
 }
 
+/** PATCH /room-types/{id} body */
+export interface RoomTypePatch {
+  name?: string;
+  base_occupancy?: number;
+  max_occupancy?: number;
+}
+
 /** POST /rooms body */
 export interface RoomCreate {
   room_type_id: string;
@@ -60,6 +67,19 @@ export interface Guest {
   id: string;
   first_name: string;
   last_name: string;
+}
+
+/** POST /guests body */
+export interface GuestCreate {
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  passport_data?: string | null;
+  nationality?: string | null;
+  date_of_birth?: string | null;
+  notes?: string | null;
+  vip_status?: boolean;
 }
 
 /** Guest profile row (GET /guests). */
@@ -137,10 +157,66 @@ export interface BookingCreateResponse {
   nights: NightlyPriceLine[];
 }
 
+/** GET /dashboard/summary */
+export interface DashboardSummary {
+  arrivals_today: number;
+  departures_today: number;
+  occupied_rooms: number;
+  total_rooms: number;
+  dirty_rooms: number;
+  currency: string;
+}
+
+/** Booking rows returned in GuestDetailRead.bookings. */
+export interface GuestBookingSummary {
+  id: string;
+  property_id: string;
+  status: string;
+  source: string;
+  total_amount: string;
+  check_in_date: string | null;
+  check_out_date: string | null;
+}
+
+/** GET /guests/{id} */
+export interface GuestDetailRead extends GuestRead {
+  bookings: GuestBookingSummary[];
+}
+
+/** PATCH /guests/{id} body */
+export interface GuestPatch {
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  phone?: string;
+  passport_data?: string | null;
+  nationality?: string | null;
+  date_of_birth?: string | null;
+  notes?: string | null;
+  vip_status?: boolean | null;
+}
+
+/** Paginated GET /guests. */
+export interface GuestListPage {
+  items: GuestRead[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+/** PATCH /rooms/{id} body */
+export interface RoomPatch {
+  room_type_id?: string;
+  name?: string;
+  status?: string;
+}
+
 /** Physical room for board rows (GET/POST /rooms?property_id=…). */
 export interface RoomRow {
   id: string;
   room_type_id: string;
   name: string;
   status: string;
+  housekeeping_status: string;
+  housekeeping_priority: string;
 }

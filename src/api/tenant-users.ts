@@ -2,6 +2,7 @@ import { apiClient } from "@/lib/api";
 import type {
   AuthInviteRequest,
   AuthInviteResponse,
+  TenantUserPatchRequest,
   TenantUserRead,
 } from "@/types/tenant-admin";
 
@@ -19,3 +20,15 @@ export async function inviteTenantUser(
   );
   return data;
 }
+
+export async function patchTenantUser(
+  userId: string,
+  body: TenantUserPatchRequest
+): Promise<TenantUserRead> {
+  const { data } = await apiClient.patch<TenantUserRead>(
+    `/auth/users/${userId}`,
+    body
+  );
+  return data;
+}
+

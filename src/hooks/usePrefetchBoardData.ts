@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
-import { fetchBookings } from "@/api/bookings";
+import { fetchBookingsAllInRange } from "@/api/bookings";
 import { fetchAvailabilityGrid } from "@/api/inventory";
 import { fetchRoomTypes } from "@/api/room-types";
 import { fetchRooms } from "@/api/rooms";
@@ -52,9 +52,16 @@ export function usePrefetchBoardData() {
     });
 
     void queryClient.prefetchQuery({
-      queryKey: ["bookings", authKey, propertyId, startIso, endIso],
+      queryKey: [
+        "bookings",
+        authKey,
+        propertyId,
+        startIso,
+        endIso,
+        "all",
+      ],
       queryFn: () =>
-        fetchBookings({
+        fetchBookingsAllInRange({
           propertyId,
           startDate: startIso,
           endDate: endIso,

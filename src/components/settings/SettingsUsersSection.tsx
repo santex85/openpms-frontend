@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -16,11 +16,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useInviteUser } from "@/hooks/useInviteUser";
+import { usePatchTenantUser } from "@/hooks/usePatchTenantUser";
 import { useTenantUsers } from "@/hooks/useTenantUsers";
 import { copyToClipboard } from "@/lib/copyToClipboard";
 import { formatApiError } from "@/lib/formatApiError";
+import { getRoleFromAccessToken } from "@/lib/jwtPayload";
 import { toastError, toastSuccess } from "@/lib/toast";
+import axios from "axios";
 
 const ROLE_OPTIONS = [
   { value: "manager", label: "manager" },
@@ -33,8 +37,25 @@ interface SettingsUsersSectionProps {
 }
 
 export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
+  const { data: me } = useCurrentUser();
   const { data: users, isPending, isError } = useTenantUsers(canManage);
   const inviteMutation = useInviteUser();
+  const patchUserMut = usePatchTenantUser();
+
+  const patchRoleChoices = useMemo(() => {
+    const actor = getRoleFromAccessToken();
+    const base = [
+      "manager",
+      "receptionist",
+      "housekeeping",
+      "viewer",
+    ] as const;
+    if (actor === "owner") {
+      return ["owner", ...base] as const;
+    }
+    return base;
+  }, []);
+
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<string>(ROLE_OPTIONS[0].value);
@@ -97,6 +118,10 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
           </code>
           ,{" "}
           <code className="rounded bg-muted px-1 font-mono text-xs">
+            PATCH /auth/users/{"{"}id{"}"}
+          </code>
+          ,{" "}
+          <code className="rounded bg-muted px-1 font-mono text-xs">
             POST /auth/invite
           </code>
           .
@@ -111,7 +136,7 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
         <div className="h-24 animate-pulse rounded-md bg-muted" aria-hidden />
       ) : (
         <div className="overflow-x-auto rounded-md border">
-          <table className="w-full min-w-[480px] text-left text-sm">
+          <table className="w-full min-w-[640px] text-left text-sm">
             <thead className="border-b bg-muted/50">
               <tr>
                 <th className="px-3 py-2 font-medium">Email</th>
@@ -121,14 +146,90 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
               </tr>
             </thead>
             <tbody>
-              {(users ?? []).map((u) => (
-                <tr key={u.id} className="border-b border-border/80">
-                  <td className="px-3 py-2">{u.email}</td>
-                  <td className="px-3 py-2">{u.full_name}</td>
-                  <td className="px-3 py-2">{u.role}</td>
-                  <td className="px-3 py-2">{u.is_active ? "да" : "нет"}</td>
-                </tr>
-              ))}
+              {(users ?? []).map((u) => {
+                const isSelf = me !== undefined && u.id === me.id;
+                const activeDisabled =
+                  patchUserMut.isPending || (isSelf && !u.is_active);
+                return (
+                  <tr key={u.id} className="border-b border-border/80">
+                    <td className="px-3 py-2">{u.email}</td>
+                    <td className="px-3 py-2">{u.full_name}</td>
+                    <td className="px-3 py-2">
+                      <Select
+                        value={u.role}
+                        disabled={patchUserMut.isPending}
+                        onValueChange={(v) => {
+                          void (async () => {
+                            try {
+                              await patchUserMut.mutateAsync({
+                                userId: u.id,
+                                body: { role: v },
+                              });
+                            } catch (err) {
+                              if (axios.isAxiosError(err)) {
+                                toastError(
+                                  typeof err.response?.data?.detail === "string"
+                                    ? err.response.data.detail
+                                    : formatApiError(err)
+                                );
+                              }
+                            }
+                          })();
+                        }}
+                      >
+                        <SelectTrigger className="h-8 w-[140px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {patchRoleChoices.map((r) => (
+                            <SelectItem key={r} value={r}>
+                              {r}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </td>
+                    <td className="px-3 py-2">
+                      <label className="inline-flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border border-input"
+                          checked={u.is_active}
+                          disabled={
+                            activeDisabled || (isSelf && u.is_active)
+                          }
+                          onChange={(e) => {
+                            const next = e.target.checked;
+                            void (async () => {
+                              try {
+                                await patchUserMut.mutateAsync({
+                                  userId: u.id,
+                                  body: { is_active: next },
+                                });
+                              } catch (err) {
+                                if (axios.isAxiosError(err)) {
+                                  toastError(
+                                    typeof err.response?.data?.detail ===
+                                      "string"
+                                      ? err.response.data.detail
+                                      : formatApiError(err)
+                                  );
+                                }
+                              }
+                            })();
+                          }}
+                        />
+                        {u.is_active ? "да" : "нет"}
+                      </label>
+                      {isSelf && u.is_active ? (
+                        <p className="mt-1 text-[10px] text-muted-foreground">
+                          Себя деактивировать нельзя.
+                        </p>
+                      ) : null}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

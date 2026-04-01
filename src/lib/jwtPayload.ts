@@ -58,3 +58,12 @@ export function canWriteBookingsFromToken(): boolean {
     role === "owner" || role === "manager" || role === "receptionist"
   );
 }
+
+/** GET /audit-log — только owner и manager (JWT). */
+export function canViewAuditLogFromToken(): boolean {
+  const role = getRoleFromAccessToken();
+  if (role === null) {
+    return false;
+  }
+  return role === "owner" || role === "manager";
+}

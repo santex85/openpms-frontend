@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { BOOKING_STATUS_OPTIONS } from "@/lib/constants";
 import { formatApiError } from "@/lib/formatApiError";
 import { canWriteBookingsFromToken } from "@/lib/jwtPayload";
 import { usePropertyStore } from "@/stores/property-store";
@@ -52,11 +53,13 @@ function formatCreateBookingError(err: unknown): string {
   return formatApiError(err);
 }
 
+const BOOKINGS_PAGE_SIZE = 25;
+
 export function BookingsListPage() {
   const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
   const canCreateBooking = canWriteBookingsFromToken();
-  const [statusFilter, setStatusFilter] = useState("");
-  const [q, setQ] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [page, setPage] = useState(0);
 
   const range = useMemo(() => {
     const end = new Date();
@@ -67,8 +70,17 @@ export function BookingsListPage() {
     };
   }, []);
 
-  const { data: bookings, isPending, isError, error: bookingsError } =
-    useBookings(range.startIso, range.endIso);
+  const listOptions = useMemo(
+    () => ({
+      page,
+      pageSize: BOOKINGS_PAGE_SIZE,
+      ...(statusFilter !== "" ? { status: statusFilter } : {}),
+    }),
+    [page, statusFilter]
+  );
+
+  const { data: tape, isPending, isError, error: bookingsError } =
+    useBookings(range.startIso, range.endIso, listOptions);
 
   const { data: roomTypes, isPending: roomTypesPending } = useRoomTypes();
   const { data: ratePlans, isPending: ratePlansPending } = useRatePlans();
@@ -112,24 +124,13 @@ export function BookingsListPage() {
     }
   }, [ratePlans, ratePlanId]);
 
-  const filtered = useMemo(() => {
-    const list: Booking[] = bookings ?? [];
-    let out = list;
-    if (statusFilter.trim() !== "") {
-      const s = statusFilter.trim().toLowerCase();
-      out = out.filter((b) => b.status.toLowerCase().includes(s));
-    }
-    if (q.trim() !== "") {
-      const qq = q.trim().toLowerCase();
-      out = out.filter(
-        (b) =>
-          b.guest.last_name.toLowerCase().includes(qq) ||
-          b.guest.first_name.toLowerCase().includes(qq) ||
-          b.id.toLowerCase().includes(qq)
-      );
-    }
-    return out;
-  }, [bookings, statusFilter, q]);
+  const rows: Booking[] = tape?.items ?? [];
+  const total = tape?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / BOOKINGS_PAGE_SIZE));
+
+  useEffect(() => {
+    setPage(0);
+  }, [statusFilter]);
 
   function resetCreateFormDefaults(): void {
     setCheckIn(formatIsoDateLocal(new Date()));
@@ -222,7 +223,8 @@ export function BookingsListPage() {
         <div>
           <h2 className="text-lg font-semibold text-foreground">Бронирования</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Последние 90 дней по выбранному отелю. Фильтры локально по списку.
+            Последние 90 дней по выбранному отелю. Статус и пагинация на стороне
+            API.
           </p>
         </div>
         {canCreateBooking ? (
@@ -252,24 +254,64 @@ export function BookingsListPage() {
         </p>
       ) : null}
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-        <Input
-          placeholder="Статус (часть строки)"
-          value={statusFilter}
-          onChange={(e) => {
-            setStatusFilter(e.target.value);
-          }}
-          className="max-w-xs"
-        />
-        <Input
-          placeholder="Гость или ID брони"
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-          }}
-          className="max-w-xs"
-        />
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="space-y-1">
+          <span className="text-xs font-medium text-muted-foreground">
+            Статус
+          </span>
+          <Select
+            value={statusFilter === "" ? "__all__" : statusFilter}
+            onValueChange={(v) => {
+              setStatusFilter(v === "__all__" ? "" : v);
+            }}
+          >
+            <SelectTrigger className="w-[200px]" aria-label="Фильтр статуса">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Все</SelectItem>
+              {BOOKING_STATUS_OPTIONS.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
+
+      {!isPending && !isError ? (
+        <p className="text-sm text-muted-foreground">
+          Всего: {total}. Стр. {page + 1} из {totalPages}.
+        </p>
+      ) : null}
+
+      {!isPending && !isError ? (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={page <= 0}
+            onClick={() => {
+              setPage((p) => Math.max(0, p - 1));
+            }}
+          >
+            Назад
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={page + 1 >= totalPages || rows.length === 0}
+            onClick={() => {
+              setPage((p) => p + 1);
+            }}
+          >
+            Вперёд
+          </Button>
+        </div>
+      ) : null}
       {isError ? (
         <p className="text-sm text-destructive" role="alert">
           Не удалось загрузить брони.
@@ -290,7 +332,7 @@ export function BookingsListPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((b) => (
+              {rows.map((b) => (
                 <tr key={b.id} className="border-b border-border/80">
                   <td className="px-3 py-2">
                     {b.guest.last_name} {b.guest.first_name}
@@ -313,7 +355,7 @@ export function BookingsListPage() {
               ))}
             </tbody>
           </table>
-          {filtered.length === 0 ? (
+          {rows.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground">Нет записей.</p>
           ) : null}
         </div>

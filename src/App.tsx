@@ -23,11 +23,21 @@ const BookingsListPage = lazy(() =>
 const GuestsPage = lazy(() =>
   import("@/pages/GuestsPage").then((m) => ({ default: m.GuestsPage }))
 );
+const GuestDetailPage = lazy(() =>
+  import("@/pages/GuestDetailPage").then((m) => ({
+    default: m.GuestDetailPage,
+  }))
+);
 const RatesPage = lazy(() =>
   import("@/pages/RatesPage").then((m) => ({ default: m.RatesPage }))
 );
 const RoomsPage = lazy(() =>
   import("@/pages/RoomsPage").then((m) => ({ default: m.RoomsPage }))
+);
+const AuditLogPage = lazy(() =>
+  import("@/pages/AuditLogPage").then((m) => ({
+    default: m.AuditLogPage,
+  }))
 );
 const HousekeepingPage = lazy(() =>
   import("@/pages/HousekeepingPage").then((m) => ({
@@ -153,6 +163,14 @@ export default function App() {
             }
           />
           <Route
+            path="guests/:id"
+            element={
+              <LazyPage>
+                <GuestDetailPage />
+              </LazyPage>
+            }
+          />
+          <Route
             path="rates"
             element={
               <LazyPage>
@@ -165,6 +183,14 @@ export default function App() {
             element={
               <LazyPage>
                 <RoomsPage />
+              </LazyPage>
+            }
+          />
+          <Route
+            path="audit-log"
+            element={
+              <LazyPage>
+                <AuditLogPage />
               </LazyPage>
             }
           />

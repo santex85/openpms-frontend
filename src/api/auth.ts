@@ -1,4 +1,5 @@
 import type { UserRead } from "@/types/api";
+import { apiClient } from "@/lib/api";
 import { authHttp } from "@/lib/authHttp";
 import {
   clearSession,
@@ -78,4 +79,23 @@ export function refreshAccessTokenSingleFlight(): Promise<void> {
 
 export function logoutSession(): void {
   clearSession();
+}
+
+export async function fetchMe(): Promise<UserRead> {
+  const { data } = await apiClient.get<UserRead>("/auth/me");
+  return data;
+}
+
+export interface AuthChangePasswordRequest {
+  current_password: string;
+  new_password: string;
+}
+
+export async function changePassword(
+  body: AuthChangePasswordRequest
+): Promise<void> {
+  await apiClient.post("/auth/change-password", {
+    current_password: body.current_password,
+    new_password: body.new_password,
+  });
 }

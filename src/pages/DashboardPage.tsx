@@ -1,45 +1,19 @@
-import { useMemo } from "react";
 import { Link } from "react-router-dom";
 
-import { useAvailabilityGrid } from "@/hooks/useAvailabilityGrid";
-import { useBookings } from "@/hooks/useBookings";
-import { useHousekeepingColumn } from "@/hooks/useHousekeepingColumn";
+import { useBookingsUnpaidFolio } from "@/hooks/useBookingsUnpaidFolio";
+
+import { useDashboardSummary } from "@/hooks/useDashboardSummary";
 import { formatApiError } from "@/lib/formatApiError";
 import { usePropertyStore } from "@/stores/property-store";
-import { formatIsoDateLocal } from "@/utils/boardDates";
+
+function shortBookingId(id: string): string {
+  return id.length > 10 ? `${id.slice(0, 8)}…` : id;
+}
 
 export function DashboardPage() {
   const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
-  const today = useMemo(() => formatIsoDateLocal(new Date()), []);
-
-  const bookingsToday = useBookings(today, today);
-  const availabilityToday = useAvailabilityGrid(today, today);
-  const dirtyColumn = useHousekeepingColumn("dirty", today);
-
-  const arrivalsToday = useMemo(() => {
-    const list = bookingsToday.data ?? [];
-    return list.filter((b) => b.check_in_date === today).length;
-  }, [bookingsToday.data, today]);
-
-  const departuresToday = useMemo(() => {
-    const list = bookingsToday.data ?? [];
-    return list.filter((b) => b.check_out_date === today).length;
-  }, [bookingsToday.data, today]);
-
-  const occupancy = useMemo(() => {
-    const cells = availabilityToday.data?.cells ?? [];
-    let total = 0;
-    let booked = 0;
-    for (const c of cells) {
-      if (c.date === today) {
-        total += c.total_rooms;
-        booked += c.booked_rooms;
-      }
-    }
-    return { booked, total };
-  }, [availabilityToday.data?.cells, today]);
-
-  const dirtyCount = dirtyColumn.data?.items.length ?? 0;
+  const summary = useDashboardSummary();
+  const unpaid = useBookingsUnpaidFolio(selectedPropertyId !== null);
 
   if (selectedPropertyId === null) {
     return (
@@ -52,60 +26,117 @@ export function DashboardPage() {
     );
   }
 
+  const currencyHint =
+    summary.data !== undefined
+      ? `Валюта отеля: ${summary.data.currency}.`
+      : null;
+
   return (
     <div className="space-y-6">
       <PageTitle />
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {currencyHint !== null ? (
+        <p className="text-xs text-muted-foreground">{currencyHint}</p>
+      ) : null}
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           label="Заезды сегодня"
           value={
-            bookingsToday.isPending
+            summary.isPending
               ? "…"
-              : bookingsToday.isError
+              : summary.isError
                 ? "—"
-                : String(arrivalsToday)
+                : String(summary.data!.arrivals_today)
           }
-          hint={bookingsToday.isError ? formatApiError(bookingsToday.error) : null}
+          hint={summary.isError ? formatApiError(summary.error) : null}
         />
         <MetricCard
           label="Выезды сегодня"
           value={
-            bookingsToday.isPending
+            summary.isPending
               ? "…"
-              : bookingsToday.isError
+              : summary.isError
                 ? "—"
-                : String(departuresToday)
+                : String(summary.data!.departures_today)
           }
-          hint={bookingsToday.isError ? formatApiError(bookingsToday.error) : null}
+          hint={summary.isError ? formatApiError(summary.error) : null}
         />
         <MetricCard
-          label="Загрузка номеров (сегодня)"
+          label="Загрузка номеров"
           value={
-            availabilityToday.isPending
+            summary.isPending
               ? "…"
-              : availabilityToday.isError
+              : summary.isError
                 ? "—"
-                : `${occupancy.booked} / ${occupancy.total}`
+                : `${summary.data!.occupied_rooms} / ${summary.data!.total_rooms}`
           }
-          hint={
-            availabilityToday.isError
-              ? formatApiError(availabilityToday.error)
-              : null
-          }
+          hint={summary.isError ? formatApiError(summary.error) : null}
         />
         <MetricCard
           label="Номера «грязные»"
           value={
-            dirtyColumn.isPending
+            summary.isPending
               ? "…"
-              : dirtyColumn.isError
+              : summary.isError
                 ? "—"
-                : String(dirtyCount)
+                : String(summary.data!.dirty_rooms)
           }
-          hint={dirtyColumn.isError ? formatApiError(dirtyColumn.error) : null}
+          hint={summary.isError ? formatApiError(summary.error) : null}
         />
       </div>
+
+      <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
+        <h3 className="text-sm font-semibold text-foreground">
+          Неоплаченные фолио
+        </h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          <code className="rounded bg-muted px-1 font-mono text-[10px]">
+            GET /bookings/unpaid-folio-summary
+          </code>
+        </p>
+        {unpaid.isError ? (
+          <p className="mt-2 text-sm text-destructive">
+            Не удалось загрузить балансы фолио.
+          </p>
+        ) : unpaid.isPending ? (
+          <div className="mt-3 h-20 animate-pulse rounded-md bg-muted" aria-hidden />
+        ) : (unpaid.data ?? []).length === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            Нет броней с положительным балансом по ответу API.
+          </p>
+        ) : (
+          <div className="mt-3 overflow-x-auto rounded-md border">
+            <table className="w-full min-w-[420px] text-left text-sm">
+              <thead className="border-b bg-muted/50">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Гость</th>
+                  <th className="px-3 py-2 font-medium">Бронь</th>
+                  <th className="px-3 py-2 font-medium">Баланс</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(unpaid.data ?? []).map((row) => (
+                  <tr key={row.booking_id} className="border-b border-border/80">
+                    <td className="px-3 py-2">
+                      {row.guest_name ?? "—"}
+                    </td>
+                    <td className="px-3 py-2">
+                      <Link
+                        to={`/bookings/${row.booking_id}`}
+                        className="font-mono text-xs text-primary underline-offset-4 hover:underline"
+                      >
+                        {shortBookingId(row.booking_id)}
+                      </Link>
+                    </td>
+                    <td className="px-3 py-2 tabular-nums">{row.balance}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   );
 }
@@ -115,8 +146,11 @@ function PageTitle() {
     <div>
       <h2 className="text-lg font-semibold text-foreground">Dashboard</h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Показатели на сегодня из броней, доступности номеров и housekeeping.
-        Календарь — на странице{" "}
+        Операционные показатели на сегодня (
+        <code className="rounded bg-muted px-1 font-mono text-xs">
+          GET /dashboard/summary
+        </code>
+        ). Календарь — на странице{" "}
         <Link
           to="/board"
           className="font-medium text-primary underline-offset-4 hover:underline"

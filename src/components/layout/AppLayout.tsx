@@ -1,24 +1,31 @@
 import { Menu, Moon, Sun } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet } from "react-router-dom";
 
-import { logoutSession } from "@/api/auth";
 import { PropertySwitcher } from "@/components/layout/PropertySwitcher";
+import { UserMenu } from "@/components/layout/UserMenu";
 import { Button } from "@/components/ui/button";
 import { usePrefetchBoardData } from "@/hooks/usePrefetchBoardData";
+import { canViewAuditLogFromToken } from "@/lib/jwtPayload";
 import { cn } from "@/lib/utils";
 import { useThemeStore } from "@/stores/theme-store";
 
-const navItems: { to: string; label: string }[] = [
-  { to: "/", label: "Dashboard" },
-  { to: "/board", label: "Сетка" },
-  { to: "/bookings", label: "Брони" },
-  { to: "/guests", label: "Гости" },
-  { to: "/rates", label: "Тарифы" },
-  { to: "/rooms", label: "Номера" },
-  { to: "/housekeeping", label: "Housekeeping" },
-  { to: "/settings", label: "Настройки" },
-];
+function buildNavItems(): { to: string; label: string }[] {
+  const items: { to: string; label: string }[] = [
+    { to: "/", label: "Dashboard" },
+    { to: "/board", label: "Сетка" },
+    { to: "/bookings", label: "Брони" },
+    { to: "/guests", label: "Гости" },
+    { to: "/rates", label: "Тарифы" },
+    { to: "/rooms", label: "Номера" },
+    { to: "/housekeeping", label: "Housekeeping" },
+  ];
+  if (canViewAuditLogFromToken()) {
+    items.push({ to: "/audit-log", label: "Аудит" });
+  }
+  items.push({ to: "/settings", label: "Настройки" });
+  return items;
+}
 
 function NavClasses(isActive: boolean): string {
   return cn(
@@ -29,11 +36,14 @@ function NavClasses(isActive: boolean): string {
   );
 }
 
-function MainNavLinks(props: { onNavigate?: () => void }): ReactNode {
-  const { onNavigate } = props;
+function MainNavLinks(props: {
+  onNavigate?: () => void;
+  items: { to: string; label: string }[];
+}): ReactNode {
+  const { onNavigate, items } = props;
   return (
     <>
-      {navItems.map((item) => (
+      {items.map((item) => (
         <NavLink
           key={item.to}
           to={item.to}
@@ -50,15 +60,10 @@ function MainNavLinks(props: { onNavigate?: () => void }): ReactNode {
 
 export function AppLayout() {
   usePrefetchBoardData();
-  const navigate = useNavigate();
+  const navItems = buildNavItems();
   const [mobileOpen, setMobileOpen] = useState(false);
   const themeMode = useThemeStore((s) => s.mode);
   const toggleTheme = useThemeStore((s) => s.toggle);
-
-  function handleLogout(): void {
-    logoutSession();
-    navigate("/login", { replace: true });
-  }
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -84,6 +89,7 @@ export function AppLayout() {
         {mobileOpen ? (
           <nav className="flex max-h-[50vh] flex-col gap-0.5 overflow-y-auto border-t border-border p-2 md:hidden">
             <MainNavLinks
+              items={navItems}
               onNavigate={() => {
                 setMobileOpen(false);
               }}
@@ -98,10 +104,11 @@ export function AppLayout() {
             className="hidden min-w-0 flex-1 items-center gap-0.5 overflow-x-auto overscroll-x-contain md:flex"
             aria-label="Основные разделы"
           >
-            <MainNavLinks />
+            <MainNavLinks items={navItems} />
           </nav>
           <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2 sm:flex-nowrap md:flex-initial md:shrink-0">
             <PropertySwitcher />
+            <UserMenu />
             <Button
               type="button"
               variant="outline"
@@ -121,15 +128,6 @@ export function AppLayout() {
               ) : (
                 <Moon className="h-4 w-4" />
               )}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="shrink-0"
-              onClick={handleLogout}
-            >
-              Выйти
             </Button>
           </div>
         </div>

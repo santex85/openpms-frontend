@@ -10,6 +10,18 @@ export const MVP_DEMO_TOKEN = "mvp-demo-bearer-token";
 /** Query parameter name for scoping API calls to a property (FastAPI). */
 export const PROPERTY_ID_QUERY_PARAM = "property_id" as const;
 
+/** Canonical booking statuses (see OpenPMS `booking_status`). */
+export const BOOKING_STATUS_OPTIONS = [
+  "pending",
+  "confirmed",
+  "checked_in",
+  "checked_out",
+  "cancelled",
+  "no_show",
+] as const;
+
+export type BookingStatusValue = (typeof BOOKING_STATUS_OPTIONS)[number];
+
 /** localStorage: онбординг — индекс активного шага (0..n). */
 export const ONBOARDING_STEP_STORAGE_KEY = "openpms_onboarding_step";
 

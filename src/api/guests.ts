@@ -1,22 +1,46 @@
 import { apiClient } from "@/lib/api";
-import type { GuestRead } from "@/types/api";
-
-interface GuestListPage {
-  items: GuestRead[];
-  total: number;
-  limit: number;
-  offset: number;
-}
+import type {
+  GuestCreate,
+  GuestDetailRead,
+  GuestListPage,
+  GuestPatch,
+  GuestRead,
+} from "@/types/api";
 
 export async function fetchGuests(params?: {
   q?: string;
-}): Promise<GuestRead[]> {
+  limit?: number;
+  offset?: number;
+}): Promise<GuestListPage> {
   const qTrim = params?.q?.trim();
   const { data } = await apiClient.get<GuestListPage>("/guests", {
-    params:
-      qTrim !== undefined && qTrim !== ""
-        ? { q: qTrim }
-        : undefined,
+    params: {
+      ...(qTrim !== undefined && qTrim !== "" ? { q: qTrim } : {}),
+      limit: params?.limit ?? 25,
+      offset: params?.offset ?? 0,
+    },
   });
-  return data.items;
+  return data;
 }
+
+export async function fetchGuest(guestId: string): Promise<GuestDetailRead> {
+  const { data } = await apiClient.get<GuestDetailRead>(`/guests/${guestId}`);
+  return data;
+}
+
+export async function patchGuest(
+  guestId: string,
+  body: GuestPatch
+): Promise<GuestRead> {
+  const { data } = await apiClient.patch<GuestRead>(
+    `/guests/${guestId}`,
+    body
+  );
+  return data;
+}
+
+export async function createGuest(body: GuestCreate): Promise<GuestRead> {
+  const { data } = await apiClient.post<GuestRead>("/guests", body);
+  return data;
+}
+

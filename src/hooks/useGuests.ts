@@ -6,10 +6,15 @@ import { authQueryKeyPart } from "@/lib/authQueryKey";
 
 const DEBOUNCE_MS = 300;
 
+export interface UseGuestsListOptions {
+  page: number;
+  pageSize: number;
+}
+
 /**
- * Tenant-wide guest list with optional search q (debounced).
+ * Tenant-wide guest list with optional search q (debounced) and pagination.
  */
-export function useGuests(searchInput: string) {
+export function useGuests(searchInput: string, listOptions: UseGuestsListOptions) {
   const authKey = authQueryKeyPart();
   const [debouncedQ, setDebouncedQ] = useState("");
 
@@ -28,10 +33,18 @@ export function useGuests(searchInput: string) {
   }, [searchInput]);
 
   return useQuery({
-    queryKey: ["guests", authKey, debouncedQ],
+    queryKey: [
+      "guests",
+      authKey,
+      debouncedQ,
+      listOptions.page,
+      listOptions.pageSize,
+    ],
     queryFn: () =>
-      fetchGuests(
-        debouncedQ !== "" ? { q: debouncedQ } : undefined
-      ),
+      fetchGuests({
+        ...(debouncedQ !== "" ? { q: debouncedQ } : {}),
+        limit: listOptions.pageSize,
+        offset: listOptions.page * listOptions.pageSize,
+      }),
   });
 }

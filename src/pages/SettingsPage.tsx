@@ -1,7 +1,10 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { useLocation } from "react-router-dom";
+import { SettingsChangePasswordSection } from "@/components/settings/SettingsChangePasswordSection";
 import { SettingsApiKeysSection } from "@/components/settings/SettingsApiKeysSection";
 import { SettingsUsersSection } from "@/components/settings/SettingsUsersSection";
+import { SettingsRoomTypesTable } from "@/components/settings/SettingsRoomTypesTable";
 import { SettingsWebhooksSection } from "@/components/settings/SettingsWebhooksSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -109,6 +112,7 @@ function formatRoomTypeMutationError(err: unknown): string {
 }
 
 export function SettingsPage() {
+  const location = useLocation();
   const canManage = canManagePropertiesFromToken();
   const createMutation = useCreateProperty();
   const updateMutation = useUpdateProperty();
@@ -195,6 +199,14 @@ export function SettingsPage() {
   const [checkoutTime, setCheckoutTime] = useState("11:00");
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (location.hash === "#account-password") {
+      document
+        .getElementById("account-password")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [location.hash]);
 
   useEffect(() => {
     if (selectedPropertyId === null) {
@@ -302,6 +314,7 @@ export function SettingsPage() {
           вебхуки, свойства).
         </p>
       </div>
+      <SettingsChangePasswordSection />
       <section
         id="properties-hotels"
         className="space-y-4 rounded-lg border border-border bg-card p-4"
@@ -576,48 +589,11 @@ export function SettingsPage() {
               <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Уже созданные
               </h4>
-              {roomTypesError ? (
-                <p className="text-sm text-destructive">
-                  Не удалось загрузить типы номеров.
-                </p>
-              ) : roomTypesPending ? (
-                <div
-                  className="h-24 animate-pulse rounded-md bg-muted"
-                  aria-hidden
-                />
-              ) : (roomTypes ?? []).length === 0 ? (
-                <p className="rounded-md border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
-                  Пока нет категорий. Добавьте первую формой выше.
-                </p>
-              ) : (
-                <div className="overflow-x-auto rounded-md border">
-                  <table className="w-full min-w-[420px] text-left text-sm">
-                    <thead className="border-b bg-muted/50">
-                      <tr>
-                        <th className="px-3 py-2 font-medium">Название</th>
-                        <th className="px-3 py-2 font-medium">База / Макс.</th>
-                        <th className="px-3 py-2 font-medium">id</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(roomTypes ?? []).map((rt) => (
-                        <tr
-                          key={rt.id}
-                          className="border-b border-border/80"
-                        >
-                          <td className="px-3 py-2">{rt.name}</td>
-                          <td className="px-3 py-2">
-                            {rt.base_occupancy} / {rt.max_occupancy}
-                          </td>
-                          <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
-                            {rt.id}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <SettingsRoomTypesTable
+                roomTypes={roomTypes}
+                isPending={roomTypesPending}
+                isError={roomTypesError}
+              />
             </div>
           </>
         )}

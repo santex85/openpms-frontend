@@ -15,6 +15,12 @@ export interface RatePlanCreate {
   cancellation_policy: string;
 }
 
+/** PATCH /rate-plans/{id} body */
+export interface RatePlanPatch {
+  name?: string;
+  cancellation_policy?: string;
+}
+
 export interface RateRead {
   id: string;
   tenant_id: string;

@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pencil, Trash2 } from "lucide-react";
 import {
   FormEvent,
   useEffect,
@@ -32,6 +32,7 @@ import { useAvailabilityGrid } from "@/hooks/useAvailabilityGrid";
 import { useBulkUpsertRates } from "@/hooks/useBulkUpsertRates";
 import { useCreateRatePlan } from "@/hooks/useCreateRatePlan";
 import { useDeleteRatePlan } from "@/hooks/useDeleteRatePlan";
+import { usePatchRatePlan } from "@/hooks/usePatchRatePlan";
 import { useNightlyRatesMatrix } from "@/hooks/useNightlyRatesMatrix";
 import { useRatePlans } from "@/hooks/useRatePlans";
 import { useRoomTypes } from "@/hooks/useRoomTypes";
@@ -172,6 +173,7 @@ export function RatesPage() {
   const bulkMutation = useBulkUpsertRates();
   const createRatePlanMutation = useCreateRatePlan();
   const deleteRatePlanMutation = useDeleteRatePlan();
+  const patchRatePlanMutation = usePatchRatePlan();
 
   const [newPlanName, setNewPlanName] = useState("");
   const [newPlanPolicy, setNewPlanPolicy] = useState(
@@ -181,6 +183,11 @@ export function RatesPage() {
   const [addRatePlanDialogOpen, setAddRatePlanDialogOpen] = useState(false);
   const [deleteRatePlanDialogOpen, setDeleteRatePlanDialogOpen] =
     useState(false);
+  const [editRatePlanDialogOpen, setEditRatePlanDialogOpen] =
+    useState(false);
+  const [editPlanName, setEditPlanName] = useState("");
+  const [editPlanPolicy, setEditPlanPolicy] = useState("");
+  const [editPlanError, setEditPlanError] = useState<string | null>(null);
 
   const selectedRatePlanName =
     ratePlans?.find((r) => r.id === ratePlanId)?.name ?? "";
@@ -479,18 +486,36 @@ export function RatesPage() {
                   </Select>
                 </div>
                 {canWriteRates && ratePlanId !== "" ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    aria-label="Удалить тарифный план"
-                    onClick={() => {
-                      setDeleteRatePlanDialogOpen(true);
-                    }}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Удалить
-                  </Button>
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="shrink-0"
+                      onClick={() => {
+                        const rp = ratePlans?.find((r) => r.id === ratePlanId);
+                        if (rp === undefined) return;
+                        setEditPlanName(rp.name);
+                        setEditPlanPolicy(rp.cancellation_policy);
+                        setEditPlanError(null);
+                        setEditRatePlanDialogOpen(true);
+                      }}
+                    >
+                      <Pencil className="mr-2 h-4 w-4" />
+                      Редактировать
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      aria-label="Удалить тарифный план"
+                      onClick={() => {
+                        setDeleteRatePlanDialogOpen(true);
+                      }}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Удалить
+                    </Button>
+                  </>
                 ) : null}
               </div>
               <p className="text-xs text-muted-foreground">
@@ -698,6 +723,94 @@ export function RatesPage() {
           </>
         )}
       </section>
+
+
+      <Dialog
+        open={editRatePlanDialogOpen}
+        onOpenChange={(open) => {
+          setEditRatePlanDialogOpen(open);
+          if (!open) setEditPlanError(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Редактировать тарифный план</DialogTitle>
+            <DialogDescription>
+              <code className="rounded bg-muted px-1 font-mono text-xs">
+                {"PATCH /rate-plans/{id}"}
+              </code>
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            className="space-y-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              setEditPlanError(null);
+              const id = ratePlanId;
+              if (id === "") return;
+              const nameTrim = editPlanName.trim();
+              const polTrim = editPlanPolicy.trim();
+              if (nameTrim === "" || polTrim === "") {
+                setEditPlanError("Заполните название и политику отмены.");
+                return;
+              }
+              void (async () => {
+                try {
+                  await patchRatePlanMutation.mutateAsync({
+                    ratePlanId: id,
+                    body: { name: nameTrim, cancellation_policy: polTrim },
+                  });
+                  setEditRatePlanDialogOpen(false);
+                } catch (err) {
+                  setEditPlanError(formatApiError(err));
+                }
+              })();
+            }}
+          >
+            {editPlanError !== null ? (
+              <p className="text-sm text-destructive" role="alert">
+                {editPlanError}
+              </p>
+            ) : null}
+            <div className="space-y-2">
+              <label htmlFor="edit-rp-name" className="text-sm font-medium">
+                Название
+              </label>
+              <Input
+                id="edit-rp-name"
+                value={editPlanName}
+                onChange={(ev) => setEditPlanName(ev.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="edit-rp-policy" className="text-sm font-medium">
+                Политика отмены
+              </label>
+              <textarea
+                id="edit-rp-policy"
+                className={cn(
+                  "flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-base shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                )}
+                value={editPlanPolicy}
+                onChange={(ev) => setEditPlanPolicy(ev.target.value)}
+                rows={3}
+              />
+            </div>
+            <DialogFooter className="gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditRatePlanDialogOpen(false)}
+              >
+                Отмена
+              </Button>
+              <Button type="submit" disabled={patchRatePlanMutation.isPending}>
+                {patchRatePlanMutation.isPending ? "Сохраняем…" : "Сохранить"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={deleteRatePlanDialogOpen}

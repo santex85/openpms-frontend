@@ -1,8 +1,16 @@
 import { FormEvent, useState } from "react";
 import axios from "axios";
+import { Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -13,10 +21,12 @@ import {
 } from "@/components/ui/select";
 import { useCreateRoom } from "@/hooks/useCreateRoom";
 import { useRoomTypes } from "@/hooks/useRoomTypes";
+import { useDeleteRoom } from "@/hooks/useDeleteRoom";
+import { usePatchRoom } from "@/hooks/usePatchRoom";
 import { useRooms } from "@/hooks/useRooms";
 import { canManagePropertiesFromToken } from "@/lib/jwtPayload";
 import { usePropertyStore } from "@/stores/property-store";
-import type { RoomCreate } from "@/types/api";
+import type { RoomCreate, RoomRow } from "@/types/api";
 
 const ROOM_STATUS_PRESETS = [
   { value: "available", label: "Доступен" },
@@ -59,12 +69,17 @@ export function RoomsPage() {
     isError: typesError,
   } = useRoomTypes();
   const createMutation = useCreateRoom();
+  const patchRoomMut = usePatchRoom();
+  const deleteRoomMut = useDeleteRoom();
 
   const [roomTypeId, setRoomTypeId] = useState<string>("");
   const [name, setName] = useState("");
   const [status, setStatus] = useState<string>(ROOM_STATUS_PRESETS[0].value);
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
+  const [nameDialogRoom, setNameDialogRoom] = useState<RoomRow | null>(null);
+  const [nameEdit, setNameEdit] = useState("");
+  const [deleteRoomRow, setDeleteRoomRow] = useState<RoomRow | null>(null);
 
   if (selectedPropertyId === null) {
     return (
@@ -212,28 +227,102 @@ export function RoomsPage() {
 
       <div>
         <h3 className="mb-2 text-sm font-medium text-foreground">Список</h3>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Статус и название:{" "}
+          <code className="rounded bg-muted px-1 font-mono">
+            PATCH /rooms/{"{"}id{"}"}
+          </code>
+          .
+        </p>
         {isError ? (
           <p className="text-sm text-destructive">Не удалось загрузить номера.</p>
         ) : isPending ? (
           <div className="h-40 animate-pulse rounded-md bg-muted" aria-hidden />
         ) : (
           <div className="overflow-x-auto rounded-md border">
-            <table className="w-full min-w-[480px] text-left text-sm">
+            <table className="w-full min-w-[720px] text-left text-sm">
               <thead className="border-b bg-muted/50">
                 <tr>
                   <th className="px-3 py-2 font-medium">Название</th>
                   <th className="px-3 py-2 font-medium">Статус</th>
+                  <th className="px-3 py-2 font-medium">Housekeeping</th>
+                  <th className="px-3 py-2 font-medium">Приоритет</th>
                   <th className="px-3 py-2 font-medium">Тип (id)</th>
+                  {canManage ? (
+                    <th className="px-3 py-2 text-right font-medium">
+                      Удалить
+                    </th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody>
                 {(rooms ?? []).map((r) => (
                   <tr key={r.id} className="border-b border-border/80">
-                    <td className="px-3 py-2">{r.name}</td>
-                    <td className="px-3 py-2">{r.status}</td>
+                    <td className="px-3 py-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span>{r.name}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => {
+                            setNameDialogRoom(r);
+                            setNameEdit(r.name);
+                          }}
+                        >
+                          Изменить
+                        </Button>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <Select
+                        value={r.status}
+                        onValueChange={(v) => {
+                          patchRoomMut.mutate({
+                            roomId: r.id,
+                            body: { status: v },
+                          });
+                        }}
+                        disabled={patchRoomMut.isPending}
+                      >
+                        <SelectTrigger className="h-8 w-[160px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ROOM_STATUS_PRESETS.map((s) => (
+                            <SelectItem key={s.value} value={s.value}>
+                              {s.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {r.housekeeping_status}
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {r.housekeeping_priority}
+                    </td>
                     <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
                       {r.room_type_id}
                     </td>
+                    {canManage ? (
+                      <td className="px-3 py-2 text-right">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 text-destructive hover:bg-destructive/10"
+                          aria-label="Удалить номер"
+                          onClick={() => {
+                            setDeleteRoomRow(r);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>
@@ -241,6 +330,106 @@ export function RoomsPage() {
           </div>
         )}
       </div>
+
+
+      <Dialog
+        open={deleteRoomRow !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteRoomRow(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Удалить номер?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Номер «{deleteRoomRow?.name ?? ""}» будет помечен удалённым (
+            <code className="rounded bg-muted px-1 font-mono text-xs">
+              DELETE /rooms/{"{"}id{"}"}
+            </code>
+            ).
+          </p>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setDeleteRoomRow(null)}>
+              Отмена
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleteRoomMut.isPending || deleteRoomRow === null}
+              onClick={() => {
+                if (deleteRoomRow === null) return;
+                deleteRoomMut.mutate(deleteRoomRow.id, {
+                  onSuccess: () => setDeleteRoomRow(null),
+                });
+              }}
+            >
+              Удалить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={nameDialogRoom !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setNameDialogRoom(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Название номера</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label htmlFor="room-rename" className="text-sm font-medium">
+              Название / №
+            </label>
+            <Input
+              id="room-rename"
+              value={nameEdit}
+              onChange={(e) => {
+                setNameEdit(e.target.value);
+              }}
+            />
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setNameDialogRoom(null);
+              }}
+            >
+              Отмена
+            </Button>
+            <Button
+              type="button"
+              disabled={patchRoomMut.isPending || nameDialogRoom === null}
+              onClick={() => {
+                if (nameDialogRoom === null) {
+                  return;
+                }
+                const t = nameEdit.trim();
+                if (t === "") {
+                  return;
+                }
+                patchRoomMut.mutate(
+                  { roomId: nameDialogRoom.id, body: { name: t } },
+                  {
+                    onSuccess: () => {
+                      setNameDialogRoom(null);
+                    },
+                  }
+                );
+              }}
+            >
+              Сохранить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

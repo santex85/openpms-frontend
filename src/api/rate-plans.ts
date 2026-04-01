@@ -1,6 +1,6 @@
 import { apiClient } from "@/lib/api";
 import { PROPERTY_ID_QUERY_PARAM } from "@/lib/constants";
-import type { RatePlanCreate, RatePlanRead } from "@/types/rates";
+import type { RatePlanCreate, RatePlanPatch, RatePlanRead } from "@/types/rates";
 
 export async function fetchRatePlans(propertyId: string): Promise<RatePlanRead[]> {
   const { data } = await apiClient.get<RatePlanRead[]>("/rate-plans", {
@@ -19,3 +19,15 @@ export async function createRatePlan(
 export async function deleteRatePlan(ratePlanId: string): Promise<void> {
   await apiClient.delete(`/rate-plans/${ratePlanId}`);
 }
+
+export async function patchRatePlan(
+  ratePlanId: string,
+  body: RatePlanPatch
+): Promise<RatePlanRead> {
+  const { data } = await apiClient.patch<RatePlanRead>(
+    `/rate-plans/${ratePlanId}`,
+    body
+  );
+  return data;
+}
+

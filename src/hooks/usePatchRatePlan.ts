@@ -1,0 +1,35 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+
+import { patchRatePlan } from "@/api/rate-plans";
+import { authQueryKeyPart } from "@/lib/authQueryKey";
+import { usePropertyStore } from "@/stores/property-store";
+import type { RatePlanPatch } from "@/types/rates";
+
+export function usePatchRatePlan() {
+  const queryClient = useQueryClient();
+  const authKey = authQueryKeyPart();
+
+  return useMutation({
+    mutationFn: ({
+      ratePlanId,
+      body,
+    }: {
+      ratePlanId: string;
+      body: RatePlanPatch;
+    }) => patchRatePlan(ratePlanId, body),
+    onSuccess: () => {
+      const propertyId = usePropertyStore.getState().selectedPropertyId;
+      void queryClient.invalidateQueries({
+        queryKey: ["rate-plans", authKey, propertyId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["rates", "nightly", authKey],
+      });
+      toast.success("Тарифный план обновлён.");
+    },
+    onError: () => {
+      toast.error("Не удалось сохранить тарифный план.");
+    },
+  });
+}

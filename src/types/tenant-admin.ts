@@ -13,6 +13,12 @@ export interface AuthInviteRequest {
   full_name: string;
 }
 
+/** PATCH /auth/users/{user_id} body */
+export interface TenantUserPatchRequest {
+  role?: string;
+  is_active?: boolean | null;
+}
+
 /** Ответ POST /auth/invite — временный пароль показать один раз. */
 export interface AuthInviteResponse {
   email: string;
