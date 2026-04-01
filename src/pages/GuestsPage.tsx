@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
+import { Pagination } from "@/components/ui/pagination";
 import {
   Dialog,
   DialogContent,
@@ -10,10 +11,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useCreateGuest } from "@/hooks/useCreateGuest";
+import { useCanWriteBookings } from "@/hooks/useAuthz";
+import { useCreateGuest } from "@/hooks/useGuestMutations";
 import { useGuests } from "@/hooks/useGuests";
 import { formatApiError } from "@/lib/formatApiError";
-import { canWriteBookingsFromToken } from "@/lib/jwtPayload";
 
 const GUESTS_PAGE_SIZE = 25;
 
@@ -29,7 +30,7 @@ function formatGuestDate(iso: string): string {
 }
 
 export function GuestsPage() {
-  const canCreateGuest = canWriteBookingsFromToken();
+  const canCreateGuest = useCanWriteBookings();
   const createGuestMut = useCreateGuest();
   const [searchInput, setSearchInput] = useState("");
   const [page, setPage] = useState(0);
@@ -60,7 +61,6 @@ export function GuestsPage() {
 
   const guests = pageData?.items ?? [];
   const total = pageData?.total ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / GUESTS_PAGE_SIZE));
 
   function resetCreateGuest(): void {
     setCgFirst("");
@@ -152,36 +152,14 @@ export function GuestsPage() {
       </div>
 
       {!isPending && !isError ? (
-        <p className="text-sm text-muted-foreground">
-          Всего: {total}. Стр. {page + 1} из {totalPages}.
-        </p>
-      ) : null}
-
-      {!isPending && !isError ? (
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={page <= 0}
-            onClick={() => {
-              setPage((p) => Math.max(0, p - 1));
-            }}
-          >
-            Назад
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={page + 1 >= totalPages || guests.length === 0}
-            onClick={() => {
-              setPage((p) => p + 1);
-            }}
-          >
-            Вперёд
-          </Button>
-        </div>
+        <Pagination
+          total={total}
+          limit={GUESTS_PAGE_SIZE}
+          offset={page * GUESTS_PAGE_SIZE}
+          onPageChange={(newOffset) => {
+            setPage(Math.floor(newOffset / GUESTS_PAGE_SIZE));
+          }}
+        />
       ) : null}
 
       {isError ? (

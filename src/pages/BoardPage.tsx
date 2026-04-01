@@ -60,10 +60,7 @@ import {
   parseRoomIdFromDndOver,
 } from "@/lib/boardDnd";
 import { formatApiError } from "@/lib/formatApiError";
-import {
-  canWriteBookingsFromToken,
-  canWriteInventoryFromToken,
-} from "@/lib/jwtPayload";
+import { useCanWriteBookings, useCanWriteInventory } from "@/hooks/useAuthz";
 import { usePropertyStore } from "@/stores/property-store";
 import type { AvailabilityCell } from "@/types/inventory";
 import type { Booking, BookingCreateRequest, RoomRow } from "@/types/api";
@@ -174,8 +171,8 @@ export function BoardPage() {
   const { data: ratePlans, isPending: ratePlansPending } = useRatePlans();
   const createBookingMut = useCreateBooking();
 
-  const canWriteBookings = canWriteBookingsFromToken();
-  const canWriteInventory = canWriteInventoryFromToken();
+  const canWriteBookings = useCanWriteBookings();
+  const canWriteInventory = useCanWriteInventory();
 
   const assignRoom = useAssignBookingRoom();
 

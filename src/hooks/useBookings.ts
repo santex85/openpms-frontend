@@ -6,6 +6,7 @@ import {
   type BookingTapePage,
 } from "@/api/bookings";
 import { authQueryKeyPart } from "@/lib/authQueryKey";
+import { usePaginatedQuery } from "@/hooks/usePaginatedQuery";
 import { usePropertyStore } from "@/stores/property-store";
 import type { Booking } from "@/types/api";
 
@@ -34,39 +35,41 @@ export function useBookings(
   const authKey = authQueryKeyPart();
   const isPaged = listOptions !== undefined;
 
-  return useQuery({
-    queryKey: isPaged
-      ? [
-          "bookings",
-          authKey,
-          selectedPropertyId,
-          startDate,
-          endDate,
-          listOptions.page,
-          listOptions.pageSize,
-          listOptions.status ?? null,
-        ]
-      : [
-          "bookings",
-          authKey,
-          selectedPropertyId,
-          startDate,
-          endDate,
-          "all",
-        ],
+  const pagedQuery = usePaginatedQuery(
+    [
+      "bookings",
+      authKey,
+      selectedPropertyId,
+      startDate,
+      endDate,
+      listOptions?.status ?? null,
+    ],
+    ({ limit, offset }) =>
+      fetchBookingsTape({
+        propertyId: selectedPropertyId!,
+        startDate,
+        endDate,
+        limit,
+        offset,
+        status: listOptions?.status,
+      }),
+    listOptions?.page ?? 0,
+    listOptions?.pageSize ?? 25,
+    { enabled: isPaged && selectedPropertyId !== null }
+  );
+
+  const allQuery = useQuery({
+    queryKey: [
+      "bookings",
+      authKey,
+      selectedPropertyId,
+      startDate,
+      endDate,
+      "all",
+    ],
     queryFn: async () => {
       if (selectedPropertyId === null) {
         throw new Error("property not selected");
-      }
-      if (isPaged) {
-        return fetchBookingsTape({
-          propertyId: selectedPropertyId,
-          startDate,
-          endDate,
-          limit: listOptions.pageSize,
-          offset: listOptions.page * listOptions.pageSize,
-          status: listOptions.status,
-        });
       }
       return fetchBookingsAllInRange({
         propertyId: selectedPropertyId,
@@ -74,6 +77,11 @@ export function useBookings(
         endDate,
       });
     },
-    enabled: selectedPropertyId !== null,
+    enabled: !isPaged && selectedPropertyId !== null,
   });
+
+  if (isPaged) {
+    return pagedQuery as UseQueryResult<Booking[] | BookingTapePage>;
+  }
+  return allQuery;
 }

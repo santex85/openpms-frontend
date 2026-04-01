@@ -1,6 +1,10 @@
 import { apiClient } from "@/lib/api";
 import { PROPERTY_ID_QUERY_PARAM } from "@/lib/constants";
-import type { RatePlanCreate, RatePlanPatch, RatePlanRead } from "@/types/rates";
+import type {
+  RatePlanCreate,
+  RatePlanPatch,
+  RatePlanRead,
+} from "@/types/rate-plans";
 
 export async function fetchRatePlans(propertyId: string): Promise<RatePlanRead[]> {
   const { data } = await apiClient.get<RatePlanRead[]>("/rate-plans", {

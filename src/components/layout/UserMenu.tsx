@@ -4,12 +4,12 @@ import { useNavigate } from "react-router-dom";
 
 import { logoutSession } from "@/api/auth";
 import { Button } from "@/components/ui/button";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useCurrentUserQueryContext } from "@/hooks/useCurrentUserQueryContext";
 import { cn } from "@/lib/utils";
 
 export function UserMenu() {
   const navigate = useNavigate();
-  const { data: user, isPending, isError } = useCurrentUser();
+  const { data: user, isPending, isError } = useCurrentUserQueryContext();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 

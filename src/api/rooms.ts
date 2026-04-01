@@ -1,6 +1,6 @@
 import { apiClient } from "@/lib/api";
 import { PROPERTY_ID_QUERY_PARAM } from "@/lib/constants";
-import type { RoomCreate, RoomPatch, RoomRow } from "@/types/api";
+import type { RoomCreate, RoomPatch, RoomRow } from "@/types/rooms";
 
 export async function fetchRooms(propertyId: string): Promise<RoomRow[]> {
   const { data } = await apiClient.get<RoomRow[]>("/rooms", {

@@ -30,19 +30,22 @@ import {
 } from "@/components/ui/select";
 import { useAvailabilityGrid } from "@/hooks/useAvailabilityGrid";
 import { useBulkUpsertRates } from "@/hooks/useBulkUpsertRates";
-import { useCreateRatePlan } from "@/hooks/useCreateRatePlan";
-import { useDeleteRatePlan } from "@/hooks/useDeleteRatePlan";
-import { usePatchRatePlan } from "@/hooks/usePatchRatePlan";
+import {
+  useCreateRatePlan,
+  useDeleteRatePlan,
+  usePatchRatePlan,
+} from "@/hooks/useRatePlanMutations";
 import { useNightlyRatesMatrix } from "@/hooks/useNightlyRatesMatrix";
 import { useRatePlans } from "@/hooks/useRatePlans";
 import { useRoomTypes } from "@/hooks/useRoomTypes";
 import { authQueryKeyPart } from "@/lib/authQueryKey";
 import { formatApiError } from "@/lib/formatApiError";
 import { toastError, toastSuccess } from "@/lib/toast";
-import { canManagePropertiesFromToken } from "@/lib/jwtPayload";
+import { useCanManageProperties } from "@/hooks/useAuthz";
 import { usePropertyStore } from "@/stores/property-store";
 import type { AvailabilityCell } from "@/types/inventory";
-import type { BulkRateSegment, RatePlanCreate, RatePlanRead } from "@/types/rates";
+import type { BulkRateSegment, RatePlanRead } from "@/types/rates";
+import type { RatePlanCreate } from "@/types/rate-plans";
 import { cn } from "@/lib/utils";
 import { getMonthRange, shiftMonthAnchor } from "@/utils/boardDates";
 
@@ -100,7 +103,7 @@ function availabilityOccupancyLine(
 
 export function RatesPage() {
   const queryClient = useQueryClient();
-  const canWriteRates = canManagePropertiesFromToken();
+  const canWriteRates = useCanManageProperties();
   const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
   const [monthAnchor, setMonthAnchor] = useState(() => new Date());
   const month = useMemo(() => getMonthRange(monthAnchor), [monthAnchor]);

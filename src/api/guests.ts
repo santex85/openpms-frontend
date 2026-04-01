@@ -5,7 +5,7 @@ import type {
   GuestListPage,
   GuestPatch,
   GuestRead,
-} from "@/types/api";
+} from "@/types/guests";
 
 export async function fetchGuests(params?: {
   q?: string;

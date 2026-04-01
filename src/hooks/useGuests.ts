@@ -1,8 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { fetchGuests } from "@/api/guests";
 import { authQueryKeyPart } from "@/lib/authQueryKey";
+import { usePaginatedQuery } from "@/hooks/usePaginatedQuery";
 
 const DEBOUNCE_MS = 300;
 
@@ -32,19 +32,15 @@ export function useGuests(searchInput: string, listOptions: UseGuestsListOptions
     };
   }, [searchInput]);
 
-  return useQuery({
-    queryKey: [
-      "guests",
-      authKey,
-      debouncedQ,
-      listOptions.page,
-      listOptions.pageSize,
-    ],
-    queryFn: () =>
+  return usePaginatedQuery(
+    ["guests", authKey, debouncedQ],
+    ({ limit, offset }) =>
       fetchGuests({
         ...(debouncedQ !== "" ? { q: debouncedQ } : {}),
-        limit: listOptions.pageSize,
-        offset: listOptions.page * listOptions.pageSize,
+        limit,
+        offset,
       }),
-  });
+    listOptions.page,
+    listOptions.pageSize
+  );
 }

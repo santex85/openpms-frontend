@@ -1,16 +1,18 @@
 import { Menu, Moon, Sun } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 
+import { CurrentUserQueryProvider } from "@/contexts/current-user-query-provider";
 import { PropertySwitcher } from "@/components/layout/PropertySwitcher";
 import { UserMenu } from "@/components/layout/UserMenu";
 import { Button } from "@/components/ui/button";
 import { usePrefetchBoardData } from "@/hooks/usePrefetchBoardData";
-import { canViewAuditLogFromToken } from "@/lib/jwtPayload";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useCanViewAuditLog } from "@/hooks/useAuthz";
 import { cn } from "@/lib/utils";
 import { useThemeStore } from "@/stores/theme-store";
 
-function buildNavItems(): { to: string; label: string }[] {
+function buildNavItems(includeAudit: boolean): { to: string; label: string }[] {
   const items: { to: string; label: string }[] = [
     { to: "/", label: "Dashboard" },
     { to: "/board", label: "Сетка" },
@@ -20,7 +22,7 @@ function buildNavItems(): { to: string; label: string }[] {
     { to: "/rooms", label: "Номера" },
     { to: "/housekeeping", label: "Housekeeping" },
   ];
-  if (canViewAuditLogFromToken()) {
+  if (includeAudit) {
     items.push({ to: "/audit-log", label: "Аудит" });
   }
   items.push({ to: "/settings", label: "Настройки" });
@@ -58,9 +60,10 @@ function MainNavLinks(props: {
   );
 }
 
-export function AppLayout() {
+function AppLayoutShell() {
   usePrefetchBoardData();
-  const navItems = buildNavItems();
+  const canViewAudit = useCanViewAuditLog();
+  const navItems = useMemo(() => buildNavItems(canViewAudit), [canViewAudit]);
   const [mobileOpen, setMobileOpen] = useState(false);
   const themeMode = useThemeStore((s) => s.mode);
   const toggleTheme = useThemeStore((s) => s.toggle);
@@ -136,5 +139,14 @@ export function AppLayout() {
         <Outlet />
       </main>
     </div>
+  );
+}
+
+export function AppLayout() {
+  const currentUserQuery = useCurrentUser();
+  return (
+    <CurrentUserQueryProvider value={currentUserQuery}>
+      <AppLayoutShell />
+    </CurrentUserQueryProvider>
   );
 }

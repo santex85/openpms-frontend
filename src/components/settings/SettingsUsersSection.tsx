@@ -16,13 +16,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useAuthRole } from "@/hooks/useAuthz";
+import { useCurrentUserQueryContext } from "@/hooks/useCurrentUserQueryContext";
 import { useInviteUser } from "@/hooks/useInviteUser";
 import { usePatchTenantUser } from "@/hooks/usePatchTenantUser";
 import { useTenantUsers } from "@/hooks/useTenantUsers";
 import { copyToClipboard } from "@/lib/copyToClipboard";
 import { formatApiError } from "@/lib/formatApiError";
-import { getRoleFromAccessToken } from "@/lib/jwtPayload";
 import { toastError, toastSuccess } from "@/lib/toast";
 import axios from "axios";
 
@@ -37,13 +37,14 @@ interface SettingsUsersSectionProps {
 }
 
 export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
-  const { data: me } = useCurrentUser();
+  const { data: me } = useCurrentUserQueryContext();
   const { data: users, isPending, isError } = useTenantUsers(canManage);
   const inviteMutation = useInviteUser();
   const patchUserMut = usePatchTenantUser();
 
+  const authRole = useAuthRole();
   const patchRoleChoices = useMemo(() => {
-    const actor = getRoleFromAccessToken();
+    const actor = authRole;
     const base = [
       "manager",
       "receptionist",
@@ -54,7 +55,7 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
       return ["owner", ...base] as const;
     }
     return base;
-  }, []);
+  }, [authRole]);
 
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");

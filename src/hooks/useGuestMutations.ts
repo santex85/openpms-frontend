@@ -1,9 +1,25 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { patchGuest } from "@/api/guests";
+import { createGuest, patchGuest } from "@/api/guests";
 import { authQueryKeyPart } from "@/lib/authQueryKey";
-import type { GuestPatch } from "@/types/api";
+import type { GuestCreate, GuestPatch } from "@/types/guests";
+
+export function useCreateGuest() {
+  const queryClient = useQueryClient();
+  const authKey = authQueryKeyPart();
+
+  return useMutation({
+    mutationFn: (body: GuestCreate) => createGuest(body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["guests", authKey] });
+      toast.success("Гость создан.");
+    },
+    onError: () => {
+      toast.error("Не удалось создать гостя.");
+    },
+  });
+}
 
 export function usePatchGuest() {
   const queryClient = useQueryClient();

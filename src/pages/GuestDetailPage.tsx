@@ -4,7 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useGuest } from "@/hooks/useGuest";
-import { usePatchGuest } from "@/hooks/usePatchGuest";
+import { usePatchGuest } from "@/hooks/useGuestMutations";
 import { formatApiError } from "@/lib/formatApiError";
 
 export function GuestDetailPage() {

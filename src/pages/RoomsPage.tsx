@@ -19,12 +19,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useCreateRoom } from "@/hooks/useCreateRoom";
+import { useCanManageProperties } from "@/hooks/useAuthz";
+import {
+  useCreateRoom,
+  useDeleteRoom,
+  usePatchRoom,
+} from "@/hooks/useRoomMutations";
 import { useRoomTypes } from "@/hooks/useRoomTypes";
-import { useDeleteRoom } from "@/hooks/useDeleteRoom";
-import { usePatchRoom } from "@/hooks/usePatchRoom";
 import { useRooms } from "@/hooks/useRooms";
-import { canManagePropertiesFromToken } from "@/lib/jwtPayload";
 import { usePropertyStore } from "@/stores/property-store";
 import type { RoomCreate, RoomRow } from "@/types/api";
 
@@ -61,7 +63,7 @@ function formatRoomMutationError(err: unknown): string {
 
 export function RoomsPage() {
   const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
-  const canManage = canManagePropertiesFromToken();
+  const canManage = useCanManageProperties();
   const { data: rooms, isPending, isError } = useRooms();
   const {
     data: roomTypes,

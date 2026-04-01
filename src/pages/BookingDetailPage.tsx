@@ -19,7 +19,7 @@ import {
 } from "@/hooks/useFolioMutations";
 import { usePatchBooking } from "@/hooks/usePatchBooking";
 import { formatApiError } from "@/lib/formatApiError";
-import { canWriteBookingsFromToken } from "@/lib/jwtPayload";
+import { useCanWriteBookings } from "@/hooks/useAuthz";
 import { formatIsoDateLocal } from "@/utils/boardDates";
 
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
@@ -34,7 +34,7 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
 export function BookingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const bookingId = id ?? "";
-  const canWriteFolio = canWriteBookingsFromToken();
+  const canWriteFolio = useCanWriteBookings();
 
   const {
     data: booking,

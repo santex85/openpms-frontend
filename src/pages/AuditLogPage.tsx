@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 
-import { Button } from "@/components/ui/button";
+import { Pagination } from "@/components/ui/pagination";
 import { Input } from "@/components/ui/input";
 import {
   AUDIT_LOG_PAGE_SIZE,
@@ -71,11 +71,10 @@ export function AuditLogPage() {
   const [dateTo, setDateTo] = useState("");
 
   const filtered = useMemo(
-    () => filterRows(data ?? [], actionQ, entityQ, dateFrom, dateTo),
-    [data, actionQ, entityQ, dateFrom, dateTo]
+    () =>
+      filterRows(data?.items ?? [], actionQ, entityQ, dateFrom, dateTo),
+    [data?.items, actionQ, entityQ, dateFrom, dateTo]
   );
-
-  const hasMore = (data?.length ?? 0) >= AUDIT_LOG_PAGE_SIZE;
 
   return (
     <div className="space-y-4">
@@ -143,33 +142,18 @@ export function AuditLogPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={page <= 0}
-          onClick={() => {
-            setPage((p) => Math.max(0, p - 1));
+      {!isPending && !isError ? (
+        <Pagination
+          total={data?.total ?? 0}
+          limit={AUDIT_LOG_PAGE_SIZE}
+          offset={page * AUDIT_LOG_PAGE_SIZE}
+          hasMore={data?.hasMore}
+          showTotalCount={false}
+          onPageChange={(newOffset) => {
+            setPage(Math.floor(newOffset / AUDIT_LOG_PAGE_SIZE));
           }}
-        >
-          Раньше
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={!hasMore}
-          onClick={() => {
-            setPage((p) => p + 1);
-          }}
-        >
-          Позже
-        </Button>
-        <span className="self-center text-sm text-muted-foreground">
-          Смещение: {page * AUDIT_LOG_PAGE_SIZE}, размер: {AUDIT_LOG_PAGE_SIZE}
-        </span>
-      </div>
+        />
+      ) : null}
 
       {isError ? (
         <p className="text-sm text-destructive" role="alert">

@@ -16,13 +16,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCreateProperty } from "@/hooks/useCreateProperty";
-import { useCreateRoomType } from "@/hooks/useCreateRoomType";
+import { useCanManageProperties } from "@/hooks/useAuthz";
+import { useCreateRoomType } from "@/hooks/useRoomTypeMutations";
 import { useProperties } from "@/hooks/useProperties";
 import { useUpdateProperty } from "@/hooks/useUpdateProperty";
 import { useRoomTypes } from "@/hooks/useRoomTypes";
-import { canManagePropertiesFromToken } from "@/lib/jwtPayload";
 import { usePropertyStore } from "@/stores/property-store";
-import type { PropertyCreate, RoomTypeCreate } from "@/types/api";
+import type { PropertyCreate } from "@/types/api";
+import type { RoomTypeCreate } from "@/types/room-types";
 
 const TIMEZONE_PRESETS = [
   { value: "Europe/Moscow", label: "Europe/Moscow" },
@@ -113,7 +114,7 @@ function formatRoomTypeMutationError(err: unknown): string {
 
 export function SettingsPage() {
   const location = useLocation();
-  const canManage = canManagePropertiesFromToken();
+  const canManage = useCanManageProperties();
   const createMutation = useCreateProperty();
   const updateMutation = useUpdateProperty();
   const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);

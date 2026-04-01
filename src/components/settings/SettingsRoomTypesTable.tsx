@@ -9,8 +9,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useDeleteRoomType } from "@/hooks/useDeleteRoomType";
-import { usePatchRoomType } from "@/hooks/usePatchRoomType";
+import {
+  useDeleteRoomType,
+  usePatchRoomType,
+} from "@/hooks/useRoomTypeMutations";
 import type { RoomType } from "@/types/api";
 
 interface SettingsRoomTypesTableProps {

@@ -7,6 +7,7 @@ import { useCreateBooking } from "@/hooks/useCreateBooking";
 import { useRatePlans } from "@/hooks/useRatePlans";
 import { useRoomTypes } from "@/hooks/useRoomTypes";
 import { Button } from "@/components/ui/button";
+import { Pagination } from "@/components/ui/pagination";
 import {
   Dialog,
   DialogContent,
@@ -25,7 +26,7 @@ import {
 } from "@/components/ui/select";
 import { BOOKING_STATUS_OPTIONS } from "@/lib/constants";
 import { formatApiError } from "@/lib/formatApiError";
-import { canWriteBookingsFromToken } from "@/lib/jwtPayload";
+import { useCanWriteBookings } from "@/hooks/useAuthz";
 import { usePropertyStore } from "@/stores/property-store";
 import type { Booking, BookingCreateRequest } from "@/types/api";
 import { formatIsoDateLocal } from "@/utils/boardDates";
@@ -57,7 +58,7 @@ const BOOKINGS_PAGE_SIZE = 25;
 
 export function BookingsListPage() {
   const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
-  const canCreateBooking = canWriteBookingsFromToken();
+  const canCreateBooking = useCanWriteBookings();
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [page, setPage] = useState(0);
 
@@ -126,7 +127,6 @@ export function BookingsListPage() {
 
   const rows: Booking[] = tape?.items ?? [];
   const total = tape?.total ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / BOOKINGS_PAGE_SIZE));
 
   useEffect(() => {
     setPage(0);
@@ -281,36 +281,14 @@ export function BookingsListPage() {
       </div>
 
       {!isPending && !isError ? (
-        <p className="text-sm text-muted-foreground">
-          Всего: {total}. Стр. {page + 1} из {totalPages}.
-        </p>
-      ) : null}
-
-      {!isPending && !isError ? (
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={page <= 0}
-            onClick={() => {
-              setPage((p) => Math.max(0, p - 1));
-            }}
-          >
-            Назад
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={page + 1 >= totalPages || rows.length === 0}
-            onClick={() => {
-              setPage((p) => p + 1);
-            }}
-          >
-            Вперёд
-          </Button>
-        </div>
+        <Pagination
+          total={total}
+          limit={BOOKINGS_PAGE_SIZE}
+          offset={page * BOOKINGS_PAGE_SIZE}
+          onPageChange={(newOffset) => {
+            setPage(Math.floor(newOffset / BOOKINGS_PAGE_SIZE));
+          }}
+        />
       ) : null}
       {isError ? (
         <p className="text-sm text-destructive" role="alert">

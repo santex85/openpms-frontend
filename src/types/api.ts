@@ -29,75 +29,29 @@ export interface PropertyRead {
   checkout_time: string;
 }
 
-/** Room type: POST /room-types body */
-export interface RoomTypeCreate {
-  property_id: string;
-  name: string;
-  base_occupancy: number;
-  max_occupancy: number;
-}
+import type { Guest } from "./guests";
 
-/** Room type as returned by GET/POST /room-types */
-export interface RoomType {
-  id: string;
-  tenant_id: string;
-  property_id: string;
-  name: string;
-  base_occupancy: number;
-  max_occupancy: number;
-}
+export type {
+  Guest,
+  GuestBookingSummary,
+  GuestCreate,
+  GuestDetailRead,
+  GuestListPage,
+  GuestPatch,
+  GuestRead,
+} from "./guests";
 
-/** PATCH /room-types/{id} body */
-export interface RoomTypePatch {
-  name?: string;
-  base_occupancy?: number;
-  max_occupancy?: number;
-}
+export type {
+  RoomCreate,
+  RoomPatch,
+  RoomRow,
+} from "./rooms";
 
-/** POST /rooms body */
-export interface RoomCreate {
-  room_type_id: string;
-  name: string;
-  /** Optional; backend default "available" */
-  status?: string;
-}
-
-/** Guest summary on booking tape (GET /bookings). */
-export interface Guest {
-  id: string;
-  first_name: string;
-  last_name: string;
-}
-
-/** POST /guests body */
-export interface GuestCreate {
-  first_name: string;
-  last_name: string;
-  email: string;
-  phone: string;
-  passport_data?: string | null;
-  nationality?: string | null;
-  date_of_birth?: string | null;
-  notes?: string | null;
-  vip_status?: boolean;
-}
-
-/** Guest profile row (GET /guests). */
-export interface GuestRead {
-  id: string;
-  tenant_id: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  phone: string;
-  passport_data: string | null;
-  nationality: string | null;
-  date_of_birth: string | null;
-  notes: string | null;
-  vip_status: boolean;
-  created_at: string;
-  updated_at: string;
-}
+export type {
+  RoomType,
+  RoomTypeCreate,
+  RoomTypePatch,
+} from "./room-types";
 
 /** Строка GET /bookings/unpaid-folio-summary (или аналог на бэке). */
 export interface BookingUnpaidFolioRow {
@@ -165,58 +119,4 @@ export interface DashboardSummary {
   total_rooms: number;
   dirty_rooms: number;
   currency: string;
-}
-
-/** Booking rows returned in GuestDetailRead.bookings. */
-export interface GuestBookingSummary {
-  id: string;
-  property_id: string;
-  status: string;
-  source: string;
-  total_amount: string;
-  check_in_date: string | null;
-  check_out_date: string | null;
-}
-
-/** GET /guests/{id} */
-export interface GuestDetailRead extends GuestRead {
-  bookings: GuestBookingSummary[];
-}
-
-/** PATCH /guests/{id} body */
-export interface GuestPatch {
-  first_name?: string;
-  last_name?: string;
-  email?: string;
-  phone?: string;
-  passport_data?: string | null;
-  nationality?: string | null;
-  date_of_birth?: string | null;
-  notes?: string | null;
-  vip_status?: boolean | null;
-}
-
-/** Paginated GET /guests. */
-export interface GuestListPage {
-  items: GuestRead[];
-  total: number;
-  limit: number;
-  offset: number;
-}
-
-/** PATCH /rooms/{id} body */
-export interface RoomPatch {
-  room_type_id?: string;
-  name?: string;
-  status?: string;
-}
-
-/** Physical room for board rows (GET/POST /rooms?property_id=…). */
-export interface RoomRow {
-  id: string;
-  room_type_id: string;
-  name: string;
-  status: string;
-  housekeeping_status: string;
-  housekeeping_priority: string;
 }
