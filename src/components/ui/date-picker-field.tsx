@@ -49,9 +49,9 @@ export function DatePickerField({
 
   useEffect(() => {
     if (open) {
-      setMonth(selected ?? new Date());
+      setMonth(trimmed !== "" ? parseIsoDateLocal(trimmed) : new Date());
     }
-  }, [open, selected]);
+  }, [open, trimmed]);
 
   const display =
     selected !== undefined

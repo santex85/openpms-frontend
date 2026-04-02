@@ -9,6 +9,28 @@ export async function fetchRooms(propertyId: string): Promise<RoomRow[]> {
   return data;
 }
 
+export interface FetchAssignableRoomsParams {
+  propertyId: string;
+  roomTypeId: string;
+  checkIn: string;
+  checkOut: string;
+}
+
+/** GET /rooms/assignable — physical rooms free on stay nights (check_out exclusive). */
+export async function fetchAssignableRooms(
+  params: FetchAssignableRoomsParams
+): Promise<RoomRow[]> {
+  const { data } = await apiClient.get<RoomRow[]>("/rooms/assignable", {
+    params: {
+      [PROPERTY_ID_QUERY_PARAM]: params.propertyId,
+      room_type_id: params.roomTypeId,
+      check_in: params.checkIn,
+      check_out: params.checkOut,
+    },
+  });
+  return data;
+}
+
 export async function createRoom(body: RoomCreate): Promise<RoomRow> {
   const { data } = await apiClient.post<RoomRow>("/rooms", body);
   return data;

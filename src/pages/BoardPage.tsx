@@ -46,6 +46,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useAssignableRooms } from "@/hooks/useAssignableRooms";
 import { useAvailabilityGrid } from "@/hooks/useAvailabilityGrid";
 import { useAssignBookingRoom } from "@/hooks/useAssignBookingRoom";
 import { useBookings } from "@/hooks/useBookings";
@@ -194,6 +195,7 @@ export function BoardPage() {
       void queryClient.invalidateQueries({
         queryKey: ["inventory", "availability"],
       });
+      void queryClient.invalidateQueries({ queryKey: ["rooms", "assignable"] });
     },
   });
 
@@ -236,8 +238,18 @@ export function BoardPage() {
   const [cellGuestPassport, setCellGuestPassport] = useState("");
   const [cellCreateError, setCellCreateError] = useState<string | null>(null);
   const [cellBlockError, setCellBlockError] = useState<string | null>(null);
+  const [cellPickRoomId, setCellPickRoomId] = useState("");
 
   const [summaryBooking, setSummaryBooking] = useState<Booking | null>(null);
+
+  const assignableRoomsQuery = useAssignableRooms({
+    propertyId: selectedPropertyId,
+    roomTypeId: cellAction?.room.room_type_id ?? null,
+    checkIn: cellCheckIn,
+    checkOut: cellCheckOut,
+    ratePlanId: cellRatePlanId,
+    enabled: cellAction !== null && canWriteBookings,
+  });
 
   useEffect(() => {
     if (rescheduleBooking === null) {
@@ -265,7 +277,28 @@ export function BoardPage() {
     } else {
       setCellRatePlanId("");
     }
+    setCellPickRoomId(cellAction.room.id);
   }, [cellAction, ratePlans]);
+
+  useEffect(() => {
+    if (cellAction === null) {
+      return;
+    }
+    const list = assignableRoomsQuery.data;
+    if (list === undefined) {
+      return;
+    }
+    const ids = new Set(list.map((r) => r.id));
+    setCellPickRoomId((prev) => {
+      if (prev !== "" && ids.has(prev)) {
+        return prev;
+      }
+      if (list.length > 0) {
+        return list[0].id;
+      }
+      return "";
+    });
+  }, [cellAction, assignableRoomsQuery.data]);
 
   useEffect(() => {
     if (boardMessage === null) {
@@ -504,6 +537,12 @@ export function BoardPage() {
       setCellCreateError("Укажите email и телефон гостя.");
       return;
     }
+    if (cellPickRoomId === "") {
+      setCellCreateError(
+        "Выберите номер или измените даты — нет свободных номеров этой категории."
+      );
+      return;
+    }
     const passportTrim = cellGuestPassport.trim();
     const body: BookingCreateRequest = {
       property_id: selectedPropertyId,
@@ -525,7 +564,7 @@ export function BoardPage() {
       const res = await createBookingMut.mutateAsync(body);
       await patchBookingMut.mutateAsync({
         bookingId: res.booking_id,
-        body: { room_id: cellAction.room.id },
+        body: { room_id: cellPickRoomId },
       });
       setCellAction(null);
     } catch (err) {
@@ -720,6 +759,51 @@ export function BoardPage() {
                   </Select>
                 )}
               </div>
+              {cellRatePlanId !== "" ? (
+                <div className="space-y-2">
+                  <span className="text-sm font-medium">Номер</span>
+                  {assignableRoomsQuery.isLoading ? (
+                    <p className="text-xs text-muted-foreground">
+                      Подбор свободных номеров на выбранные даты…
+                    </p>
+                  ) : assignableRoomsQuery.isError ? (
+                    <p className="text-xs text-destructive" role="alert">
+                      {formatBoardCreateBookingError(assignableRoomsQuery.error)}
+                    </p>
+                  ) : (assignableRoomsQuery.data ?? []).length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      Нет свободных номеров этой категории на эти даты. Измените
+                      даты или проверьте загрузку.
+                    </p>
+                  ) : (
+                    <Select
+                      value={cellPickRoomId}
+                      onValueChange={setCellPickRoomId}
+                    >
+                      <SelectTrigger aria-label="Номер для брони">
+                        <SelectValue placeholder="Номер" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(assignableRoomsQuery.data ?? []).map((r) => (
+                          <SelectItem key={r.id} value={r.id}>
+                            {r.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {cellAction !== null &&
+                  assignableRoomsQuery.data !== undefined &&
+                  !assignableRoomsQuery.data.some(
+                    (r) => r.id === cellAction.room.id
+                  ) ? (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                      Номер строки («{cellAction.room.name}») занят на эти даты —
+                      выберите другой.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-2">
                   <label htmlFor="cell-g-fn" className="text-sm font-medium">
@@ -808,6 +892,9 @@ export function BoardPage() {
                     createBookingMut.isPending ||
                     patchBookingMut.isPending ||
                     cellRatePlanId === "" ||
+                    cellPickRoomId === "" ||
+                    (cellRatePlanId !== "" && assignableRoomsQuery.isLoading) ||
+                    assignableRoomsQuery.isError ||
                     (ratePlans !== undefined && ratePlans.length === 0)
                   }
                 >
