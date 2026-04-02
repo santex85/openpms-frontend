@@ -26,6 +26,13 @@ export const ONBOARDING_STEPS = [
     href: "/rates",
     action: "Открыть тарифы",
   },
+  {
+    title: "Первая бронь",
+    description:
+      "На сетке занятости кликните по ячейке, укажите даты, тариф и номер — так создаётся бронь.",
+    href: "/board",
+    action: "Открыть сетку",
+  },
 ] as const;
 
 export const ONBOARDING_STEP_COUNT = ONBOARDING_STEPS.length;

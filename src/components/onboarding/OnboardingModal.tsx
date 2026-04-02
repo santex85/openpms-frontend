@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+
 import {
   Dialog,
   DialogContent,
@@ -6,11 +8,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
+import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
 import { useOnboardingModalStore } from "@/stores/onboarding-modal-store";
 
 export function OnboardingModal() {
   const open = useOnboardingModalStore((s) => s.open);
   const closeModal = useOnboardingModalStore((s) => s.closeModal);
+  const { allDone } = useOnboardingProgress();
+
+  useEffect(() => {
+    if (open && allDone) {
+      closeModal();
+    }
+  }, [open, allDone, closeModal]);
 
   return (
     <Dialog

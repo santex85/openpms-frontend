@@ -1,13 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { ONBOARDING_STEPS } from "@/components/onboarding/onboardingSteps";
 import { Button } from "@/components/ui/button";
+import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
 import { ONBOARDING_STEP_STORAGE_KEY } from "@/lib/constants";
-import { useProperties } from "@/hooks/useProperties";
-import { useRatePlans } from "@/hooks/useRatePlans";
-import { useRoomTypes } from "@/hooks/useRoomTypes";
-import { useRooms } from "@/hooks/useRooms";
 import { cn } from "@/lib/utils";
 
 function readStepIndex(): number {
@@ -51,28 +48,13 @@ export function OnboardingChecklist({
   onDismiss,
 }: OnboardingChecklistProps) {
   const navigate = useNavigate();
-  const { data: properties } = useProperties();
-  const { data: roomTypes } = useRoomTypes();
-  const { data: rooms } = useRooms();
-  const { data: ratePlans } = useRatePlans();
+  const { stepDone, allDone } = useOnboardingProgress();
 
   const [activeStep, setActiveStep] = useState(() => readStepIndex());
 
   useEffect(() => {
     writeStepIndex(activeStep);
   }, [activeStep]);
-
-  const hasProperty = (properties?.length ?? 0) > 0;
-  const hasRoomTypes = (roomTypes?.length ?? 0) > 0;
-  const hasRooms = (rooms?.length ?? 0) > 0;
-  const hasRates = (ratePlans?.length ?? 0) > 0;
-
-  const stepDone = useMemo(
-    () => [hasProperty, hasRoomTypes, hasRooms, hasRates],
-    [hasProperty, hasRoomTypes, hasRooms, hasRates]
-  );
-
-  const allDone = stepDone.every(Boolean);
 
   const goNextIncomplete = useCallback(() => {
     const next = stepDone.findIndex((d) => !d);
