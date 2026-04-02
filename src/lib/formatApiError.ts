@@ -10,6 +10,19 @@ export function formatApiError(err: unknown): string {
         return d;
       }
       if (Array.isArray(d)) {
+        const msgs = d
+          .map((item) =>
+            typeof item === "object" &&
+            item !== null &&
+            "msg" in item &&
+            typeof (item as { msg: unknown }).msg === "string"
+              ? (item as { msg: string }).msg
+              : null
+          )
+          .filter((s): s is string => s !== null && s !== "");
+        if (msgs.length > 0) {
+          return msgs.join(" ");
+        }
         return JSON.stringify(d);
       }
     }

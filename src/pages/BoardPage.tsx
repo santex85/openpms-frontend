@@ -228,6 +228,9 @@ export function BoardPage() {
     room: RoomRow;
     nightIso: string;
   } | null>(null);
+  const cellNightIso = cellAction?.nightIso ?? "";
+  const cellRoomIdForInit = cellAction?.room.id ?? "";
+  const defaultCellRatePlanId = ratePlans?.[0]?.id ?? "";
   const [cellRatePlanId, setCellRatePlanId] = useState("");
   const [cellCheckIn, setCellCheckIn] = useState("");
   const [cellCheckOut, setCellCheckOut] = useState("");
@@ -259,12 +262,26 @@ export function BoardPage() {
     setRescheduleCheckOut(rescheduleBooking.check_out_date ?? "");
   }, [rescheduleBooking]);
 
+  const assignableRoomIdsKey = useMemo(() => {
+    const d = assignableRoomsQuery.data;
+    if (d === undefined) {
+      return "__pending__";
+    }
+    if (d.length === 0) {
+      return "__empty__";
+    }
+    return [...d]
+      .map((r) => r.id)
+      .sort()
+      .join("|");
+  }, [assignableRoomsQuery.data]);
+
   useEffect(() => {
-    if (cellAction === null) {
+    if (cellNightIso === "" || cellRoomIdForInit === "") {
       return;
     }
-    setCellCheckIn(cellAction.nightIso);
-    setCellCheckOut(addOneDayIso(cellAction.nightIso));
+    setCellCheckIn(cellNightIso);
+    setCellCheckOut(addOneDayIso(cellNightIso));
     setCellCreateError(null);
     setCellBlockError(null);
     setCellGuestFirst("");
@@ -272,22 +289,22 @@ export function BoardPage() {
     setCellGuestEmail("");
     setCellGuestPhone("");
     setCellGuestPassport("");
-    if (ratePlans !== undefined && ratePlans.length > 0) {
-      setCellRatePlanId(ratePlans[0].id);
-    } else {
-      setCellRatePlanId("");
-    }
-    setCellPickRoomId(cellAction.room.id);
-  }, [cellAction, ratePlans]);
+    setCellRatePlanId(defaultCellRatePlanId);
+    setCellPickRoomId(cellRoomIdForInit);
+  }, [cellNightIso, cellRoomIdForInit, defaultCellRatePlanId]);
 
   useEffect(() => {
-    if (cellAction === null) {
+    if (cellNightIso === "" || cellRoomIdForInit === "") {
       return;
     }
-    const list = assignableRoomsQuery.data;
-    if (list === undefined) {
+    if (assignableRoomIdsKey === "__pending__") {
       return;
     }
+    if (assignableRoomIdsKey === "__empty__") {
+      setCellPickRoomId("");
+      return;
+    }
+    const list = assignableRoomsQuery.data ?? [];
     const ids = new Set(list.map((r) => r.id));
     setCellPickRoomId((prev) => {
       if (prev !== "" && ids.has(prev)) {
@@ -298,7 +315,7 @@ export function BoardPage() {
       }
       return "";
     });
-  }, [cellAction, assignableRoomsQuery.data]);
+  }, [cellNightIso, cellRoomIdForInit, assignableRoomIdsKey, assignableRoomsQuery.data]);
 
   useEffect(() => {
     if (boardMessage === null) {
@@ -768,7 +785,7 @@ export function BoardPage() {
                     </p>
                   ) : assignableRoomsQuery.isError ? (
                     <p className="text-xs text-destructive" role="alert">
-                      {formatBoardCreateBookingError(assignableRoomsQuery.error)}
+                      {formatApiError(assignableRoomsQuery.error)}
                     </p>
                   ) : (assignableRoomsQuery.data ?? []).length === 0 ? (
                     <p className="text-xs text-muted-foreground">

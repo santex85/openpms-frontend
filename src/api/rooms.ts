@@ -16,11 +16,11 @@ export interface FetchAssignableRoomsParams {
   checkOut: string;
 }
 
-/** GET /rooms/assignable — physical rooms free on stay nights (check_out exclusive). */
+/** GET /rooms/for-stay — physical rooms free on stay nights (check_out exclusive). */
 export async function fetchAssignableRooms(
   params: FetchAssignableRoomsParams
 ): Promise<RoomRow[]> {
-  const { data } = await apiClient.get<RoomRow[]>("/rooms/assignable", {
+  const { data } = await apiClient.get<RoomRow[]>("/rooms/for-stay", {
     params: {
       [PROPERTY_ID_QUERY_PARAM]: params.propertyId,
       room_type_id: params.roomTypeId,
