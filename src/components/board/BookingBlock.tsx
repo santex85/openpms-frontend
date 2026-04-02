@@ -1,5 +1,5 @@
 import { useDraggable } from "@dnd-kit/core";
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 
 import type { BookingPatchBody } from "@/api/bookings";
 import {
@@ -10,6 +10,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { dndBookingId, type BoardBookingDragData } from "@/lib/boardDnd";
+import { bookingStatusTileClasses } from "@/lib/i18n/domainLabels";
 import { cn } from "@/lib/utils";
 import type { Booking } from "@/types/api";
 import type { MonthDayMeta } from "@/utils/boardDates";
@@ -26,37 +27,13 @@ export interface BoardBookingMenuApi {
   patchIsPending: boolean;
 }
 
-function statusClasses(status: string): string {
-  const s = status.toLowerCase();
-  if (s === "confirmed") {
-    return "border-blue-700 bg-blue-600/90 text-white";
-  }
-  if (s === "checked_in" || s === "checked-in") {
-    return "border-emerald-700 bg-emerald-600/90 text-white";
-  }
-  if (
-    s === "checked_out" ||
-    s === "checked-out" ||
-    s === "checkedout"
-  ) {
-    return "border-violet-800 bg-violet-700/90 text-white";
-  }
-  if (s === "cancelled" || s === "canceled") {
-    return "border-border bg-muted/90 text-muted-foreground line-through";
-  }
-  if (s === "tentative" || s === "hold") {
-    return "border-amber-700 bg-amber-500/90 text-white";
-  }
-  return "border-slate-600 bg-slate-600/90 text-white";
-}
-
 interface DraggableBookingTileProps {
   booking: Booking;
   layout: BookingTileLayout;
   menuApi?: BoardBookingMenuApi | null;
 }
 
-function DraggableBookingTile({
+const DraggableBookingTile = memo(function DraggableBookingTile({
   booking,
   layout,
   menuApi,
@@ -72,7 +49,7 @@ function DraggableBookingTile({
       className={cn(
         "pointer-events-auto absolute touch-none select-none rounded-sm border px-1 py-0.5 text-left text-[0.65rem] font-semibold leading-tight shadow-sm",
         "cursor-grab active:cursor-grabbing",
-        statusClasses(booking.status),
+        bookingStatusTileClasses(booking.status),
         isDragging && "opacity-40",
         menuApi?.patchIsPending === true && "opacity-70"
       )}
@@ -158,7 +135,7 @@ function DraggableBookingTile({
       </ContextMenuContent>
     </ContextMenu>
   );
-}
+});
 
 export interface BookingBlockProps {
   booking: Booking;
@@ -166,7 +143,7 @@ export interface BookingBlockProps {
   menuApi?: BoardBookingMenuApi | null;
 }
 
-export function BookingBlock({ booking, days, menuApi }: BookingBlockProps) {
+function BookingBlockInner({ booking, days, menuApi }: BookingBlockProps) {
   const layout = useMemo(() => {
     if (
       booking.check_in_date === null ||
@@ -194,3 +171,5 @@ export function BookingBlock({ booking, days, menuApi }: BookingBlockProps) {
     />
   );
 }
+
+export const BookingBlock = memo(BookingBlockInner);

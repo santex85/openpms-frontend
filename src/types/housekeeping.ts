@@ -44,6 +44,10 @@ export interface HousekeepingRoomCard {
   status: HousekeepingStatus;
   /** Опционально: примечание от API. */
   notes?: string | null;
+  /** Если бэкенд отдаёт название категории. */
+  room_type_name?: string | null;
+  /** Если бэкенд отдаёт гостя (иная схема — поле опционально). */
+  guest_name?: string | null;
 }
 
 export interface HousekeepingListResponse {

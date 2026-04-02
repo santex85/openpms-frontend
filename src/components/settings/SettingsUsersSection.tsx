@@ -1,7 +1,6 @@
 import { FormEvent, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 
-import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,19 +19,20 @@ import {
 } from "@/components/ui/select";
 import { useAuthRole } from "@/hooks/useAuthz";
 import { useCurrentUserQueryContext } from "@/hooks/useCurrentUserQueryContext";
+import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { useInviteUser } from "@/hooks/useInviteUser";
 import { usePatchTenantUser } from "@/hooks/usePatchTenantUser";
 import { useTenantUsers } from "@/hooks/useTenantUsers";
 import { copyToClipboard } from "@/lib/copyToClipboard";
-import { tenantUserRoleLabel } from "@/lib/i18n/domainLabels";
 import { formatApiError } from "@/lib/formatApiError";
+import { tenantRoleLabel } from "@/lib/i18n/domainLabels";
 import { toastError, toastSuccess } from "@/lib/toast";
 import axios from "axios";
 
 const ROLE_OPTIONS = [
-  { value: "manager", label: tenantUserRoleLabel("manager") },
-  { value: "receptionist", label: tenantUserRoleLabel("receptionist") },
-  { value: "housekeeping", label: tenantUserRoleLabel("housekeeping") },
+  { value: "manager", label: tenantRoleLabel("manager") },
+  { value: "receptionist", label: tenantRoleLabel("receptionist") },
+  { value: "housekeeping", label: tenantRoleLabel("housekeeping") },
 ] as const;
 
 interface SettingsUsersSectionProps {
@@ -116,14 +116,12 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
     <section className="space-y-4 rounded-lg border border-border bg-card p-4">
       <div>
         <h3 className="text-sm font-semibold text-foreground">Пользователи</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Приглашение и управление активностью пользователей организации.
+        <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <span>Управление пользователями тенанта.</span>
+          <ApiRouteHint>GET /auth/users</ApiRouteHint>
+          <ApiRouteHint>PATCH /auth/users/{"{"}id{"}"}</ApiRouteHint>
+          <ApiRouteHint>POST /auth/invite</ApiRouteHint>
         </p>
-        <ApiRouteHint className="mt-1">
-          <span className="font-mono text-[10px]">
-            GET/PATCH /auth/users, POST /auth/invite
-          </span>
-        </ApiRouteHint>
       </div>
 
       {isError ? (
@@ -153,7 +151,6 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
                     <td className="px-3 py-2">{u.email}</td>
                     <td className="px-3 py-2">{u.full_name}</td>
                     <td className="px-3 py-2">
-                      <span className="sr-only">{u.role}</span>
                       <Select
                         value={u.role}
                         disabled={patchUserMut.isPending}
@@ -182,7 +179,7 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
                         <SelectContent>
                           {patchRoleChoices.map((r) => (
                             <SelectItem key={r} value={r}>
-                              {tenantUserRoleLabel(r)}
+                              {tenantRoleLabel(r)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -290,14 +287,14 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
         </div>
         <Button type="submit" disabled={inviteMutation.isPending}>
           {inviteMutation.isPending ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Отправка…
-            </>
-          ) : (
-            "Отправить приглашение"
-          )}
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+          ) : null}
+          {inviteMutation.isPending ? "Отправка…" : "Отправить приглашение"}
         </Button>
+        <p className="text-xs text-muted-foreground">
+          Повторная отправка приглашения тем же email не предусмотрена API —
+          при необходимости обратитесь к администратору тенанта.
+        </p>
       </form>
 
       <Dialog open={passwordModalOpen} onOpenChange={setPasswordModalOpen}>

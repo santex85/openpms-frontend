@@ -1,5 +1,5 @@
 import { useDroppable } from "@dnd-kit/core";
-import { Fragment } from "react";
+import { Fragment, memo } from "react";
 
 import {
   type BoardBookingMenuApi,
@@ -28,21 +28,21 @@ interface BoardRoomRowProps {
   innerColTemplate: string;
   roomBookings: Booking[];
   cellBorder: string;
+  todayIso: string;
+  nameIsDuplicate?: boolean;
   bookingMenuApi?: BoardBookingMenuApi | null;
-  duplicateName?: boolean;
-  todayIso?: string;
   onEmptyCellClick?: (payload: { room: RoomRow; nightIso: string }) => void;
 }
 
-export function BoardRoomRow({
+function BoardRoomRowInner({
   room,
   days,
   innerColTemplate,
   roomBookings,
   cellBorder,
-  bookingMenuApi,
-  duplicateName = false,
   todayIso,
+  nameIsDuplicate = false,
+  bookingMenuApi,
   onEmptyCellClick,
 }: BoardRoomRowProps) {
   const { setNodeRef: setTimelineRef, isOver: isOverTimeline } = useDroppable({
@@ -60,12 +60,15 @@ export function BoardRoomRow({
         ref={setLabelRef}
         className={cn(
           cellBorder,
-          "sticky left-0 z-10 bg-background px-2 py-2 pl-4 text-sm text-muted-foreground pointer-events-auto transition-colors md:text-base",
+          "sticky left-0 z-10 bg-background px-2 py-2 pl-4 text-xs text-muted-foreground pointer-events-auto transition-colors",
           isOver && "z-[25] bg-primary/10 ring-2 ring-inset ring-primary/50",
-          duplicateName && "bg-destructive/10 text-destructive"
+          nameIsDuplicate &&
+            "bg-destructive/10 ring-1 ring-inset ring-destructive/40"
         )}
         title={
-          duplicateName ? "Одинаковое имя номера — проверьте список комнат" : undefined
+          nameIsDuplicate
+            ? "Такое же название номера есть ещё у одной строки — проверьте данные."
+            : undefined
         }
       >
         {room.name}
@@ -95,9 +98,7 @@ export function BoardRoomRow({
                 className={cn(
                   "block w-full min-h-10 appearance-none border-b-0 border-l-0 border-r border-t-0 border-border bg-transparent p-0 text-left last:border-r-0",
                   "hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                  todayIso !== undefined &&
-                    day.iso === todayIso &&
-                    "bg-primary/5 ring-1 ring-inset ring-primary/20",
+                  day.iso === todayIso && "bg-primary/5",
                   clickable && "cursor-pointer",
                   !clickable && "cursor-default"
                 )}
@@ -131,3 +132,5 @@ export function BoardRoomRow({
     </Fragment>
   );
 }
+
+export const BoardRoomRow = memo(BoardRoomRowInner);

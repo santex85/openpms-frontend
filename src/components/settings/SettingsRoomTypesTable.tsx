@@ -15,7 +15,6 @@ import {
   usePatchRoomType,
 } from "@/hooks/useRoomTypeMutations";
 import type { RoomType } from "@/types/api";
-import { showApiRouteHints } from "@/lib/showApiRouteHints";
 
 interface SettingsRoomTypesTableProps {
   roomTypes: RoomType[] | undefined;
@@ -90,9 +89,6 @@ export function SettingsRoomTypesTable({
             <tr>
               <th className="px-3 py-2 font-medium">Название</th>
               <th className="px-3 py-2 font-medium">База / Макс.</th>
-              {showApiRouteHints() ? (
-                <th className="px-3 py-2 font-medium">id</th>
-              ) : null}
               <th className="px-3 py-2 font-medium text-right">Действия</th>
             </tr>
           </thead>
@@ -103,11 +99,6 @@ export function SettingsRoomTypesTable({
                 <td className="px-3 py-2">
                   {rt.base_occupancy} / {rt.max_occupancy}
                 </td>
-                {showApiRouteHints() ? (
-                  <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
-                    {rt.id}
-                  </td>
-                ) : null}
                 <td className="px-3 py-2 text-right">
                   <div className="flex justify-end gap-1">
                     <Button
@@ -198,13 +189,9 @@ export function SettingsRoomTypesTable({
               </Button>
               <Button type="submit" disabled={patchMut.isPending}>
                 {patchMut.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Сохраняем…
-                  </>
-                ) : (
-                  "Сохранить"
-                )}
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                ) : null}
+                Сохранить
               </Button>
             </DialogFooter>
           </form>
@@ -240,13 +227,9 @@ export function SettingsRoomTypesTable({
               }}
             >
               {deleteMut.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Удаляем…
-                </>
-              ) : (
-                "Удалить"
-              )}
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+              ) : null}
+              Удалить
             </Button>
           </DialogFooter>
         </DialogContent>

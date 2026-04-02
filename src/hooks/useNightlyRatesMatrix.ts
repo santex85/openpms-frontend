@@ -1,7 +1,7 @@
-import { useQueries } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
-import { fetchRatesForPeriod } from "@/api/nightly-rates";
+import { fetchRatesForRoomTypesBatch } from "@/api/nightly-rates";
 import { authQueryKeyPart } from "@/lib/authQueryKey";
 import { usePropertyStore } from "@/stores/property-store";
 import type { RateRead } from "@/types/rates";
@@ -29,62 +29,60 @@ export function useNightlyRatesMatrix(
     startDate !== "" &&
     endDate !== "";
 
-  const queryResults = useQueries({
-    queries: roomTypeIds.map((roomTypeId) => ({
-      queryKey: [
-        "rates",
-        "nightly",
-        authKey,
-        selectedPropertyId,
-        roomTypeId,
-        ratePlanId,
+  const sortedIds = useMemo(() => [...roomTypeIds].sort(), [roomTypeIds]);
+
+  const batchQuery = useQuery({
+    queryKey: [
+      "rates",
+      "nightly",
+      authKey,
+      "batch",
+      selectedPropertyId,
+      sortedIds,
+      ratePlanId,
+      startDate,
+      endDate,
+    ] as const,
+    queryFn: () =>
+      fetchRatesForRoomTypesBatch({
+        roomTypeIds: sortedIds,
+        ratePlanId: ratePlanId!,
         startDate,
         endDate,
-      ] as const,
-      queryFn: () =>
-        fetchRatesForPeriod({
-          roomTypeId,
-          ratePlanId: ratePlanId!,
-          startDate,
-          endDate,
-        }),
-      enabled,
-    })),
+      }),
+    enabled,
   });
 
   const rows: NightlyRatesMatrixRow[] = useMemo(
     () =>
-      roomTypeIds.map((roomTypeId, index) => {
-        const q = queryResults[index];
+      roomTypeIds.map((roomTypeId) => {
+        const dataMap = batchQuery.data;
+        const cell = dataMap?.get(roomTypeId);
         return {
           roomTypeId,
-          data: q?.data,
-          isPending: q?.isPending ?? true,
-          isError: q?.isError ?? false,
+          data: cell,
+          isPending: batchQuery.isPending,
+          isError: batchQuery.isError,
           error:
-            q?.error instanceof Error
-              ? q.error
-              : q?.error != null
-                ? new Error(String(q.error))
+            batchQuery.error instanceof Error
+              ? batchQuery.error
+              : batchQuery.error != null
+                ? new Error(String(batchQuery.error))
                 : null,
         };
       }),
-    [roomTypeIds, queryResults]
+    [roomTypeIds, batchQuery.data, batchQuery.isPending, batchQuery.isError, batchQuery.error]
   );
-
-  const isAnyPending = queryResults.some((q) => q.isPending);
-  const isAnyError = queryResults.some((q) => q.isError);
-  const firstError = queryResults.find((q) => q.isError)?.error;
 
   return {
     rows,
-    isAnyPending,
-    isAnyError,
+    isAnyPending: batchQuery.isPending,
+    isAnyError: batchQuery.isError,
     firstError:
-      firstError instanceof Error
-        ? firstError
-        : firstError != null
-          ? new Error(String(firstError))
+      batchQuery.error instanceof Error
+        ? batchQuery.error
+        : batchQuery.error != null
+          ? new Error(String(batchQuery.error))
           : null,
   };
 }

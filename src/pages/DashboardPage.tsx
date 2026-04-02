@@ -7,78 +7,46 @@ import { Button } from "@/components/ui/button";
 import { useAvailabilityGrid } from "@/hooks/useAvailabilityGrid";
 import { useBookingsUnpaidFolio } from "@/hooks/useBookingsUnpaidFolio";
 import { useDashboardSummary } from "@/hooks/useDashboardSummary";
-import { useProperties } from "@/hooks/useProperties";
 import { formatApiError } from "@/lib/formatApiError";
+import { cn } from "@/lib/utils";
 import { usePropertyStore } from "@/stores/property-store";
-import type { AvailabilityCell } from "@/types/inventory";
 import { formatIsoDateLocal } from "@/utils/boardDates";
+import { occupancyRatioByDate } from "@/utils/inventoryAggregate";
 
 function shortBookingId(id: string): string {
   return id.length > 10 ? `${id.slice(0, 8)}…` : id;
 }
 
-function occupancyPercentByDate(cells: AvailabilityCell[]): Map<string, number> {
-  const agg = new Map<string, { booked: number; total: number }>();
-  for (const c of cells) {
-    const d = c.date.slice(0, 10);
-    const cur = agg.get(d) ?? { booked: 0, total: 0 };
-    cur.booked += c.booked_rooms;
-    cur.total += c.total_rooms;
-    agg.set(d, cur);
-  }
-  const out = new Map<string, number>();
-  for (const [d, v] of agg) {
-    out.set(d, v.total > 0 ? Math.round((100 * v.booked) / v.total) : 0);
-  }
-  return out;
+function addDays(d: Date, n: number): Date {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
 }
 
 export function DashboardPage() {
   const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
   const summary = useDashboardSummary();
   const unpaid = useBookingsUnpaidFolio(selectedPropertyId !== null);
-  const { data: properties } = useProperties();
 
-  const weekRange = useMemo(() => {
-    const end = new Date();
-    const start = new Date(end);
-    start.setDate(start.getDate() - 6);
-    return {
-      startIso: formatIsoDateLocal(start),
-      endIso: formatIsoDateLocal(end),
-      days: (() => {
-        const d: { iso: string; dd: number }[] = [];
-        for (let i = 0; i < 7; i++) {
-          const x = new Date(start);
-          x.setDate(x.getDate() + i);
-          d.push({
-            iso: formatIsoDateLocal(x),
-            dd: x.getDate(),
-          });
-        }
-        return d;
-      })(),
-    };
+  const chartEnd = useMemo(() => formatIsoDateLocal(new Date()), []);
+  const chartStart = useMemo(
+    () => formatIsoDateLocal(addDays(new Date(), -6)),
+    []
+  );
+  const chartGrid = useAvailabilityGrid(chartStart, chartEnd);
+
+  const chartDays = useMemo(() => {
+    const days: string[] = [];
+    for (let i = 0; i < 7; i++) {
+      days.push(formatIsoDateLocal(addDays(new Date(), -6 + i)));
+    }
+    return days;
   }, []);
 
-  const availWeek = useAvailabilityGrid(weekRange.startIso, weekRange.endIso);
-
-  const weekOccupancy = useMemo(() => {
-    if (availWeek.data?.cells === undefined) {
-      return null;
-    }
-    return occupancyPercentByDate(availWeek.data.cells);
-  }, [availWeek.data?.cells]);
-
-  const propertyCurrency = useMemo(() => {
-    if (selectedPropertyId === null || properties === undefined) {
-      return null;
-    }
-    return properties.find((p) => p.id === selectedPropertyId)?.currency ?? null;
-  }, [selectedPropertyId, properties]);
-
-  const summaryCurrency =
-    summary.data?.currency ?? propertyCurrency ?? null;
+  const occupancyByDay = useMemo(
+    () => occupancyRatioByDate(chartGrid.data?.cells ?? []),
+    [chartGrid.data?.cells]
+  );
 
   if (selectedPropertyId === null) {
     return (
@@ -91,28 +59,21 @@ export function DashboardPage() {
     );
   }
 
+  const currencyCode =
+    summary.data !== undefined ? summary.data.currency.trim() : "";
+
   return (
     <div className="space-y-6">
       <PageTitle />
 
+      {currencyCode !== "" && !summary.isPending && !summary.isError ? (
+        <p className="text-xs text-muted-foreground">
+          Валюта операций:{" "}
+          <span className="font-medium text-foreground">{currencyCode}</span>
+        </p>
+      ) : null}
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Link
-          to="/board"
-          className="block rounded-lg outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <MetricCard
-            label="Загрузка номеров"
-            value={
-              summary.isPending
-                ? "…"
-                : summary.isError
-                  ? "—"
-                  : `${summary.data!.occupied_rooms} / ${summary.data!.total_rooms}${summaryCurrency !== null ? ` · ${summaryCurrency}` : ""}`
-            }
-            hint={summary.isError ? formatApiError(summary.error) : null}
-            subHint="Перейти к сетке"
-          />
-        </Link>
         <MetricCard
           label="Заезды сегодня"
           value={
@@ -135,6 +96,26 @@ export function DashboardPage() {
           }
           hint={summary.isError ? formatApiError(summary.error) : null}
         />
+        <Link
+          to="/board"
+          className={cn(
+            "block rounded-lg outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+            !summary.isError && "hover:bg-muted/20"
+          )}
+        >
+          <MetricCard
+            label="Загрузка номеров"
+            value={
+              summary.isPending
+                ? "…"
+                : summary.isError
+                  ? "—"
+                  : `${summary.data!.occupied_rooms} / ${summary.data!.total_rooms}`
+            }
+            hint={summary.isError ? formatApiError(summary.error) : null}
+            footnote="Открыть сетку"
+          />
+        </Link>
         <MetricCard
           label="Номера «грязные»"
           value={
@@ -149,36 +130,36 @@ export function DashboardPage() {
       </div>
 
       <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
-        <h3 className="text-sm font-semibold tracking-tight text-foreground">
-          Загрузка за 7 дней
+        <h3 className="text-sm font-semibold text-foreground">
+          Загрузка по дням (7 дн.)
         </h3>
         <p className="mt-1 text-xs text-muted-foreground">
-          Доля занятых номер-ночей по данным инвентаря.
+          Доля занятых номеров по данным доступности (сумма по категориям).
         </p>
-        {availWeek.isError ? (
-          <p className="mt-2 text-sm text-destructive">
-            {availWeek.error !== null
-              ? formatApiError(availWeek.error)
-              : "Ошибка"}
+        {chartGrid.isError ? (
+          <p className="mt-3 text-sm text-destructive" role="alert">
+            Не удалось построить мини-график.
           </p>
-        ) : availWeek.isPending || weekOccupancy === null ? (
-          <div className="mt-3 h-24 animate-pulse rounded-md bg-muted" aria-hidden />
+        ) : chartGrid.isPending ? (
+          <div className="mt-4 h-16 animate-pulse rounded-md bg-muted" aria-hidden />
         ) : (
-          <div className="mt-3 flex h-28 items-end gap-1 border-b border-border pb-1">
-            {weekRange.days.map((day) => {
-              const pct = weekOccupancy.get(day.iso) ?? 0;
+          <div className="mt-4 flex h-28 items-end gap-1 md:gap-1.5">
+            {chartDays.map((iso) => {
+              const r = occupancyByDay.get(iso) ?? 0;
+              const pct = Math.round(r * 100);
+              const hPx = 4 + Math.round(r * 72);
               return (
                 <div
-                  key={day.iso}
-                  className="flex min-w-0 flex-1 flex-col items-center gap-1"
-                  title={`${day.iso}: ${String(pct)}%`}
+                  key={iso}
+                  className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1"
+                  title={`${iso}: ${String(pct)}%`}
                 >
                   <div
                     className="w-full max-w-[2.5rem] rounded-t bg-primary/80"
-                    style={{ height: `${Math.max(8, pct)}%` }}
+                    style={{ height: `${String(hPx)}px` }}
                   />
-                  <span className="text-[10px] text-muted-foreground">
-                    {day.dd}
+                  <span className="text-[10px] tabular-nums text-muted-foreground">
+                    {iso.slice(8)}
                   </span>
                 </div>
               );
@@ -188,22 +169,16 @@ export function DashboardPage() {
       </section>
 
       <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
-        <h3 className="text-sm font-semibold tracking-tight text-foreground">
+        <h3 className="text-sm font-semibold text-foreground">
           Неоплаченные фолио
         </h3>
-        <ApiRouteHint className="mt-1">
-          <p>
-            <code className="rounded bg-muted px-1 font-mono text-[10px]">
-              GET /bookings/unpaid-folio-summary
-            </code>
-          </p>
-        </ApiRouteHint>
+        <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span>Брони с положительным балансом.</span>
+          <ApiRouteHint>GET /bookings/unpaid-folio-summary</ApiRouteHint>
+        </p>
         {unpaid.isError ? (
-          <div
-            className="mt-3 flex flex-col gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-4 sm:flex-row sm:items-center sm:justify-between"
-            role="alert"
-          >
-            <div className="flex gap-2 text-sm text-destructive">
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-2 text-sm text-destructive">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
               <span>Не удалось загрузить балансы фолио.</span>
             </div>
@@ -211,8 +186,9 @@ export function DashboardPage() {
               type="button"
               variant="outline"
               size="sm"
-              className="shrink-0 border-destructive/50"
-              onClick={() => void unpaid.refetch()}
+              onClick={() => {
+                void unpaid.refetch();
+              }}
             >
               Повторить
             </Button>
@@ -245,10 +221,7 @@ export function DashboardPage() {
                         {shortBookingId(row.booking_id)}
                       </Link>
                     </td>
-                    <td className="px-3 py-2 tabular-nums">
-                      {row.balance}
-                      {summaryCurrency !== null ? ` ${summaryCurrency}` : ""}
-                    </td>
+                    <td className="px-3 py-2 tabular-nums">{row.balance}</td>
                   </tr>
                 ))}
               </tbody>
@@ -264,21 +237,20 @@ function PageTitle() {
   return (
     <div>
       <h2 className="text-lg font-semibold text-foreground">Dashboard</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Операционные показатели на сегодня. Календарь — на странице{" "}
-        <Link
-          to="/board"
-          className="font-medium text-primary underline-offset-4 hover:underline"
-        >
-          Сетка
-        </Link>
-        .
+      <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
+        <span>Операционные показатели на сегодня.</span>
+        <ApiRouteHint className="text-xs">GET /dashboard/summary</ApiRouteHint>
+        <span>
+          Календарь — на странице{" "}
+          <Link
+            to="/board"
+            className="font-medium text-primary underline-offset-4 hover:underline"
+          >
+            Сетка
+          </Link>
+          .
+        </span>
       </p>
-      <ApiRouteHint className="mt-1">
-        <code className="rounded bg-muted px-1 font-mono text-[10px]">
-          GET /dashboard/summary
-        </code>
-      </ApiRouteHint>
     </div>
   );
 }
@@ -287,27 +259,25 @@ function MetricCard({
   label,
   value,
   hint,
-  subHint,
+  footnote,
   className = "",
 }: {
   label: string;
   value: string;
   hint: string | null;
-  subHint?: string;
+  footnote?: string;
   className?: string;
 }) {
   return (
     <div
-      className={`rounded-lg border border-border bg-card p-4 shadow-sm ${className}`}
+      className={`h-full rounded-lg border border-border bg-card p-4 shadow-sm ${className}`}
     >
-      <p className="text-sm font-medium tracking-tight text-muted-foreground">
-        {label}
-      </p>
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
       <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">
         {value}
       </p>
-      {subHint !== undefined ? (
-        <p className="mt-1 text-xs text-primary">{subHint}</p>
+      {footnote !== undefined ? (
+        <p className="mt-1 text-[11px] font-medium text-primary">{footnote}</p>
       ) : null}
       {hint !== null ? (
         <p className="mt-1 text-xs text-destructive">{hint}</p>

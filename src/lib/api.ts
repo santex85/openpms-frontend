@@ -2,6 +2,7 @@ import axios, {
   type AxiosError,
   type InternalAxiosRequestConfig,
 } from "axios";
+import { toast } from "sonner";
 
 import { refreshAccessTokenSingleFlight } from "@/api/auth";
 import { getAccessToken } from "@/lib/authSession";
@@ -58,6 +59,7 @@ apiClient.interceptors.response.use(
       }
       return apiClient.request(original);
     } catch {
+      toast.error("Сессия истекла. Войдите снова.");
       return Promise.reject(error);
     }
   }

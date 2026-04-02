@@ -1,10 +1,9 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
-import { Link, useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 
-import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
-import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { useBookings } from "@/hooks/useBookings";
 import { useCreateBooking } from "@/hooks/useCreateBooking";
 import { useRatePlans } from "@/hooks/useRatePlans";
@@ -27,8 +26,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { BOOKING_STATUS_OPTIONS } from "@/lib/constants";
-import { bookingStatusLabel } from "@/lib/i18n/domainLabels";
+import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
+import { PageTableSkeleton } from "@/components/ui/page-table-skeleton";
+import { bookingStatusFilterItems, bookingStatusLabel } from "@/lib/i18n/domainLabels";
 import { formatApiError } from "@/lib/formatApiError";
 import { useCanWriteBookings } from "@/hooks/useAuthz";
 import { usePropertyStore } from "@/stores/property-store";
@@ -65,8 +65,8 @@ export function BookingsListPage() {
   const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
   const canCreateBooking = useCanWriteBookings();
   const [statusFilter, setStatusFilter] = useState<string>("");
-  const [guestNameFilter, setGuestNameFilter] = useState("");
   const [page, setPage] = useState(0);
+  const [localSearch, setLocalSearch] = useState("");
 
   const range = useMemo(() => {
     const end = new Date();
@@ -131,22 +131,34 @@ export function BookingsListPage() {
     }
   }, [ratePlans, ratePlanId]);
 
-  const rows: Booking[] = useMemo(
-    () => tape?.items ?? [],
-    [tape?.items]
-  );
+  const rows = useMemo<Booking[]>(() => tape?.items ?? [], [tape?.items]);
   const total = tape?.total ?? 0;
 
-  const displayedRows = useMemo(() => {
-    const q = guestNameFilter.trim().toLowerCase();
+  const filteredRows = useMemo(() => {
+    const q = localSearch.trim().toLowerCase();
     if (q === "") {
       return rows;
     }
     return rows.filter((b) => {
-      const full = `${b.guest.first_name} ${b.guest.last_name}`.toLowerCase();
-      return full.includes(q);
+      const guestBlob =
+        `${b.guest.first_name} ${b.guest.last_name}`.toLowerCase();
+      return (
+        guestBlob.includes(q) ||
+        b.id.toLowerCase().includes(q) ||
+        bookingStatusLabel(b.status).toLowerCase().includes(q) ||
+        (b.check_in_date ?? "").includes(q) ||
+        (b.check_out_date ?? "").includes(q)
+      );
     });
-  }, [rows, guestNameFilter]);
+  }, [rows, localSearch]);
+
+  const bookingsScrollRef = useRef<HTMLDivElement>(null);
+  const bookingsVirtual = useVirtualizer({
+    count: filteredRows.length,
+    getScrollElement: () => bookingsScrollRef.current,
+    estimateSize: () => 52,
+    overscan: 10,
+  });
 
   useEffect(() => {
     setPage(0);
@@ -243,8 +255,9 @@ export function BookingsListPage() {
         <div>
           <h2 className="text-lg font-semibold text-foreground">Бронирования</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Последние 90 дней по выбранному отелю. Статус и пагинация на стороне
-            API.
+            Последние 90 дней по выбранному отелю. Фильтр статуса и страницы — на
+            стороне API. Поиск ниже действует только на текущую страницу (
+            временная мера, пока нет поиска на бэке).
           </p>
         </div>
         {canCreateBooking ? (
@@ -290,40 +303,36 @@ export function BookingsListPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__all__">Все</SelectItem>
-              {BOOKING_STATUS_OPTIONS.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {bookingStatusLabel(s)}
+              {bookingStatusFilterItems().map(({ value, label }) => (
+                <SelectItem key={value} value={value}>
+                  {label}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
-        <div className="min-w-[200px] flex-1 space-y-1 sm:max-w-md">
+        <div className="flex max-w-md flex-1 flex-col gap-1">
           <label
-            htmlFor="bookings-guest-filter"
+            htmlFor="bookings-local-search"
             className="text-xs font-medium text-muted-foreground"
           >
-            Гость на этой странице
+            Поиск по текущей странице
           </label>
           <Input
-            id="bookings-guest-filter"
-            value={guestNameFilter}
+            id="bookings-local-search"
+            value={localSearch}
             onChange={(e) => {
-              setGuestNameFilter(e.target.value);
+              setLocalSearch(e.target.value);
             }}
-            placeholder="Часть имени или фамилии…"
+            placeholder="Гость, даты, фрагмент id…"
             autoComplete="off"
           />
-          <p className="text-[11px] text-muted-foreground">
-            Фильтрует только текущую страницу списка (до {BOOKINGS_PAGE_SIZE}{" "}
-            строк).
-          </p>
         </div>
       </div>
 
       {!isPending && !isError ? (
         <Pagination
-          className="rounded-lg border border-border bg-card p-3"
+          className="rounded-md border border-border bg-muted/20 px-3 py-2"
           total={total}
           limit={BOOKINGS_PAGE_SIZE}
           offset={page * BOOKINGS_PAGE_SIZE}
@@ -338,82 +347,86 @@ export function BookingsListPage() {
           {bookingsError !== null ? ` ${formatApiError(bookingsError)}` : ""}
         </p>
       ) : isPending ? (
-        <div className="overflow-x-auto rounded-md border border-border">
-          <table className="w-full min-w-[640px] text-left text-sm">
-            <thead className="border-b bg-muted/50">
-              <tr>
-                <th className="px-3 py-2 font-medium">Гость</th>
-                <th className="px-3 py-2 font-medium">Статус</th>
-                <th className="px-3 py-2 font-medium">Заезд</th>
-                <th className="px-3 py-2 font-medium">Выезд</th>
-                <th className="px-3 py-2 font-medium" />
-              </tr>
-            </thead>
-            <TableSkeleton rows={6} cols={5} />
-          </table>
-        </div>
+        <PageTableSkeleton rows={7} cols={5} />
       ) : (
-        <div className="overflow-x-auto rounded-md border border-border">
-          <table className="w-full min-w-[640px] text-left text-sm">
-            <thead className="border-b bg-muted/50">
+        <div
+          ref={bookingsScrollRef}
+          className="max-h-[min(520px,65vh)] overflow-auto rounded-md border border-border"
+        >
+          <table className="w-full min-w-[640px] table-fixed text-left text-sm">
+            <thead className="sticky top-0 z-10 border-b bg-muted/50">
               <tr>
                 <th className="px-3 py-2 font-medium">Гость</th>
-                <th className="px-3 py-2 font-medium">Статус</th>
-                <th className="px-3 py-2 font-medium">Заезд</th>
-                <th className="px-3 py-2 font-medium">Выезд</th>
-                <th className="px-3 py-2 font-medium" />
+                <th className="w-[9rem] px-3 py-2 font-medium">Статус</th>
+                <th className="w-[7rem] px-3 py-2 font-medium">Заезд</th>
+                <th className="w-[7rem] px-3 py-2 font-medium">Выезд</th>
+                <th className="w-[6rem] px-3 py-2 font-medium" />
               </tr>
             </thead>
-            <tbody>
-              {displayedRows.map((b) => (
-                <tr
-                  key={b.id}
-                  role="link"
-                  tabIndex={0}
-                  className="cursor-pointer border-b border-border/80 hover:bg-muted/40"
-                  onClick={() => {
-                    navigate(`/bookings/${b.id}`);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      navigate(`/bookings/${b.id}`);
-                    }
-                  }}
-                >
-                  <td className="px-3 py-2">
-                    {b.guest.last_name} {b.guest.first_name}
-                  </td>
-                  <td className="px-3 py-2 text-muted-foreground">
-                    {bookingStatusLabel(b.status)}
-                  </td>
-                  <td className="px-3 py-2 tabular-nums">
-                    {b.check_in_date ?? "—"}
-                  </td>
-                  <td className="px-3 py-2 tabular-nums">
-                    {b.check_out_date ?? "—"}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      asChild
-                      onClick={(ev) => {
-                        ev.stopPropagation();
-                      }}
-                    >
-                      <Link to={`/bookings/${b.id}`}>Открыть</Link>
-                    </Button>
-                  </td>
-                </tr>
-              ))}
+            <tbody
+              className="relative"
+              style={{
+                height:
+                  filteredRows.length === 0
+                    ? undefined
+                    : `${bookingsVirtual.getTotalSize()}px`,
+              }}
+            >
+              {filteredRows.length === 0
+                ? null
+                : bookingsVirtual.getVirtualItems().map((vi) => {
+                    const b = filteredRows[vi.index];
+                    return (
+                      <tr
+                        key={b.id}
+                        tabIndex={0}
+                        className="absolute left-0 table w-full cursor-pointer border-b border-border/80 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        style={{
+                          transform: `translateY(${vi.start}px)`,
+                          height: `${vi.size}px`,
+                        }}
+                        onClick={() => {
+                          navigate(`/bookings/${b.id}`);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            navigate(`/bookings/${b.id}`);
+                          }
+                        }}
+                      >
+                        <td className="px-3 py-2 align-middle">
+                          {b.guest.last_name} {b.guest.first_name}
+                        </td>
+                        <td className="px-3 py-2 align-middle tabular-nums text-muted-foreground">
+                          {bookingStatusLabel(b.status)}
+                        </td>
+                        <td className="px-3 py-2 align-middle tabular-nums">
+                          {b.check_in_date ?? "—"}
+                        </td>
+                        <td className="px-3 py-2 align-middle tabular-nums">
+                          {b.check_out_date ?? "—"}
+                        </td>
+                        <td
+                          className="px-3 py-2 text-right align-middle"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                          }}
+                        >
+                          <Button variant="outline" size="sm" asChild>
+                            <Link to={`/bookings/${b.id}`}>Открыть</Link>
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
             </tbody>
           </table>
           {rows.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground">Нет записей.</p>
-          ) : displayedRows.length === 0 ? (
+          ) : filteredRows.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground">
-              Нет совпадений по фильтру гостя.
+              Нет совпадений на этой странице — сбросьте поиск или смените
+              страницу.
             </p>
           ) : null}
         </div>
@@ -431,15 +444,12 @@ export function BookingsListPage() {
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Новое бронирование</DialogTitle>
-            <DialogDescription>
-              Укажите тип номера, тарифный план и гостя. На все ночи должны быть
-              заданы цены в разделе «Тарифы».
+            <DialogDescription className="flex flex-wrap items-center gap-2">
+              <span>
+                Нужны тип номера, тариф и цены на все ночи по выбранным датам.
+              </span>
+              <ApiRouteHint>POST /bookings</ApiRouteHint>
             </DialogDescription>
-            <ApiRouteHint>
-              <code className="rounded bg-muted px-1 font-mono text-[10px]">
-                POST /bookings
-              </code>
-            </ApiRouteHint>
           </DialogHeader>
           <form
             className="space-y-3"
@@ -628,13 +638,11 @@ export function BookingsListPage() {
                 }
               >
                 {createBookingMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Создаём…
-                  </>
-                ) : (
-                  "Создать бронь"
-                )}
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                ) : null}
+                {createBookingMutation.isPending
+                  ? "Создаём…"
+                  : "Создать бронь"}
               </Button>
             </DialogFooter>
           </form>

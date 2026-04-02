@@ -33,3 +33,22 @@ export function maxTotalRoomsByTypeId(
   }
   return m;
 }
+
+/** Aggregated booked / total rooms per date → occupancy ratio 0..1. */
+export function occupancyRatioByDate(
+  cells: AvailabilityCell[]
+): Map<string, number> {
+  const agg = new Map<string, { booked: number; total: number }>();
+  for (const c of cells) {
+    const d = normalizeDateKey(c.date);
+    const cur = agg.get(d) ?? { booked: 0, total: 0 };
+    cur.booked += c.booked_rooms;
+    cur.total += c.total_rooms;
+    agg.set(d, cur);
+  }
+  const out = new Map<string, number>();
+  for (const [d, v] of agg) {
+    out.set(d, v.total > 0 ? v.booked / v.total : 0);
+  }
+  return out;
+}

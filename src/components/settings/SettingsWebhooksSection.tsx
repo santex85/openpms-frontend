@@ -100,12 +100,12 @@ export function SettingsWebhooksSection({
     <section className="space-y-6 rounded-lg border border-border bg-card p-4">
       <div>
         <h3 className="text-sm font-semibold text-foreground">Вебхуки</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Подписки на события OpenPMS и журнал доставки на ваш URL.
+        <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <span>Исходящие уведомления.</span>
+          <ApiRouteHint>GET /webhooks/subscriptions</ApiRouteHint>
+          <ApiRouteHint>GET /webhooks/delivery-logs</ApiRouteHint>
+          <ApiRouteHint>PATCH /webhooks/subscriptions/{"{"}id{"}"}</ApiRouteHint>
         </p>
-        <ApiRouteHint className="mt-1">
-          <span className="font-mono text-[10px]">GET/PATCH /webhooks/…</span>
-        </ApiRouteHint>
       </div>
 
       {subsError ? (

@@ -24,6 +24,8 @@ interface HousekeepingRoomRead {
   status: string;
   housekeeping_status: string;
   housekeeping_priority: string;
+  guest_name?: string | null;
+  current_guest_name?: string | null;
 }
 
 export async function fetchHousekeeping(
@@ -45,6 +47,8 @@ export async function fetchHousekeeping(
       label: r.name,
       status: normalizeHousekeepingStatus(r.housekeeping_status),
       notes: null,
+      room_type_name: r.room_type_name,
+      guest_name: r.guest_name ?? r.current_guest_name ?? null,
     })),
   };
 }

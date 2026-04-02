@@ -1,8 +1,6 @@
 import { FormEvent, useState } from "react";
 import axios from "axios";
 
-import { Loader2 } from "lucide-react";
-
 import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,14 +64,10 @@ export function SettingsChangePasswordSection() {
         <h3 className="text-sm font-semibold text-foreground">
           Пароль аккаунта
         </h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Укажите текущий пароль и новый (не короче {MIN_LEN} символов).
+        <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <span>Смена текущего пароля.</span>
+          <ApiRouteHint>POST /auth/change-password</ApiRouteHint>
         </p>
-        <ApiRouteHint className="mt-1">
-          <code className="rounded bg-muted px-1 font-mono text-[10px]">
-            POST /auth/change-password
-          </code>
-        </ApiRouteHint>
       </div>
       <form className="max-w-md space-y-4" onSubmit={(e) => void onSubmit(e)}>
         {error !== null ? (
@@ -124,14 +118,7 @@ export function SettingsChangePasswordSection() {
           />
         </div>
         <Button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Сохраняем…
-            </>
-          ) : (
-            "Сменить пароль"
-          )}
+          {mutation.isPending ? "Сохраняем…" : "Сменить пароль"}
         </Button>
       </form>
     </section>

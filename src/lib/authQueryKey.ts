@@ -1,11 +1,8 @@
-import { getAccessToken, getSessionEpoch } from "@/lib/authSession";
+import { getAuthSessionRevision, getTenantIdForRefresh } from "@/lib/authSession";
 
-/** Fragment for React Query keys so caches reset when the session changes. */
+/** Fragment for React Query keys: resets when tenant/session identity changes (login/logout), not on access-token refresh. */
 export function authQueryKeyPart(): string {
-  if (typeof window === "undefined") {
-    return "";
-  }
-  const token = getAccessToken();
-  const prefix = token !== null && token !== "" ? token.slice(0, 12) : "";
-  return `${getSessionEpoch()}:${prefix}`;
+  const tenant = getTenantIdForRefresh();
+  const tid = tenant !== null && tenant !== "" ? tenant : "anon";
+  return `${tid}:${getAuthSessionRevision()}`;
 }

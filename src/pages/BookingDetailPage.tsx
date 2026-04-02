@@ -15,20 +15,21 @@ import {
 import { Input } from "@/components/ui/input";
 import { useBooking } from "@/hooks/useBooking";
 import { useBookingFolio } from "@/hooks/useBookingFolio";
+import { useProperties } from "@/hooks/useProperties";
+import { useRoomTypes } from "@/hooks/useRoomTypes";
+import { useRooms } from "@/hooks/useRooms";
 import {
   useFolioDeleteTransaction,
   useFolioEntry,
 } from "@/hooks/useFolioMutations";
 import { usePatchBooking } from "@/hooks/usePatchBooking";
-import { useProperties } from "@/hooks/useProperties";
-import { useRooms } from "@/hooks/useRooms";
-import { useRoomTypes } from "@/hooks/useRoomTypes";
+import { formatApiError } from "@/lib/formatApiError";
+import { formatMoneyAmount } from "@/lib/formatMoney";
+import { showApiRouteHints } from "@/lib/devUi";
 import {
   bookingStatusLabel,
   folioTransactionTypeLabel,
 } from "@/lib/i18n/domainLabels";
-import { showApiRouteHints } from "@/lib/showApiRouteHints";
-import { formatApiError } from "@/lib/formatApiError";
 import { useCanWriteBookings } from "@/hooks/useAuthz";
 import { formatIsoDateLocal } from "@/utils/boardDates";
 
@@ -40,18 +41,6 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   cancelled: [],
   no_show: [],
 };
-
-function formatMoneyAmount(amount: string, currency: string | null): string {
-  const n = Number(amount.replace(",", "."));
-  if (Number.isNaN(n)) {
-    return currency !== null ? `${amount} ${currency}` : amount;
-  }
-  const formatted = new Intl.NumberFormat("ru-RU", {
-    maximumFractionDigits: 2,
-    minimumFractionDigits: 0,
-  }).format(n);
-  return currency !== null ? `${formatted} ${currency}` : formatted;
-}
 
 export function BookingDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -85,6 +74,44 @@ export function BookingDetailPage() {
   const [paymentDescription, setPaymentDescription] = useState("");
   const [folioFormError, setFolioFormError] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+
+  const propertyCurrency = useMemo(() => {
+    if (booking === undefined || properties === undefined) {
+      return "USD";
+    }
+    const p = properties.find((x) => x.id === booking.property_id);
+    return p?.currency?.trim().toUpperCase() ?? "USD";
+  }, [booking, properties]);
+
+  const roomLabel = useMemo(() => {
+    if (booking === undefined || rooms === undefined) {
+      return null;
+    }
+    if (booking.room_id === null) {
+      return "без номера";
+    }
+    const r = rooms.find((x) => x.id === booking.room_id);
+    return r?.name ?? "номер";
+  }, [booking, rooms]);
+
+  const roomTypeLabel = useMemo(() => {
+    if (
+      booking === undefined ||
+      roomTypes === undefined ||
+      booking.room_type_id === undefined ||
+      booking.room_type_id === null
+    ) {
+      return null;
+    }
+    return (
+      roomTypes.find((t) => t.id === booking.room_type_id)?.name ?? "категория"
+    );
+  }, [booking, roomTypes]);
+
+  const titleGuest =
+    booking !== undefined
+      ? `${booking.guest.last_name} ${booking.guest.first_name}`.trim()
+      : "";
 
   async function submitCharge(e: FormEvent): Promise<void> {
     e.preventDefault();
@@ -146,52 +173,6 @@ export function BookingDetailPage() {
     return msg;
   }
 
-  const propertyCurrency = useMemo(() => {
-    if (booking === undefined || properties === undefined) {
-      return null;
-    }
-    return (
-      properties.find((p) => p.id === booking.property_id)?.currency ?? null
-    );
-  }, [booking, properties]);
-
-  const roomLabel = useMemo(() => {
-    if (booking === undefined || rooms === undefined) {
-      return null;
-    }
-    if (booking.room_id === null) {
-      return null;
-    }
-    const room = rooms.find((r) => r.id === booking.room_id);
-    return room?.name ?? null;
-  }, [booking, rooms]);
-
-  const roomTypeLabel = useMemo(() => {
-    if (
-      booking === undefined ||
-      roomTypes === undefined ||
-      booking.room_type_id === undefined ||
-      booking.room_type_id === null
-    ) {
-      return null;
-    }
-    return roomTypes.find((t) => t.id === booking.room_type_id)?.name ?? null;
-  }, [booking, roomTypes]);
-
-  const bookingTitle = useMemo(() => {
-    if (booking === undefined) {
-      return `Бронь ${bookingId.slice(0, 8)}…`;
-    }
-    const who = `${booking.guest.last_name} ${booking.guest.first_name}`.trim();
-    const roomBit =
-      roomLabel !== null
-        ? ` · комн. ${roomLabel}`
-        : roomTypeLabel !== null
-          ? ` · ${roomTypeLabel}`
-          : "";
-    return `Бронь: ${who}${roomBit}`;
-  }, [booking, bookingId, roomLabel, roomTypeLabel]);
-
   const bookingStatus = booking?.status.trim().toLowerCase() ?? "";
   const allowedTransitions = ALLOWED_TRANSITIONS[bookingStatus] ?? [];
   const canShowStatusActions =
@@ -213,12 +194,6 @@ export function BookingDetailPage() {
         </Button>
       </div>
       <div>
-        <h2 className="text-lg font-semibold text-foreground">{bookingTitle}</h2>
-        {showApiRouteHints() ? (
-          <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">
-            id: {bookingId}
-          </p>
-        ) : null}
         {bookingPending ? (
           <p className="text-sm text-muted-foreground">Загрузка карточки…</p>
         ) : bookingError ? (
@@ -229,6 +204,20 @@ export function BookingDetailPage() {
           <p className="text-sm text-muted-foreground">Нет данных брони.</p>
         ) : (
           <>
+            <h2 className="text-lg font-semibold text-foreground">
+              {titleGuest}
+              {roomLabel !== null ? (
+                <span className="ml-2 font-normal text-muted-foreground">
+                  · {roomLabel}
+                  {roomTypeLabel !== null ? ` (${roomTypeLabel})` : ""}
+                </span>
+              ) : null}
+            </h2>
+            {showApiRouteHints() ? (
+              <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+                id: {bookingId}
+              </p>
+            ) : null}
             <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
               <div>
                 <dt className="text-muted-foreground">Гость</dt>
@@ -250,19 +239,19 @@ export function BookingDetailPage() {
               <div>
                 <dt className="text-muted-foreground">Сумма брони</dt>
                 <dd className="tabular-nums">
-                  {formatMoneyAmount(booking.total_amount, propertyCurrency)}
+                  {formatMoneyAmount(propertyCurrency, booking.total_amount)}
                 </dd>
               </div>
             </dl>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="mt-3 text-xs text-muted-foreground">
+              История смен статусов на бэке не отображается.{" "}
               <Link
-                to="/audit-log"
+                to={`/audit-log?entity_id=${bookingId}`}
                 className="font-medium text-primary underline-offset-4 hover:underline"
               >
-                Журнал аудита
-              </Link>
-              {" — "}
-              там могут быть записи по этой брони (поиск по ID сущности).
+                Смотреть журнал аудита
+              </Link>{" "}
+              (фильтр по сущности при наличии записей).
             </p>
             {patchBookingMutation.isError ? (
               <p className="mt-2 text-sm text-destructive" role="alert">
@@ -271,15 +260,17 @@ export function BookingDetailPage() {
             ) : null}
             {canShowStatusActions ? (
               <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4">
-                <span className="text-sm font-medium text-muted-foreground">
+                <span className="flex flex-wrap items-center gap-2 text-xs font-medium text-muted-foreground">
                   Действия с бронью
+                  <ApiRouteHint>PATCH /bookings/…</ApiRouteHint>
                 </span>
-                <ApiRouteHint>
-                  <code className="rounded bg-muted px-1 font-mono text-[10px]">
-                    PATCH /bookings/…
-                  </code>
-                </ApiRouteHint>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {patchBookingMutation.isPending ? (
+                    <Loader2
+                      className="h-4 w-4 shrink-0 animate-spin text-muted-foreground"
+                      aria-hidden
+                    />
+                  ) : null}
                   {allowedTransitions.includes("confirmed") ? (
                     <Button
                       type="button"
@@ -393,7 +384,7 @@ export function BookingDetailPage() {
                   setChargeOpen(true);
                 }}
               >
-                <PlusCircle className="mr-1.5 h-4 w-4" />
+                <PlusCircle className="mr-1.5 h-4 w-4" aria-hidden />
                 Начисление
               </Button>
               <Button
@@ -405,7 +396,7 @@ export function BookingDetailPage() {
                   setPaymentOpen(true);
                 }}
               >
-                <Banknote className="mr-1.5 h-4 w-4" />
+                <Banknote className="mr-1.5 h-4 w-4" aria-hidden />
                 Оплата
               </Button>
             </div>
@@ -430,7 +421,7 @@ export function BookingDetailPage() {
             <p className="text-sm">
               Баланс:{" "}
               <span className="font-semibold tabular-nums">
-                {formatMoneyAmount(folio.balance, propertyCurrency)}
+                {formatMoneyAmount(propertyCurrency, folio.balance)}
               </span>
             </p>
             <div className="overflow-x-auto rounded-md border">
@@ -457,7 +448,7 @@ export function BookingDetailPage() {
                       </td>
                       <td className="px-2 py-1.5">{t.category}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums">
-                        {formatMoneyAmount(t.amount, propertyCurrency)}
+                        {formatMoneyAmount(propertyCurrency, t.amount)}
                       </td>
                       {canWriteFolio ? (
                         <td className="px-2 py-1.5 text-right">
@@ -508,12 +499,10 @@ export function BookingDetailPage() {
           <form onSubmit={(e) => void submitCharge(e)}>
             <DialogHeader>
               <DialogTitle>Начисление</DialogTitle>
-              <DialogDescription>
-                Добавить начисление в фолио брони.
+              <DialogDescription className="flex flex-wrap items-center gap-2">
+                <span>Добавить списание на счёт гостя.</span>
+                <ApiRouteHint>POST /bookings/…/folio · charge</ApiRouteHint>
               </DialogDescription>
-              <ApiRouteHint>
-                POST <code className="text-xs">/bookings/…/folio</code>, charge
-              </ApiRouteHint>
             </DialogHeader>
             <div className="grid gap-3 py-2">
               <div className="space-y-1">
@@ -569,13 +558,9 @@ export function BookingDetailPage() {
               </Button>
               <Button type="submit" disabled={folioEntryMutation.isPending}>
                 {folioEntryMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Отправка…
-                  </>
-                ) : (
-                  "Добавить"
-                )}
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                ) : null}
+                {folioEntryMutation.isPending ? "Отправка…" : "Добавить"}
               </Button>
             </DialogFooter>
           </form>
@@ -587,12 +572,10 @@ export function BookingDetailPage() {
           <form onSubmit={(e) => void submitPayment(e)}>
             <DialogHeader>
               <DialogTitle>Оплата</DialogTitle>
-              <DialogDescription>
-                Зарегистрировать оплату по фолио.
+              <DialogDescription className="flex flex-wrap items-center gap-2">
+                <span>Провести платёж по фолио.</span>
+                <ApiRouteHint>POST /bookings/…/folio · payment</ApiRouteHint>
               </DialogDescription>
-              <ApiRouteHint>
-                POST <code className="text-xs">/bookings/…/folio</code>, payment
-              </ApiRouteHint>
             </DialogHeader>
             <div className="grid gap-3 py-2">
               <div className="space-y-1">
@@ -648,13 +631,11 @@ export function BookingDetailPage() {
               </Button>
               <Button type="submit" disabled={folioEntryMutation.isPending}>
                 {folioEntryMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Отправка…
-                  </>
-                ) : (
-                  "Провести оплату"
-                )}
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                ) : null}
+                {folioEntryMutation.isPending
+                  ? "Отправка…"
+                  : "Провести оплату"}
               </Button>
             </DialogFooter>
           </form>

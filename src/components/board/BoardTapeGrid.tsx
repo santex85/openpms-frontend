@@ -4,7 +4,7 @@ import type { BoardBookingMenuApi } from "@/components/board/BookingBlock";
 import { BoardRoomRow } from "@/components/board/BoardRoomRow";
 import { cn } from "@/lib/utils";
 import type { Booking, RoomRow, RoomType } from "@/types/api";
-import type { MonthDayMeta } from "@/utils/boardDates";
+import { formatIsoDateLocal, type MonthDayMeta } from "@/utils/boardDates";
 
 const labelHeader = "Дата / Номер";
 
@@ -18,9 +18,10 @@ interface BoardTapeGridProps {
   sumsByDate: Map<string, number>;
   availabilityPending: boolean;
   availabilityError: boolean;
-  bookingMenuApi?: BoardBookingMenuApi | null;
-  duplicateRoomNameKeys?: ReadonlySet<string>;
+  /** ISO YYYY-MM-DD; defaults to today (local). */
   todayIso?: string;
+  duplicateRoomNameKeys?: ReadonlySet<string>;
+  bookingMenuApi?: BoardBookingMenuApi | null;
   onEmptyCellClick?: (payload: { room: RoomRow; nightIso: string }) => void;
 }
 
@@ -32,9 +33,9 @@ export function BoardTapeGrid({
   sumsByDate,
   availabilityPending,
   availabilityError,
-  bookingMenuApi,
+  todayIso = formatIsoDateLocal(new Date()),
   duplicateRoomNameKeys,
-  todayIso,
+  bookingMenuApi,
   onEmptyCellClick,
 }: BoardTapeGridProps) {
   const colTemplate = useMemo(() => {
@@ -123,18 +124,17 @@ export function BoardTapeGrid({
             className={cn(
               cellBorder,
               "sticky top-0 z-20 bg-card/95 px-1 py-2 text-center backdrop-blur-sm",
-              todayIso !== undefined &&
-                day.iso === todayIso &&
-                "bg-primary/10 ring-2 ring-inset ring-primary/35"
+              day.iso === todayIso &&
+                "bg-primary/10 ring-1 ring-inset ring-primary/35"
             )}
           >
-            <div className="text-sm font-medium capitalize leading-tight text-foreground md:text-base">
+            <div className="text-xs font-medium capitalize leading-tight text-foreground md:text-sm">
               {dayFormatter.format(day.date)}
             </div>
-            <div className="mt-1 text-xs tabular-nums text-muted-foreground md:text-[0.7rem]">
+            <div className="mt-1 text-[0.65rem] tabular-nums text-muted-foreground md:text-xs">
               {day.iso.slice(5)}
             </div>
-            <div className="mt-1 text-base font-semibold tabular-nums text-foreground md:text-lg">
+            <div className="mt-1 text-sm font-semibold tabular-nums text-foreground">
               {availabilityError ? (
                 <span className="text-destructive">—</span>
               ) : availabilityPending ? (
@@ -176,13 +176,12 @@ export function BoardTapeGrid({
                   innerColTemplate={innerColTemplate}
                   roomBookings={bookingsByRoomId.get(room.id) ?? []}
                   cellBorder={cellBorder}
-                  bookingMenuApi={bookingMenuApi}
-                  duplicateName={
-                    duplicateRoomNameKeys?.has(
-                      room.name.trim().toLowerCase()
-                    ) ?? false
-                  }
                   todayIso={todayIso}
+                  nameIsDuplicate={
+                    duplicateRoomNameKeys !== undefined &&
+                    duplicateRoomNameKeys.has(room.name.trim().toLowerCase())
+                  }
+                  bookingMenuApi={bookingMenuApi}
                   onEmptyCellClick={onEmptyCellClick}
                 />
               ))}

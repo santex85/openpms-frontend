@@ -4,25 +4,14 @@ const TENANT_STORAGE_KEY = "openpms_tenant_id";
 
 let accessToken: string | null = null;
 let tenantIdMemory: string | null = null;
-let sessionEpoch = 0;
-const listeners = new Set<() => void>();
+/**
+ * Increments only on full session establish (login/register) or logout — not on silent token refresh.
+ * Used in React Query keys via authQueryKeyPart().
+ */
+let authSessionRevision = 0;
 
-function notify(): void {
-  sessionEpoch += 1;
-  listeners.forEach((fn) => {
-    fn();
-  });
-}
-
-export function getSessionEpoch(): number {
-  return sessionEpoch;
-}
-
-export function subscribeAuth(cb: () => void): () => void {
-  listeners.add(cb);
-  return () => {
-    listeners.delete(cb);
-  };
+export function getAuthSessionRevision(): number {
+  return authSessionRevision;
 }
 
 export function setSession(access: string, tenantId: string): void {
@@ -33,7 +22,7 @@ export function setSession(access: string, tenantId: string): void {
   } catch {
     /* ignore quota / private mode */
   }
-  notify();
+  authSessionRevision += 1;
 }
 
 export function clearSession(): void {
@@ -44,7 +33,12 @@ export function clearSession(): void {
   } catch {
     /* ignore */
   }
-  notify();
+  authSessionRevision += 1;
+}
+
+/** Updates JWT after /auth/refresh without rotating React Query cache keys. */
+export function replaceAccessToken(access: string): void {
+  accessToken = access;
 }
 
 export function getAccessToken(): string | null {

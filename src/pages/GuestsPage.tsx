@@ -1,11 +1,11 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { Button } from "@/components/ui/button";
 import { Pagination } from "@/components/ui/pagination";
-import { TableSkeleton } from "@/components/ui/table-skeleton";
 import {
   Dialog,
   DialogContent,
@@ -18,13 +18,15 @@ import { useCanWriteBookings } from "@/hooks/useAuthz";
 import { useCreateGuest } from "@/hooks/useGuestMutations";
 import { useGuests } from "@/hooks/useGuests";
 import { formatApiError } from "@/lib/formatApiError";
+import { PageTableSkeleton } from "@/components/ui/page-table-skeleton";
 
 const GUESTS_PAGE_SIZE = 25;
 
 function guestInitials(first: string, last: string): string {
-  const a = last.trim().charAt(0) || first.trim().charAt(0) || "?";
-  const b = first.trim().charAt(0) || "";
-  return (a + b).toUpperCase().slice(0, 2);
+  const a = first.trim()[0] ?? "";
+  const b = last.trim()[0] ?? "";
+  const s = `${a}${b}`.toUpperCase();
+  return s !== "" ? s : "?";
 }
 
 function formatGuestDate(iso: string): string {
@@ -71,6 +73,14 @@ export function GuestsPage() {
 
   const guests = pageData?.items ?? [];
   const total = pageData?.total ?? 0;
+
+  const guestsScrollRef = useRef<HTMLDivElement>(null);
+  const guestsVirtual = useVirtualizer({
+    count: guests.length,
+    getScrollElement: () => guestsScrollRef.current,
+    estimateSize: () => 52,
+    overscan: 10,
+  });
 
   function resetCreateGuest(): void {
     setCgFirst("");
@@ -126,14 +136,10 @@ export function GuestsPage() {
         <div>
           <h2 className="text-lg font-semibold text-foreground">Гости</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Профили по вашей организации. Поиск с небольшой задержкой после ввода
-            (запрос к серверу).
+            Профили по вашей организации. Поиск на стороне API с задержкой
+            (debounce) после ввода.{" "}
+            <ApiRouteHint className="text-xs">GET /guests?q=</ApiRouteHint>
           </p>
-          <ApiRouteHint className="mt-1">
-            <code className="rounded bg-muted px-1 font-mono text-[10px]">
-              GET /guests?q=
-            </code>
-          </ApiRouteHint>
         </div>
         {canCreateGuest ? (
           <Button
@@ -151,6 +157,9 @@ export function GuestsPage() {
       <div className="max-w-md space-y-2">
         <label htmlFor="guests-search" className="text-sm font-medium">
           Имя, фамилия, email или телефон
+          <span className="ml-1 font-normal text-muted-foreground">
+            (запрос с задержкой)
+          </span>
         </label>
         <Input
           id="guests-search"
@@ -165,7 +174,7 @@ export function GuestsPage() {
 
       {!isPending && !isError ? (
         <Pagination
-          className="rounded-lg border border-border bg-card p-3"
+          className="rounded-md border border-border bg-muted/20 px-3 py-2"
           total={total}
           limit={GUESTS_PAGE_SIZE}
           offset={page * GUESTS_PAGE_SIZE}
@@ -180,81 +189,90 @@ export function GuestsPage() {
           {formatApiError(error)}
         </p>
       ) : isPending ? (
-        <div className="overflow-x-auto rounded-md border">
-          <table className="w-full min-w-[640px] text-left text-sm">
-            <thead className="border-b bg-muted/50">
-              <tr>
-                <th className="px-3 py-2 font-medium w-12" />
-                <th className="px-3 py-2 font-medium">Фамилия</th>
-                <th className="px-3 py-2 font-medium">Имя</th>
-                <th className="px-3 py-2 font-medium">Email</th>
-                <th className="px-3 py-2 font-medium">Телефон</th>
-                <th className="px-3 py-2 font-medium">VIP</th>
-                <th className="px-3 py-2 font-medium">Создан</th>
-              </tr>
-            </thead>
-            <TableSkeleton rows={8} cols={7} />
-          </table>
-        </div>
+        <PageTableSkeleton rows={6} cols={6} />
       ) : (
-        <div className="overflow-x-auto rounded-md border">
-          <table className="w-full min-w-[640px] text-left text-sm">
-            <thead className="border-b bg-muted/50">
+        <div
+          ref={guestsScrollRef}
+          className="max-h-[min(520px,65vh)] overflow-auto rounded-md border"
+        >
+          <table className="w-full min-w-[640px] table-fixed text-left text-sm">
+            <thead className="sticky top-0 z-10 border-b bg-muted/50">
               <tr>
-                <th className="px-3 py-2 font-medium w-12" aria-label="Аватар" />
+                <th className="w-10 px-2 py-2" aria-hidden />
                 <th className="px-3 py-2 font-medium">Фамилия</th>
                 <th className="px-3 py-2 font-medium">Имя</th>
                 <th className="px-3 py-2 font-medium">Email</th>
-                <th className="px-3 py-2 font-medium">Телефон</th>
-                <th className="px-3 py-2 font-medium">VIP</th>
-                <th className="px-3 py-2 font-medium">Создан</th>
+                <th className="w-[7rem] px-3 py-2 font-medium">Телефон</th>
+                <th className="w-[4rem] px-3 py-2 font-medium">VIP</th>
+                <th className="w-[7rem] px-3 py-2 font-medium">Создан</th>
               </tr>
             </thead>
-            <tbody>
-              {guests.map((g) => (
-                <tr
-                  key={g.id}
-                  role="link"
-                  tabIndex={0}
-                  className="cursor-pointer border-b border-border/80 hover:bg-muted/40"
-                  onClick={() => {
-                    navigate(`/guests/${g.id}`);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      navigate(`/guests/${g.id}`);
-                    }
-                  }}
-                >
-                  <td className="px-3 py-2">
-                    <div
-                      className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground"
-                      aria-hidden
-                    >
-                      {guestInitials(g.first_name, g.last_name)}
-                    </div>
-                  </td>
-                  <td className="px-3 py-2 font-medium">{g.last_name}</td>
-                  <td className="px-3 py-2">{g.first_name}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{g.email}</td>
-                  <td className="px-3 py-2 tabular-nums text-muted-foreground">
-                    {g.phone}
-                  </td>
-                  <td className="px-3 py-2">
-                    {g.vip_status ? (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-900/30 dark:text-amber-100">
-                        VIP
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground/50">·</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-xs tabular-nums text-muted-foreground">
-                    {formatGuestDate(g.created_at)}
-                  </td>
-                </tr>
-              ))}
+            <tbody
+              className="relative"
+              style={{
+                height:
+                  guests.length === 0
+                    ? undefined
+                    : `${guestsVirtual.getTotalSize()}px`,
+              }}
+            >
+              {guests.length === 0
+                ? null
+                : guestsVirtual.getVirtualItems().map((vi) => {
+                    const g = guests[vi.index];
+                    return (
+                      <tr
+                        key={g.id}
+                        tabIndex={0}
+                        className="absolute left-0 table w-full cursor-pointer border-b border-border/80 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        style={{
+                          transform: `translateY(${vi.start}px)`,
+                          height: `${vi.size}px`,
+                        }}
+                        onClick={() => {
+                          navigate(`/guests/${g.id}`);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            navigate(`/guests/${g.id}`);
+                          }
+                        }}
+                      >
+                        <td className="px-2 py-2 align-middle">
+                          <span
+                            className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary"
+                            aria-hidden
+                          >
+                            {guestInitials(g.first_name, g.last_name)}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 align-middle font-medium text-foreground">
+                          {g.last_name}
+                        </td>
+                        <td className="px-3 py-2 align-middle text-foreground">
+                          {g.first_name}
+                        </td>
+                        <td className="px-3 py-2 align-middle text-muted-foreground">
+                          {g.email}
+                        </td>
+                        <td className="px-3 py-2 align-middle tabular-nums text-muted-foreground">
+                          {g.phone}
+                        </td>
+                        <td className="px-3 py-2 align-middle">
+                          {g.vip_status ? (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-900/30 dark:text-amber-100">
+                              VIP
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 align-middle text-xs tabular-nums text-muted-foreground">
+                          {formatGuestDate(g.created_at)}
+                        </td>
+                      </tr>
+                    );
+                  })}
             </tbody>
           </table>
           {guests.length === 0 ? (
@@ -277,11 +295,10 @@ export function GuestsPage() {
             <DialogTitle>Новый гость</DialogTitle>
           </DialogHeader>
           <form className="space-y-3" onSubmit={(e) => void onCreateGuest(e)}>
-            <ApiRouteHint>
-              <code className="rounded bg-muted px-1 font-mono text-[10px]">
-                POST /guests
-              </code>
-            </ApiRouteHint>
+            <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span>Создание профиля гостя.</span>
+              <ApiRouteHint>POST /guests</ApiRouteHint>
+            </p>
             {cgError !== null ? (
               <p className="text-sm text-destructive" role="alert">
                 {cgError}
@@ -391,13 +408,9 @@ export function GuestsPage() {
               </Button>
               <Button type="submit" disabled={createGuestMut.isPending}>
                 {createGuestMut.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Создаём…
-                  </>
-                ) : (
-                  "Создать"
-                )}
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                ) : null}
+                {createGuestMut.isPending ? "Создаём…" : "Создать"}
               </Button>
             </DialogFooter>
           </form>

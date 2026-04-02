@@ -1,5 +1,4 @@
 import { FormEvent, useState } from "react";
-import { Loader2 } from "lucide-react";
 
 import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { Button } from "@/components/ui/button";
@@ -88,15 +87,13 @@ export function SettingsApiKeysSection({
     <section className="space-y-4 rounded-lg border border-border bg-card p-4">
       <div>
         <h3 className="text-sm font-semibold text-foreground">API-ключи</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Ключи для доступа к API интеграций. Полный секрет показывается только
-          один раз при создании.
+        <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <span>Программный доступ к API.</span>
+          <ApiRouteHint>GET /api-keys</ApiRouteHint>
+          <ApiRouteHint>POST /api-keys</ApiRouteHint>
+          <ApiRouteHint>PATCH /api-keys/{"{"}id{"}"}</ApiRouteHint>
+          <ApiRouteHint>DELETE /api-keys/{"{"}id{"}"}</ApiRouteHint>
         </p>
-        <ApiRouteHint className="mt-1 text-sm">
-          <span className="font-mono text-[10px]">
-            GET/POST/PATCH/DELETE /api-keys…
-          </span>
-        </ApiRouteHint>
       </div>
 
       {isError ? (
@@ -192,14 +189,7 @@ export function SettingsApiKeysSection({
           />
         </div>
         <Button type="submit" disabled={createMutation.isPending}>
-          {createMutation.isPending ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Создание…
-            </>
-          ) : (
-            "Создать ключ"
-          )}
+          {createMutation.isPending ? "Создание…" : "Создать ключ"}
         </Button>
       </form>
 

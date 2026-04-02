@@ -4,8 +4,10 @@ import { authHttp } from "@/lib/authHttp";
 import {
   clearSession,
   getTenantIdForRefresh,
+  replaceAccessToken,
   setSession,
 } from "@/lib/authSession";
+import { queryClient } from "@/lib/queryClient";
 
 export interface AuthLoginPublicResponse {
   access_token: string;
@@ -38,6 +40,7 @@ export async function registerRequest(
     }
   );
   setSession(data.access_token, String(data.user.tenant_id));
+  queryClient.clear();
   return data;
 }
 
@@ -52,6 +55,7 @@ export async function loginRequest(
     password,
   });
   setSession(data.access_token, String(data.user.tenant_id));
+  queryClient.clear();
   return data;
 }
 
@@ -63,7 +67,7 @@ export async function refreshAccessToken(): Promise<void> {
   const { data } = await authHttp.post<AccessTokenResponse>("/auth/refresh", {
     tenant_id: tid,
   });
-  setSession(data.access_token, tid);
+  replaceAccessToken(data.access_token);
 }
 
 let refreshMutex: Promise<void> | null = null;
@@ -79,6 +83,7 @@ export function refreshAccessTokenSingleFlight(): Promise<void> {
 
 export function logoutSession(): void {
   clearSession();
+  queryClient.clear();
 }
 
 export async function fetchMe(): Promise<UserRead> {

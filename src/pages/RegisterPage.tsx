@@ -1,6 +1,5 @@
 import { FormEvent, useState } from "react";
 import axios from "axios";
-import { Loader2 } from "lucide-react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 
 import { registerRequest } from "@/api/auth";
@@ -68,14 +67,10 @@ export function RegisterPage() {
       <div className="w-full max-w-sm space-y-6 rounded-lg border border-border bg-card p-8 shadow-sm">
         <div className="space-y-1 text-center">
           <h1 className="text-xl font-semibold text-foreground">Регистрация</h1>
-          <p className="text-sm text-muted-foreground">
-            Создайте организацию и первого пользователя.
+          <p className="flex flex-wrap items-center justify-center gap-2 text-sm text-muted-foreground">
+            <span>Новая организация и учётная запись.</span>
+            <ApiRouteHint>POST /auth/register</ApiRouteHint>
           </p>
-          <ApiRouteHint className="mt-1 text-center">
-            <code className="rounded bg-muted px-1 font-mono text-[10px]">
-              POST /auth/register
-            </code>
-          </ApiRouteHint>
         </div>
         <form className="space-y-4" onSubmit={(e) => void handleSubmit(e)}>
           {error !== null ? (
@@ -161,14 +156,7 @@ export function RegisterPage() {
             />
           </div>
           <Button type="submit" className="w-full" disabled={pending}>
-            {pending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Создаём…
-              </>
-            ) : (
-              "Зарегистрироваться"
-            )}
+            {pending ? "Создаём…" : "Зарегистрироваться"}
           </Button>
         </form>
         <p className="text-center text-sm text-muted-foreground">

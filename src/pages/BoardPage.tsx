@@ -1,7 +1,5 @@
 import {
   closestCenter,
-  DndContext,
-  DragOverlay,
   getFirstCollision,
   MeasuringStrategy,
   PointerSensor,
@@ -12,10 +10,9 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { snapCenterToCursor } from "@dnd-kit/modifiers";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
-import { ChevronLeft, ChevronRight, Loader2, PlusCircle } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -28,9 +25,9 @@ import { useNavigate } from "react-router-dom";
 
 import { type BookingPatchBody, patchBooking } from "@/api/bookings";
 import { putAvailabilityOverride } from "@/api/inventory";
-import { BoardTapeGrid } from "@/components/board/BoardTapeGrid";
+import { BoardGrid } from "@/components/board/BoardGrid";
 import type { BoardBookingMenuApi } from "@/components/board/BookingBlock";
-import { UnassignedPool } from "@/components/board/UnassignedPool";
+import { BoardSidebar } from "@/components/board/BoardSidebar";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -59,19 +56,17 @@ import {
   bookingFromBoardDragData,
   parseRoomIdFromDndOver,
 } from "@/lib/boardDnd";
-import { bookingStatusLabel } from "@/lib/i18n/domainLabels";
 import { formatApiError } from "@/lib/formatApiError";
+import { bookingStatusLabel } from "@/lib/i18n/domainLabels";
+import { duplicateRoomNameKeys } from "@/lib/roomDuplicateNames";
 import { useCanWriteBookings, useCanWriteInventory } from "@/hooks/useAuthz";
 import { usePropertyStore } from "@/stores/property-store";
 import type { AvailabilityCell } from "@/types/inventory";
 import type { Booking, BookingCreateRequest, RoomRow } from "@/types/api";
-import { cn } from "@/lib/utils";
 import {
+  type BoardRangeMode,
   formatIsoDateLocal,
-  getFortnightInMonth,
-  getMonthRange,
-  shiftMonthAnchor,
-  shiftWeekWithinMonth,
+  getBoardRange,
 } from "@/utils/boardDates";
 import { sumAvailableByDate } from "@/utils/inventoryAggregate";
 
@@ -140,97 +135,43 @@ function DragOverlayCard({ booking }: { booking: Booking }) {
   );
 }
 
-const BOARD_LEGEND_STATUSES = [
-  "confirmed",
-  "checked_in",
-  "checked_out",
-  "cancelled",
-  "pending",
-  "no_show",
-] as const;
-
-function legendSwatchClass(status: string): string {
-  const s = status.toLowerCase();
-  if (s === "confirmed") return "bg-blue-600";
-  if (s === "checked_in" || s === "checked-in") return "bg-emerald-600";
-  if (
-    s === "checked_out" ||
-    s === "checked-out" ||
-    s === "checkedout"
-  ) {
-    return "bg-violet-700";
-  }
-  if (s === "cancelled" || s === "canceled") return "bg-muted-foreground/50";
-  if (s === "pending") return "bg-amber-500";
-  if (s === "no_show") return "bg-slate-600";
-  return "bg-slate-600";
-}
-
 export function BoardPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
   const [monthAnchor, setMonthAnchor] = useState(() => new Date());
-  const [boardMode, setBoardMode] = useState<"month" | "fortnight">("month");
-  const [weekStart, setWeekStart] = useState(() => {
-    const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth(), 1);
-  });
+  const [boardRangeMode, setBoardRangeMode] =
+    useState<BoardRangeMode>("month");
+  const [customFromIso, setCustomFromIso] = useState("");
+  const [customToIso, setCustomToIso] = useState("");
 
-  useEffect(() => {
-    const y = monthAnchor.getFullYear();
-    const m = monthAnchor.getMonth();
-    setWeekStart((prev) => {
-      if (prev.getFullYear() !== y || prev.getMonth() !== m) {
-        return new Date(y, m, 1);
-      }
-      return prev;
-    });
-  }, [monthAnchor]);
-
-  const boardRange = useMemo(() => {
-    if (boardMode === "month") {
-      return getMonthRange(monthAnchor);
-    }
-    return getFortnightInMonth(monthAnchor, weekStart);
-  }, [boardMode, monthAnchor, weekStart]);
-
-  const monthTitle = useMemo(
+  const range = useMemo(
     () =>
-      new Intl.DateTimeFormat("ru-RU", {
-        month: "long",
-        year: "numeric",
-      }).format(monthAnchor),
-    [monthAnchor]
+      getBoardRange(boardRangeMode, monthAnchor, customFromIso, customToIso),
+    [boardRangeMode, monthAnchor, customFromIso, customToIso]
   );
 
   const rangeTitle = useMemo(() => {
-    if (boardMode === "month") {
-      return monthTitle;
+    if (boardRangeMode === "month") {
+      return new Intl.DateTimeFormat("ru-RU", {
+        month: "long",
+        year: "numeric",
+      }).format(monthAnchor);
     }
-    const a = boardRange.days[0]?.date;
-    const b = boardRange.days[boardRange.days.length - 1]?.date;
-    if (a === undefined || b === undefined) {
-      return monthTitle;
-    }
-    const fmt = new Intl.DateTimeFormat("ru-RU", {
-      day: "numeric",
-      month: "short",
-    });
-    return `${fmt.format(a)} — ${fmt.format(b)}`;
-  }, [boardMode, boardRange.days, monthTitle]);
+    return `${range.startIso} — ${range.endIso}`;
+  }, [boardRangeMode, monthAnchor, range.startIso, range.endIso]);
 
   const { data: roomTypes, isPending: roomTypesPending } = useRoomTypes();
   const { data: rooms, isPending: roomsPending } = useRooms();
   const {
     data: bookingsRaw,
     isPending: bookingsPending,
-  } = useBookings(boardRange.startIso, boardRange.endIso);
+  } = useBookings(range.startIso, range.endIso);
   const {
     data: availabilityGrid,
     isPending: availabilityPending,
     isError: availabilityError,
-  } = useAvailabilityGrid(boardRange.startIso, boardRange.endIso);
+  } = useAvailabilityGrid(range.startIso, range.endIso);
   const { data: ratePlans, isPending: ratePlansPending } = useRatePlans();
   const createBookingMut = useCreateBooking();
 
@@ -344,8 +285,8 @@ export function BoardPage() {
   );
 
   const dayIsoSet = useMemo(
-    () => new Set(boardRange.days.map((d) => d.iso)),
-    [boardRange.days]
+    () => new Set(range.days.map((d) => d.iso)),
+    [range.days]
   );
 
   const sumsByDate = useMemo(
@@ -371,9 +312,10 @@ export function BoardPage() {
         b.room_id !== null &&
         b.check_in_date !== null &&
         b.check_out_date !== null &&
-        b.property_id === selectedPropertyId
+        b.property_id === selectedPropertyId &&
+        bookingOverlapsMonth(b, range.startIso, range.endIso)
     );
-  }, [bookingsRaw, selectedPropertyId]);
+  }, [bookingsRaw, selectedPropertyId, range.startIso, range.endIso]);
 
   const unassignedBookings = useMemo(() => {
     const list = bookingsRaw ?? [];
@@ -386,9 +328,9 @@ export function BoardPage() {
         b.check_in_date !== null &&
         b.check_out_date !== null &&
         b.property_id === selectedPropertyId &&
-        bookingOverlapsMonth(b, boardRange.startIso, boardRange.endIso)
+        bookingOverlapsMonth(b, range.startIso, range.endIso)
     );
-  }, [bookingsRaw, selectedPropertyId, boardRange.startIso, boardRange.endIso]);
+  }, [bookingsRaw, selectedPropertyId, range.startIso, range.endIso]);
 
   const sortedRoomTypes = useMemo(() => {
     const list = roomTypes ?? [];
@@ -413,20 +355,10 @@ export function BoardPage() {
     return m;
   }, [sortedRoomTypes]);
 
-  const duplicateRoomNameKeys = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const r of rooms ?? []) {
-      const k = r.name.trim().toLowerCase();
-      counts.set(k, (counts.get(k) ?? 0) + 1);
-    }
-    const dup = new Set<string>();
-    for (const [k, n] of counts) {
-      if (n > 1) {
-        dup.add(k);
-      }
-    }
-    return dup;
-  }, [rooms]);
+  const roomDuplicateKeys = useMemo(
+    () => duplicateRoomNameKeys(rooms ?? []),
+    [rooms]
+  );
 
   const showAvailabilityPending =
     Boolean(selectedPropertyId) && availabilityPending;
@@ -600,18 +532,6 @@ export function BoardPage() {
     }
   }
 
-  function openQuickCreateBooking(): void {
-    const roomsList = rooms ?? [];
-    if (roomsList.length === 0) {
-      setBoardMessage("Нет физических номеров — добавьте комнаты.");
-      return;
-    }
-    const todayIsoLocal = formatIsoDateLocal(new Date());
-    const inRange = boardRange.days.some((d) => d.iso === todayIsoLocal);
-    const nightIso = inRange ? todayIsoLocal : boardRange.days[0]!.iso;
-    setCellAction({ room: roomsList[0]!, nightIso });
-  }
-
   function applyBlockCategoryNight(): void {
     setCellBlockError(null);
     if (cellAction === null) {
@@ -635,107 +555,20 @@ export function BoardPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Сетка</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Остатки в шапке, категории и номера слева. Период:{" "}
-            <span className="font-medium text-foreground capitalize">
-              {rangeTitle}
-            </span>
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="mr-1 flex rounded-md border border-border p-0.5">
-            <Button
-              type="button"
-              variant={boardMode === "month" ? "secondary" : "ghost"}
-              size="sm"
-              className="h-8 px-2.5"
-              onClick={() => {
-                setBoardMode("month");
-              }}
-            >
-              Месяц
-            </Button>
-            <Button
-              type="button"
-              variant={boardMode === "fortnight" ? "secondary" : "ghost"}
-              size="sm"
-              className="h-8 px-2.5"
-              onClick={() => {
-                setBoardMode("fortnight");
-              }}
-            >
-              2 недели
-            </Button>
-          </div>
-          {boardMode === "fortnight" ? (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                aria-label="Сдвиг окна на неделю назад"
-                onClick={() => {
-                  setWeekStart((ws) => shiftWeekWithinMonth(ws, -1));
-                }}
-              >
-                −7 дн.
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                aria-label="Сдвиг окна на неделю вперёд"
-                onClick={() => {
-                  setWeekStart((ws) => shiftWeekWithinMonth(ws, 1));
-                }}
-              >
-                +7 дн.
-              </Button>
-            </>
-          ) : null}
-          {canWriteBookings ? (
-            <Button type="button" size="sm" onClick={openQuickCreateBooking}>
-              <PlusCircle className="mr-1.5 h-4 w-4" />
-              Создать бронь
-            </Button>
-          ) : null}
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            aria-label="Предыдущий месяц"
-            onClick={() => {
-              setMonthAnchor((a) => shiftMonthAnchor(a, -1));
-            }}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setMonthAnchor(new Date());
-            }}
-          >
-            Сегодня
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            aria-label="Следующий месяц"
-            onClick={() => {
-              setMonthAnchor((a) => shiftMonthAnchor(a, 1));
-            }}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+      <BoardSidebar
+        rangeTitle={rangeTitle}
+        boardRangeMode={boardRangeMode}
+        onBoardRangeModeChange={setBoardRangeMode}
+        monthAnchor={monthAnchor}
+        onMonthAnchorChange={(d) => {
+          setMonthAnchor(d);
+        }}
+        customFromIso={customFromIso}
+        customToIso={customToIso}
+        onCustomFromIsoChange={setCustomFromIso}
+        onCustomToIsoChange={setCustomToIso}
+        canWriteBookings={canWriteBookings}
+      />
 
       {selectedPropertyId === null ? (
         <p className="text-sm text-muted-foreground">
@@ -747,7 +580,7 @@ export function BoardPage() {
           aria-hidden
         />
       ) : (
-        <DndContext
+        <BoardGrid
           sensors={sensors}
           collisionDetection={boardCollisionDetection}
           measuring={{
@@ -758,75 +591,30 @@ export function BoardPage() {
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
           onDragCancel={handleDragCancel}
-        >
-          {(boardMessage !== null ||
-            assignRoom.isError ||
-            patchBookingMut.isError) && (
-            <div
-              className={cn(
-                "mb-3 rounded-md border px-3 py-2 text-sm",
-                assignRoom.isError || patchBookingMut.isError
-                  ? "border-destructive/60 bg-destructive/10 text-destructive"
-                  : "border-amber-500/50 bg-amber-500/10 text-amber-950 dark:text-amber-100"
-              )}
-              role="alert"
-            >
-              {assignRoom.isError
-                ? formatApiError(assignRoom.error)
-                : patchBookingMut.isError
-                  ? formatApiError(patchBookingMut.error)
-                  : boardMessage}
-            </div>
+          boardMessage={boardMessage}
+          assignRoomError={assignRoom.isError}
+          assignRoomErrorObj={assignRoom.error}
+          patchBookingError={patchBookingMut.isError}
+          patchBookingErrorObj={patchBookingMut.error}
+          unassignedBookings={unassignedBookings}
+          sortedRoomTypes={sortedRoomTypes}
+          bookingsPending={bookingsPending}
+          days={range.days}
+          rooms={rooms ?? []}
+          bookingsForGrid={bookingsForGrid}
+          sumsByDate={sumsByDate}
+          showAvailabilityPending={showAvailabilityPending}
+          availabilityError={availabilityError}
+          roomDuplicateKeys={roomDuplicateKeys}
+          bookingMenuApi={bookingMenuApi}
+          onEmptyCellClick={(payload) => {
+            setCellAction(payload);
+          }}
+          dragOverlayBooking={activeBooking}
+          renderDragOverlay={(booking) => (
+            <DragOverlayCard booking={booking} />
           )}
-          <div className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">Статусы:</span>
-            {BOARD_LEGEND_STATUSES.map((st) => (
-              <span key={st} className="inline-flex items-center gap-1.5">
-                <span
-                  className={cn(
-                    "h-2.5 w-2.5 shrink-0 rounded-sm",
-                    legendSwatchClass(st)
-                  )}
-                  aria-hidden
-                />
-                {bookingStatusLabel(st)}
-              </span>
-            ))}
-          </div>
-          <div className="flex flex-col gap-4 lg:flex-row-reverse lg:items-start">
-            <UnassignedPool
-              className="lg:max-w-[240px]"
-              bookings={unassignedBookings}
-              roomTypes={sortedRoomTypes}
-              isLoading={bookingsPending}
-            />
-            <div className="min-w-0 flex-1 overflow-x-auto">
-              <BoardTapeGrid
-                days={boardRange.days}
-                roomTypes={sortedRoomTypes}
-                rooms={rooms ?? []}
-                bookings={bookingsForGrid}
-                sumsByDate={sumsByDate}
-                availabilityPending={showAvailabilityPending}
-                availabilityError={availabilityError}
-                bookingMenuApi={bookingMenuApi}
-                duplicateRoomNameKeys={duplicateRoomNameKeys}
-                todayIso={formatIsoDateLocal(new Date())}
-                onEmptyCellClick={(payload) => {
-                  setCellAction(payload);
-                }}
-              />
-            </div>
-          </div>
-          <DragOverlay
-            dropAnimation={null}
-            modifiers={[snapCenterToCursor]}
-          >
-            {activeBooking !== null ? (
-              <DragOverlayCard booking={activeBooking} />
-            ) : null}
-          </DragOverlay>
-        </DndContext>
+        />
       )}
 
       <Dialog
@@ -873,13 +661,11 @@ export function BoardPage() {
                 onClick={applyBlockCategoryNight}
               >
                 {blockInventoryMut.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Применяем…
-                  </>
-                ) : (
-                  "Заблокировать +1 в категории на эту ночь"
-                )}
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                ) : null}
+                {blockInventoryMut.isPending
+                  ? "Применяем…"
+                  : "Заблокировать +1 в категории на эту ночь"}
               </Button>
             </div>
           ) : null}
@@ -1030,13 +816,11 @@ export function BoardPage() {
                   }
                 >
                   {createBookingMut.isPending || patchBookingMut.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Создание…
-                    </>
-                  ) : (
-                    "Создать и назначить номер"
-                  )}
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                  ) : null}
+                  {createBookingMut.isPending || patchBookingMut.isPending
+                    ? "Создание…"
+                    : "Создать и назначить номер"}
                 </Button>
               </DialogFooter>
             </form>
@@ -1061,7 +845,7 @@ export function BoardPage() {
           <DialogHeader>
             <DialogTitle>
               {summaryBooking !== null
-                ? `Бронь: ${summaryBooking.guest.last_name} ${summaryBooking.guest.first_name}`.trim()
+                ? `${summaryBooking.guest.last_name} ${summaryBooking.guest.first_name}`.trim()
                 : "Бронь"}
             </DialogTitle>
             <DialogDescription>
@@ -1191,6 +975,9 @@ export function BoardPage() {
               disabled={patchBookingMut.isPending}
               onClick={applyReschedule}
             >
+              {patchBookingMut.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+              ) : null}
               Сохранить
             </Button>
           </DialogFooter>

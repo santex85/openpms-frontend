@@ -17,23 +17,6 @@ export function shiftMonthAnchor(anchor: Date, deltaMonths: number): Date {
   return d;
 }
 
-/** Move `anchor` by `deltaWeeks` weeks, clamped to the calendar month of `anchor`. */
-export function shiftWeekWithinMonth(anchor: Date, deltaWeeks: number): Date {
-  const y = anchor.getFullYear();
-  const m = anchor.getMonth();
-  const first = new Date(y, m, 1);
-  const last = new Date(y, m + 1, 0);
-  const next = new Date(anchor);
-  next.setDate(next.getDate() + deltaWeeks * 7);
-  if (next < first) {
-    return first;
-  }
-  if (next > last) {
-    return last;
-  }
-  return next;
-}
-
 /** Inclusive range: first and last day of the month containing `anchor`. */
 export function getMonthRange(anchor: Date): {
   startIso: string;
@@ -56,73 +39,96 @@ export function getMonthRange(anchor: Date): {
   };
 }
 
-/** First 14 days of the month containing `anchor` (for compact rate grid). */
-export function getMonthFortnightRange(anchor: Date): {
+function parseIsoLocal(iso: string): Date {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+/** Inclusive list of calendar days from startIso to endIso (YYYY-MM-DD). */
+export function buildDaysInclusive(startIso: string, endIso: string): MonthDayMeta[] {
+  const start = parseIsoLocal(startIso);
+  const end = parseIsoLocal(endIso);
+  if (start > end) {
+    return buildDaysInclusive(endIso, startIso);
+  }
+  const days: MonthDayMeta[] = [];
+  for (
+    let cur = new Date(start);
+    cur <= end;
+    cur.setDate(cur.getDate() + 1)
+  ) {
+    const copy = new Date(cur.getTime());
+    days.push({ iso: formatIsoDateLocal(copy), date: copy });
+  }
+  return days;
+}
+
+/** Monday 00:00 of the week containing `d` (local). */
+export function startOfIsoWeek(d: Date): Date {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const day = x.getDay();
+  const offset = day === 0 ? -6 : 1 - day;
+  x.setDate(x.getDate() + offset);
+  return x;
+}
+
+/** 14 consecutive days starting Monday of the week containing `anchor`. */
+export function getFortnightRange(anchor: Date): {
   startIso: string;
   endIso: string;
   days: MonthDayMeta[];
 } {
-  const y = anchor.getFullYear();
-  const m = anchor.getMonth();
-  const first = new Date(y, m, 1);
-  const days: MonthDayMeta[] = [];
-  for (let i = 0; i < 14; i++) {
-    const d = new Date(first);
-    d.setDate(first.getDate() + i);
-    const copy = new Date(d);
-    days.push({ iso: formatIsoDateLocal(copy), date: copy });
-  }
-  const lastDay = days[days.length - 1]!.date;
+  const mon = startOfIsoWeek(anchor);
+  const end = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 13);
+  const startIso = formatIsoDateLocal(mon);
+  const endIso = formatIsoDateLocal(end);
   return {
-    startIso: formatIsoDateLocal(first),
-    endIso: formatIsoDateLocal(lastDay),
-    days,
+    startIso,
+    endIso,
+    days: buildDaysInclusive(startIso, endIso),
   };
 }
 
-/** Inclusive day range from `start` to `end` (calendar days, local). */
-export function getInclusiveDayRange(
-  start: Date,
-  end: Date
-): { startIso: string; endIso: string; days: MonthDayMeta[] } {
-  const days: MonthDayMeta[] = [];
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const copy = new Date(d);
-    days.push({ iso: formatIsoDateLocal(copy), date: copy });
-  }
-  if (days.length === 0) {
-    const iso = formatIsoDateLocal(start);
-    return { startIso: iso, endIso: iso, days: [{ iso, date: new Date(start) }] };
-  }
-  const first = days[0]!;
-  const last = days[days.length - 1]!;
-  return { startIso: first.iso, endIso: last.iso, days };
+/** 7 days Mon–Sun for the week containing `anchor`. */
+export function getWeekRange(anchor: Date): {
+  startIso: string;
+  endIso: string;
+  days: MonthDayMeta[];
+} {
+  const mon = startOfIsoWeek(anchor);
+  const end = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6);
+  const startIso = formatIsoDateLocal(mon);
+  const endIso = formatIsoDateLocal(end);
+  return {
+    startIso,
+    endIso,
+    days: buildDaysInclusive(startIso, endIso),
+  };
 }
 
-/** 14-day window within the month of `monthAnchor`, aligned to `weekStartHint`. */
-export function getFortnightInMonth(
-  monthAnchor: Date,
-  weekStartHint: Date
+export type BoardRangeMode = "month" | "fortnight" | "custom";
+
+export function getBoardRange(
+  mode: BoardRangeMode,
+  navAnchor: Date,
+  customFromIso: string,
+  customToIso: string
 ): { startIso: string; endIso: string; days: MonthDayMeta[] } {
-  const full = getMonthRange(monthAnchor);
-  const first = full.days[0]!.date;
-  const last = full.days[full.days.length - 1]!.date;
-  let start = new Date(weekStartHint);
-  if (start < first) {
-    start = new Date(first);
+  if (mode === "month") {
+    return getMonthRange(navAnchor);
   }
-  if (start > last) {
-    start = new Date(last);
+  if (mode === "fortnight") {
+    return getFortnightRange(navAnchor);
   }
-  let end = new Date(start);
-  end.setDate(end.getDate() + 13);
-  if (end > last) {
-    end = new Date(last);
-    start = new Date(end);
-    start.setDate(start.getDate() - 13);
-    if (start < first) {
-      start = new Date(first);
-    }
+  const from = customFromIso.trim();
+  const to = customToIso.trim();
+  if (from !== "" && to !== "") {
+    const days = buildDaysInclusive(from, to);
+    return {
+      startIso: days[0]?.iso ?? from,
+      endIso: days[days.length - 1]?.iso ?? to,
+      days,
+    };
   }
-  return getInclusiveDayRange(start, end);
+  return getMonthRange(navAnchor);
 }

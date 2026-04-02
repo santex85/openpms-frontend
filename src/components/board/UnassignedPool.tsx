@@ -68,7 +68,7 @@ export function UnassignedPool({
   bookings,
   roomTypes,
   isLoading = false,
-  className,
+  className = "",
 }: UnassignedPoolProps) {
   return (
     <aside

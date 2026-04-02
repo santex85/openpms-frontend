@@ -7,9 +7,8 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
+import { ClipboardList } from "lucide-react";
 import { useMemo, useState } from "react";
-
-import { Inbox } from "lucide-react";
 
 import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { Button } from "@/components/ui/button";
@@ -29,12 +28,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useHousekeepingQueries } from "@/hooks/useHousekeepingQueries";
-import { useBookings } from "@/hooks/useBookings";
 import { usePatchHousekeepingRoom } from "@/hooks/usePatchHousekeepingRoom";
-import { useRoomTypes } from "@/hooks/useRoomTypes";
-import { useRooms } from "@/hooks/useRooms";
 import { formatApiError } from "@/lib/formatApiError";
-import { housekeepingStatusLabel } from "@/lib/i18n/domainLabels";
 import { cn } from "@/lib/utils";
 import {
   HOUSEKEEPING_COLUMN_STATUSES,
@@ -42,6 +37,13 @@ import {
   type HousekeepingStatus,
 } from "@/types/housekeeping";
 import { formatIsoDateLocal } from "@/utils/boardDates";
+
+const COLUMN_META: Record<HousekeepingStatus, string> = {
+  dirty: "Грязный",
+  clean: "Чистый",
+  inspected: "Проверен",
+  out_of_service: "Не в работе",
+};
 
 function colDroppableId(status: HousekeepingStatus): string {
   return `hk-col-${status}`;
@@ -66,15 +68,11 @@ function HousekeepingDraggableCard({
   fromStatus,
   disabled,
   onSelect,
-  subtitle,
-  showArrivalBadge,
 }: {
   card: HousekeepingRoomCard;
   fromStatus: HousekeepingStatus;
   disabled: boolean;
   onSelect: () => void;
-  subtitle?: string;
-  showArrivalBadge?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
@@ -115,16 +113,20 @@ function HousekeepingDraggableCard({
         }
       }}
     >
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="font-medium">{card.label}</span>
-        {showArrivalBadge === true ? (
-          <span className="rounded bg-amber-500/20 px-1.5 py-0 text-[10px] font-medium text-amber-950 dark:text-amber-100">
-            Заезд
-          </span>
-        ) : null}
-      </div>
-      {subtitle !== undefined && subtitle !== "" ? (
-        <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
+      <span className="font-medium">{card.label}</span>
+      {card.room_type_name !== undefined &&
+      card.room_type_name !== null &&
+      card.room_type_name.trim() !== "" ? (
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {card.room_type_name}
+        </p>
+      ) : null}
+      {card.guest_name !== undefined &&
+      card.guest_name !== null &&
+      card.guest_name.trim() !== "" ? (
+        <p className="mt-0.5 text-xs text-foreground">
+          Гость: {card.guest_name}
+        </p>
       ) : null}
       {card.notes !== undefined &&
       card.notes !== null &&
@@ -141,17 +143,12 @@ function HousekeepingColumn({
   cards,
   onCardSelect,
   dragDisabled,
-  cardExtras,
 }: {
   status: HousekeepingStatus;
   title: string;
   cards: HousekeepingRoomCard[];
   onCardSelect: (card: HousekeepingRoomCard, from: HousekeepingStatus) => void;
   dragDisabled: boolean;
-  cardExtras?: (card: HousekeepingRoomCard) => {
-    subtitle?: string;
-    showArrivalBadge?: boolean;
-  };
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: colDroppableId(status) });
 
@@ -171,10 +168,9 @@ function HousekeepingColumn({
       </h3>
       <ul className="mt-3 space-y-2">
         {cards.length === 0 ? (
-          <li className="flex min-h-[4.5rem] flex-col items-center justify-center gap-1 rounded-md border border-dashed border-border/80 py-4 text-center text-xs text-muted-foreground">
-            <Inbox className="h-6 w-6 opacity-60" aria-hidden />
-            <span>Пока пусто</span>
-            <span>Перетащите карточку сюда</span>
+          <li className="flex min-h-[4.5rem] flex-col items-center justify-center gap-1 rounded-md border border-dashed border-border/80 px-2 py-3 text-center text-xs text-muted-foreground">
+            <ClipboardList className="h-5 w-5 opacity-50" aria-hidden />
+            Перетащите сюда карточку номера
           </li>
         ) : (
           cards.map((c) => (
@@ -183,8 +179,6 @@ function HousekeepingColumn({
                 card={c}
                 fromStatus={status}
                 disabled={dragDisabled}
-                subtitle={cardExtras?.(c)?.subtitle}
-                showArrivalBadge={cardExtras?.(c)?.showArrivalBadge}
                 onSelect={() => {
                   onCardSelect(c, status);
                 }}
@@ -202,10 +196,6 @@ export function HousekeepingPage() {
     formatIsoDateLocal(new Date())
   );
   const dateIso = useMemo(() => dateInput.trim(), [dateInput]);
-
-  const { data: rooms } = useRooms();
-  const { data: roomTypes } = useRoomTypes();
-  const { data: dayBookings } = useBookings(dateIso, dateIso);
 
   const { queries, isPending, isError, propertyId } =
     useHousekeepingQueries(dateIso);
@@ -228,47 +218,6 @@ export function HousekeepingPage() {
     });
     return m;
   }, [queries]);
-
-  const roomTypeNameByRoomId = useMemo(() => {
-    const m = new Map<string, string>();
-    const rlist = rooms ?? [];
-    const tmap = new Map((roomTypes ?? []).map((t) => [t.id, t.name]));
-    for (const r of rlist) {
-      m.set(r.id, tmap.get(r.room_type_id) ?? "");
-    }
-    return m;
-  }, [rooms, roomTypes]);
-
-  const guestByRoomId = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const b of dayBookings ?? []) {
-      if (b.room_id === null) {
-        continue;
-      }
-      const who = `${b.guest.last_name} ${b.guest.first_name}`.trim();
-      m.set(b.room_id, who);
-    }
-    return m;
-  }, [dayBookings]);
-
-  const cardExtras = useMemo(() => {
-    return (card: HousekeepingRoomCard) => {
-      const typeName = roomTypeNameByRoomId.get(card.room_id) ?? "";
-      const guest = guestByRoomId.get(card.room_id);
-      const subtitleParts = [typeName, guest].filter(
-        (x) => x !== undefined && x !== ""
-      );
-      const arrival =
-        (dayBookings ?? []).some(
-          (b) =>
-            b.room_id === card.room_id && b.check_in_date === dateIso
-        ) ?? false;
-      return {
-        subtitle: subtitleParts.join(" · "),
-        showArrivalBadge: arrival,
-      };
-    };
-  }, [roomTypeNameByRoomId, guestByRoomId, dayBookings, dateIso]);
 
   function moveCard(
     card: HousekeepingRoomCard,
@@ -323,13 +272,13 @@ export function HousekeepingPage() {
     <div className="space-y-4">
       <div>
         <h2 className="text-lg font-semibold text-foreground">Housekeeping</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Канбан по статусу уборки. Перетащите карточку между колонками или
-          нажмите для смены статуса.
+        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+          <span>
+            Перетащите карточку между колонками или нажмите для выбора статуса.
+          </span>
+          <ApiRouteHint>GET /housekeeping</ApiRouteHint>
+          <ApiRouteHint>PATCH /housekeeping/{"{"}room_id{"}"}</ApiRouteHint>
         </p>
-        <ApiRouteHint className="mt-1 text-sm">
-          <span className="font-mono text-[10px]">GET/PATCH /housekeeping…</span>
-        </ApiRouteHint>
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
@@ -381,10 +330,9 @@ export function HousekeepingPage() {
               <HousekeepingColumn
                 key={col}
                 status={col}
-                title={housekeepingStatusLabel(col)}
+                title={COLUMN_META[col]}
                 cards={byStatus.get(col) ?? []}
                 dragDisabled={dragDisabled}
-                cardExtras={cardExtras}
                 onCardSelect={(c, from) => {
                   openStatusDialog(c, from);
                 }}
@@ -425,7 +373,7 @@ export function HousekeepingPage() {
                 <SelectContent>
                   {HOUSEKEEPING_COLUMN_STATUSES.map((s) => (
                     <SelectItem key={s} value={s}>
-                      {housekeepingStatusLabel(s)}
+                      {COLUMN_META[s]}
                     </SelectItem>
                   ))}
                 </SelectContent>

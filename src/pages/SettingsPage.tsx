@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { Loader2, Plus } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { SettingsChangePasswordSection } from "@/components/settings/SettingsChangePasswordSection";
@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ForbiddenMessages, isAxiosForbidden } from "@/lib/forbiddenError";
 import { useCreateProperty } from "@/hooks/useCreateProperty";
 import { useCanManageProperties } from "@/hooks/useAuthz";
 import { useCreateRoomType } from "@/hooks/useRoomTypeMutations";
@@ -79,10 +80,10 @@ function formatPropertyFormError(err: unknown, mode: "create" | "update"): strin
         return joined;
       }
     }
-    if (err.response.status === 403) {
+    if (isAxiosForbidden(err)) {
       return mode === "create"
-        ? "Недостаточно прав: создание отеля доступно ролям owner и manager."
-        : "Недостаточно прав: изменение отеля доступно ролям owner и manager.";
+        ? ForbiddenMessages.propertyCreate
+        : ForbiddenMessages.propertyUpdate;
     }
     if (err.response.status === 405 && mode === "update") {
       return "Сервер не поддерживает PATCH для отеля (405). Нужен другой метод или версия API.";
@@ -111,8 +112,8 @@ function formatRoomTypeMutationError(err: unknown): string {
         return joined;
       }
     }
-    if (err.response.status === 403) {
-      return "Недостаточно прав: типы номеров создают owner и manager.";
+    if (isAxiosForbidden(err)) {
+      return ForbiddenMessages.roomTypeCreate;
     }
     if (err.response.status === 404) {
       return "Отель не найден или не принадлежит вашей организации.";
@@ -147,7 +148,7 @@ export function SettingsPage() {
   const [rtMax, setRtMax] = useState("4");
   const [rtFormError, setRtFormError] = useState<string | null>(null);
   const [rtFormSuccess, setRtFormSuccess] = useState<string | null>(null);
-  const [roomTypeModalOpen, setRoomTypeModalOpen] = useState(false);
+  const [rtDialogOpen, setRtDialogOpen] = useState(false);
 
   async function handleCreateRoomType(
     e: FormEvent<HTMLFormElement>
@@ -195,7 +196,7 @@ export function SettingsPage() {
       setRtName("");
       setRtBase("2");
       setRtMax("4");
-      setRoomTypeModalOpen(false);
+      setRtDialogOpen(false);
     } catch (err) {
       setRtFormError(formatRoomTypeMutationError(err));
     }
@@ -355,13 +356,20 @@ export function SettingsPage() {
                 справочник
               </a>
               ).{" "}
-              {selectedPropertyId !== null
-                ? "Сохранение применяется к отелю, выбранному в шапке."
-                : "Выберите отель в шапке, чтобы изменить существующий, или создайте новый ниже."}
+              {selectedPropertyId !== null ? (
+                <>
+                  Редактируете выбранный в шапке отель.{" "}
+                  <ApiRouteHint>PATCH /properties/{"{"}id{"}"}</ApiRouteHint>{" "}
+                  <ApiRouteHint>GET /properties</ApiRouteHint>
+                </>
+              ) : (
+                <>
+                  Новый отель создаётся через API. Выберите отель в шапке, чтобы
+                  править существующий.{" "}
+                  <ApiRouteHint>POST /properties</ApiRouteHint>
+                </>
+              )}
             </p>
-            <ApiRouteHint className="text-sm">
-              <span className="font-mono text-[10px]">GET/POST/PATCH /properties</span>
-            </ApiRouteHint>
             {formError !== null ? (
               <p className="text-sm text-destructive" role="alert">
                 {formError}
@@ -471,23 +479,16 @@ export function SettingsPage() {
               type="submit"
               disabled={createMutation.isPending || updateMutation.isPending}
             >
-              {selectedPropertyId !== null ? (
-                updateMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Сохраняем…
-                  </>
-                ) : (
-                  "Сохранить"
-                )
-              ) : createMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Создаём…
-                </>
-              ) : (
-                "Создать отель"
-              )}
+              {createMutation.isPending || updateMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+              ) : null}
+              {selectedPropertyId !== null
+                ? updateMutation.isPending
+                  ? "Сохраняем…"
+                  : "Сохранить"
+                : createMutation.isPending
+                  ? "Создаём…"
+                  : "Создать отель"}
             </Button>
           </form>
         )}
@@ -505,16 +506,17 @@ export function SettingsPage() {
               </span>
             ) : null}
           </h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Категории (Стандарт, Делюкс и т.д.) для физических номеров выбранного
-            отеля.
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <span>Категории для физических номеров выбранного отеля.</span>
+            <ApiRouteHint>POST /room-types</ApiRouteHint>
           </p>
-          <ApiRouteHint className="mt-1">
-            <code className="rounded bg-muted px-1 font-mono text-[10px]">
-              POST /room-types
-            </code>
-          </ApiRouteHint>
         </div>
+
+        {rtFormSuccess !== null ? (
+          <p className="text-sm text-emerald-600 dark:text-emerald-400">
+            {rtFormSuccess}
+          </p>
+        ) : null}
 
         {selectedPropertyId === null ? (
           <p className="text-sm text-muted-foreground">
@@ -526,119 +528,18 @@ export function SettingsPage() {
           </p>
         ) : (
           <>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                onClick={() => {
-                  setRtFormError(null);
-                  setRtFormSuccess(null);
-                  setRoomTypeModalOpen(true);
-                }}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Добавить тип номера
-              </Button>
-              {rtFormSuccess !== null ? (
-                <p className="text-sm text-emerald-600 dark:text-emerald-400">
-                  {rtFormSuccess}
-                </p>
-              ) : null}
-            </div>
-
-            <Dialog
-              open={roomTypeModalOpen}
-              onOpenChange={(open) => {
-                setRoomTypeModalOpen(open);
-                if (!open) {
-                  setRtFormError(null);
-                }
+            <Button
+              type="button"
+              onClick={() => {
+                setRtFormError(null);
+                setRtDialogOpen(true);
               }}
             >
-              <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Новый тип номера</DialogTitle>
-                </DialogHeader>
-                <form
-                  className="space-y-4"
-                  onSubmit={(e) => void handleCreateRoomType(e)}
-                >
-                  {rtFormError !== null ? (
-                    <p className="text-sm text-destructive" role="alert">
-                      {rtFormError}
-                    </p>
-                  ) : null}
-                  <div className="space-y-2">
-                    <label htmlFor="rt-name" className="text-sm font-medium">
-                      Название категории
-                    </label>
-                    <Input
-                      id="rt-name"
-                      value={rtName}
-                      onChange={(e) => {
-                        setRtName(e.target.value);
-                      }}
-                      placeholder="Стандарт"
-                      autoComplete="off"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <label htmlFor="rt-base" className="text-sm font-medium">
-                        Базовая вместимость
-                      </label>
-                      <Input
-                        id="rt-base"
-                        type="number"
-                        min={1}
-                        value={rtBase}
-                        onChange={(e) => {
-                          setRtBase(e.target.value);
-                        }}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label htmlFor="rt-max" className="text-sm font-medium">
-                        Макс. вместимость
-                      </label>
-                      <Input
-                        id="rt-max"
-                        type="number"
-                        min={1}
-                        value={rtMax}
-                        onChange={(e) => {
-                          setRtMax(e.target.value);
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setRoomTypeModalOpen(false)}
-                    >
-                      Отмена
-                    </Button>
-                    <Button
-                      type="submit"
-                      disabled={createRoomTypeMutation.isPending}
-                    >
-                      {createRoomTypeMutation.isPending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Создаём…
-                        </>
-                      ) : (
-                        "Создать"
-                      )}
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
+              Добавить тип номера
+            </Button>
 
             <div>
-              <h4 className="mb-2 text-xs font-medium tracking-tight text-muted-foreground">
+              <h4 className="mb-2 text-xs font-medium text-muted-foreground">
                 Уже созданные
               </h4>
               <SettingsRoomTypesTable
@@ -650,41 +551,119 @@ export function SettingsPage() {
           </>
         )}
       </section>
+
+      <Dialog open={rtDialogOpen} onOpenChange={setRtDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Новый тип номера</DialogTitle>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => void handleCreateRoomType(e)}
+          >
+            {rtFormError !== null ? (
+              <p className="text-sm text-destructive" role="alert">
+                {rtFormError}
+              </p>
+            ) : null}
+            <div className="space-y-2">
+              <label htmlFor="rt-name" className="text-sm font-medium">
+                Название категории
+              </label>
+              <Input
+                id="rt-name"
+                value={rtName}
+                onChange={(e) => {
+                  setRtName(e.target.value);
+                }}
+                placeholder="Стандарт"
+                autoComplete="off"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <label htmlFor="rt-base" className="text-sm font-medium">
+                  Базовая вместимость
+                </label>
+                <Input
+                  id="rt-base"
+                  type="number"
+                  min={1}
+                  value={rtBase}
+                  onChange={(e) => {
+                    setRtBase(e.target.value);
+                  }}
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="rt-max" className="text-sm font-medium">
+                  Макс. вместимость
+                </label>
+                <Input
+                  id="rt-max"
+                  type="number"
+                  min={1}
+                  value={rtMax}
+                  onChange={(e) => {
+                    setRtMax(e.target.value);
+                  }}
+                />
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setRtDialogOpen(false);
+                }}
+              >
+                Отмена
+              </Button>
+              <Button
+                type="submit"
+                disabled={createRoomTypeMutation.isPending}
+              >
+                {createRoomTypeMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                ) : null}
+                {createRoomTypeMutation.isPending
+                  ? "Создаём…"
+                  : "Создать тип номера"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       <section className="space-y-3 rounded-lg border border-border bg-card p-4">
         <h3 className="text-sm font-semibold text-foreground">Роли и права</h3>
         <p className="text-sm text-muted-foreground">
-          Краткая памятка по ролям в тенанте (управление на уровне API; назначение
-          — в разделе «Пользователи»).
+          Справочное описание модели доступа OpenPMS (настройка через приглашение
+          пользователей ниже).
         </p>
-        <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
+        <ul className="space-y-2 text-sm text-foreground">
           <li>
-            <span className="font-medium text-foreground">Владелец (owner)</span>{" "}
-            — полный доступ, управление отелем и пользователями.
+            <span className="font-medium">Владелец</span> — полный доступ к
+            отелям, тарифам, пользователям и интеграциям.
           </li>
           <li>
-            <span className="font-medium text-foreground">Менеджер (manager)</span>{" "}
-            — операционное управление: номера, тарифы, брони, настройки без
-            смены владельца.
+            <span className="font-medium">Менеджер</span> — операционное
+            управление бронями, номерами, тарифами; без смены владельца тенанта.
           </li>
           <li>
-            <span className="font-medium text-foreground">
-              Администратор стойки (receptionist)
-            </span>{" "}
-            — брони, гости, фолио, сетка.
+            <span className="font-medium">Рецепция</span> — брони, гости,
+            фолио, сетка размещения.
           </li>
           <li>
-            <span className="font-medium text-foreground">Housekeeping</span> —
-            уборка и статусы номеров.
+            <span className="font-medium">Горничные</span> — статусы уборки и
+            канбан Housekeeping.
           </li>
           <li>
-            <span className="font-medium text-foreground">Наблюдатель (viewer)</span>{" "}
-            — просмотр без изменений.
+            <span className="font-medium">Наблюдатель</span> — только чтение
+            согласованных разделов.
           </li>
         </ul>
-        <p className="text-xs text-muted-foreground">
-          Повторная отправка приглашения с тем же email не предусмотрена API; при
-          проблемах со входом обратитесь к владельцу тенанта.
-        </p>
       </section>
       <SettingsUsersSection canManage={canManage} />
       <SettingsApiKeysSection canManage={canManage} />

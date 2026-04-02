@@ -4,7 +4,6 @@ import {
   useState,
 } from "react";
 import axios from "axios";
-import { Loader2 } from "lucide-react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 
 import { loginRequest } from "@/api/auth";
@@ -12,6 +11,7 @@ import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getAccessToken, setSession } from "@/lib/authSession";
+import { queryClient } from "@/lib/queryClient";
 import { usePropertyStore } from "@/stores/property-store";
 
 function shouldParseDevTokenHash(): boolean {
@@ -64,6 +64,7 @@ export function LoginPage() {
         const tid = parseJwtTenantId(token);
         if (tid !== null) {
           setSession(token, tid);
+          queryClient.clear();
           usePropertyStore.getState().setSelectedPropertyId(null);
           window.history.replaceState(
             null,
@@ -128,14 +129,10 @@ export function LoginPage() {
       <div className="w-full max-w-sm space-y-6 rounded-lg border border-border bg-card p-8 shadow-sm">
         <div className="space-y-1 text-center">
           <h1 className="text-xl font-semibold text-foreground">OpenPMS</h1>
-          <p className="text-sm text-muted-foreground">
-            Введите идентификатор организации (Tenant ID), email и пароль.
+          <p className="flex flex-wrap items-center justify-center gap-2 text-sm text-muted-foreground">
+            <span>Вход: tenant, email и пароль.</span>
+            <ApiRouteHint>POST /auth/login</ApiRouteHint>
           </p>
-          <ApiRouteHint className="mt-1 text-center">
-            <code className="rounded bg-muted px-1 font-mono text-[10px]">
-              POST /auth/login
-            </code>
-          </ApiRouteHint>
         </div>
         {import.meta.env.DEV ? (
           <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
@@ -207,14 +204,7 @@ export function LoginPage() {
             />
           </div>
           <Button type="submit" className="w-full" disabled={pending}>
-            {pending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Входим…
-              </>
-            ) : (
-              "Войти"
-            )}
+            {pending ? "Входим…" : "Войти"}
           </Button>
         </form>
         <p className="text-center text-sm text-muted-foreground">
