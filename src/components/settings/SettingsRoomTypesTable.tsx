@@ -1,4 +1,5 @@
 import { FormEvent, useState } from "react";
+import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +15,7 @@ import {
   usePatchRoomType,
 } from "@/hooks/useRoomTypeMutations";
 import type { RoomType } from "@/types/api";
+import { showApiRouteHints } from "@/lib/showApiRouteHints";
 
 interface SettingsRoomTypesTableProps {
   roomTypes: RoomType[] | undefined;
@@ -88,7 +90,9 @@ export function SettingsRoomTypesTable({
             <tr>
               <th className="px-3 py-2 font-medium">Название</th>
               <th className="px-3 py-2 font-medium">База / Макс.</th>
-              <th className="px-3 py-2 font-medium">id</th>
+              {showApiRouteHints() ? (
+                <th className="px-3 py-2 font-medium">id</th>
+              ) : null}
               <th className="px-3 py-2 font-medium text-right">Действия</th>
             </tr>
           </thead>
@@ -99,9 +103,11 @@ export function SettingsRoomTypesTable({
                 <td className="px-3 py-2">
                   {rt.base_occupancy} / {rt.max_occupancy}
                 </td>
-                <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
-                  {rt.id}
-                </td>
+                {showApiRouteHints() ? (
+                  <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
+                    {rt.id}
+                  </td>
+                ) : null}
                 <td className="px-3 py-2 text-right">
                   <div className="flex justify-end gap-1">
                     <Button
@@ -191,7 +197,14 @@ export function SettingsRoomTypesTable({
                 Отмена
               </Button>
               <Button type="submit" disabled={patchMut.isPending}>
-                Сохранить
+                {patchMut.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Сохраняем…
+                  </>
+                ) : (
+                  "Сохранить"
+                )}
               </Button>
             </DialogFooter>
           </form>
@@ -226,7 +239,14 @@ export function SettingsRoomTypesTable({
                 });
               }}
             >
-              Удалить
+              {deleteMut.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Удаляем…
+                </>
+              ) : (
+                "Удалить"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

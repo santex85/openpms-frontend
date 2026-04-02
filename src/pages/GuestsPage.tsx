@@ -1,8 +1,11 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 
+import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { Button } from "@/components/ui/button";
 import { Pagination } from "@/components/ui/pagination";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +21,12 @@ import { formatApiError } from "@/lib/formatApiError";
 
 const GUESTS_PAGE_SIZE = 25;
 
+function guestInitials(first: string, last: string): string {
+  const a = last.trim().charAt(0) || first.trim().charAt(0) || "?";
+  const b = first.trim().charAt(0) || "";
+  return (a + b).toUpperCase().slice(0, 2);
+}
+
 function formatGuestDate(iso: string): string {
   try {
     return new Date(iso).toLocaleString("ru-RU", {
@@ -30,6 +39,7 @@ function formatGuestDate(iso: string): string {
 }
 
 export function GuestsPage() {
+  const navigate = useNavigate();
   const canCreateGuest = useCanWriteBookings();
   const createGuestMut = useCreateGuest();
   const [searchInput, setSearchInput] = useState("");
@@ -116,12 +126,14 @@ export function GuestsPage() {
         <div>
           <h2 className="text-lg font-semibold text-foreground">Гости</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Профили по вашей организации. Поиск на стороне API (
-            <code className="rounded bg-muted px-1 font-mono text-xs">
+            Профили по вашей организации. Поиск с небольшой задержкой после ввода
+            (запрос к серверу).
+          </p>
+          <ApiRouteHint className="mt-1">
+            <code className="rounded bg-muted px-1 font-mono text-[10px]">
               GET /guests?q=
             </code>
-            ).
-          </p>
+          </ApiRouteHint>
         </div>
         {canCreateGuest ? (
           <Button
@@ -153,6 +165,7 @@ export function GuestsPage() {
 
       {!isPending && !isError ? (
         <Pagination
+          className="rounded-lg border border-border bg-card p-3"
           total={total}
           limit={GUESTS_PAGE_SIZE}
           offset={page * GUESTS_PAGE_SIZE}
@@ -167,16 +180,28 @@ export function GuestsPage() {
           {formatApiError(error)}
         </p>
       ) : isPending ? (
-        <div
-          className="h-40 animate-pulse rounded-md bg-muted"
-          aria-busy
-          aria-label="Загрузка списка гостей"
-        />
+        <div className="overflow-x-auto rounded-md border">
+          <table className="w-full min-w-[640px] text-left text-sm">
+            <thead className="border-b bg-muted/50">
+              <tr>
+                <th className="px-3 py-2 font-medium w-12" />
+                <th className="px-3 py-2 font-medium">Фамилия</th>
+                <th className="px-3 py-2 font-medium">Имя</th>
+                <th className="px-3 py-2 font-medium">Email</th>
+                <th className="px-3 py-2 font-medium">Телефон</th>
+                <th className="px-3 py-2 font-medium">VIP</th>
+                <th className="px-3 py-2 font-medium">Создан</th>
+              </tr>
+            </thead>
+            <TableSkeleton rows={8} cols={7} />
+          </table>
+        </div>
       ) : (
         <div className="overflow-x-auto rounded-md border">
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead className="border-b bg-muted/50">
               <tr>
+                <th className="px-3 py-2 font-medium w-12" aria-label="Аватар" />
                 <th className="px-3 py-2 font-medium">Фамилия</th>
                 <th className="px-3 py-2 font-medium">Имя</th>
                 <th className="px-3 py-2 font-medium">Email</th>
@@ -187,23 +212,31 @@ export function GuestsPage() {
             </thead>
             <tbody>
               {guests.map((g) => (
-                <tr key={g.id} className="border-b border-border/80">
+                <tr
+                  key={g.id}
+                  role="link"
+                  tabIndex={0}
+                  className="cursor-pointer border-b border-border/80 hover:bg-muted/40"
+                  onClick={() => {
+                    navigate(`/guests/${g.id}`);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      navigate(`/guests/${g.id}`);
+                    }
+                  }}
+                >
                   <td className="px-3 py-2">
-                    <Link
-                      to={`/guests/${g.id}`}
-                      className="font-medium text-primary underline-offset-4 hover:underline"
+                    <div
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground"
+                      aria-hidden
                     >
-                      {g.last_name}
-                    </Link>
+                      {guestInitials(g.first_name, g.last_name)}
+                    </div>
                   </td>
-                  <td className="px-3 py-2">
-                    <Link
-                      to={`/guests/${g.id}`}
-                      className="text-primary underline-offset-4 hover:underline"
-                    >
-                      {g.first_name}
-                    </Link>
-                  </td>
+                  <td className="px-3 py-2 font-medium">{g.last_name}</td>
+                  <td className="px-3 py-2">{g.first_name}</td>
                   <td className="px-3 py-2 text-muted-foreground">{g.email}</td>
                   <td className="px-3 py-2 tabular-nums text-muted-foreground">
                     {g.phone}
@@ -214,7 +247,7 @@ export function GuestsPage() {
                         VIP
                       </span>
                     ) : (
-                      <span className="text-muted-foreground">—</span>
+                      <span className="text-muted-foreground/50">·</span>
                     )}
                   </td>
                   <td className="px-3 py-2 text-xs tabular-nums text-muted-foreground">
@@ -244,11 +277,11 @@ export function GuestsPage() {
             <DialogTitle>Новый гость</DialogTitle>
           </DialogHeader>
           <form className="space-y-3" onSubmit={(e) => void onCreateGuest(e)}>
-            <p className="text-xs text-muted-foreground">
+            <ApiRouteHint>
               <code className="rounded bg-muted px-1 font-mono text-[10px]">
                 POST /guests
               </code>
-            </p>
+            </ApiRouteHint>
             {cgError !== null ? (
               <p className="text-sm text-destructive" role="alert">
                 {cgError}
@@ -357,7 +390,14 @@ export function GuestsPage() {
                 Отмена
               </Button>
               <Button type="submit" disabled={createGuestMut.isPending}>
-                {createGuestMut.isPending ? "Создаём…" : "Создать"}
+                {createGuestMut.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Создаём…
+                  </>
+                ) : (
+                  "Создать"
+                )}
               </Button>
             </DialogFooter>
           </form>

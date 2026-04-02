@@ -61,15 +61,22 @@ interface UnassignedPoolProps {
   bookings: Booking[];
   roomTypes: RoomType[];
   isLoading?: boolean;
+  className?: string;
 }
 
 export function UnassignedPool({
   bookings,
   roomTypes,
   isLoading = false,
+  className,
 }: UnassignedPoolProps) {
   return (
-    <aside className="w-full max-w-[220px] shrink-0 rounded-md border border-border bg-muted/20 p-2 sm:p-3 lg:w-[min(100%,220px)]">
+    <aside
+      className={cn(
+        "w-full max-w-[220px] shrink-0 rounded-md border border-border bg-muted/20 p-2 sm:p-3 lg:w-[min(100%,220px)]",
+        className
+      )}
+    >
       <h3 className="text-sm font-semibold text-foreground">Без номера</h3>
       <p className="mt-0.5 text-xs text-muted-foreground">
         Перетащите бронь на строку номера той же категории.

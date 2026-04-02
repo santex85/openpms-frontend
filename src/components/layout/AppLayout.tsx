@@ -136,7 +136,9 @@ function AppLayoutShell() {
         </div>
       </header>
       <main className="min-h-0 flex-1 overflow-auto p-4 sm:p-6">
-        <Outlet />
+        <div className="mx-auto w-full max-w-screen-2xl">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

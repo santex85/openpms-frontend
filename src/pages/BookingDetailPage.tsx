@@ -1,6 +1,8 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
+import { Banknote, Loader2, PlusCircle } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 
+import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,6 +20,14 @@ import {
   useFolioEntry,
 } from "@/hooks/useFolioMutations";
 import { usePatchBooking } from "@/hooks/usePatchBooking";
+import { useProperties } from "@/hooks/useProperties";
+import { useRooms } from "@/hooks/useRooms";
+import { useRoomTypes } from "@/hooks/useRoomTypes";
+import {
+  bookingStatusLabel,
+  folioTransactionTypeLabel,
+} from "@/lib/i18n/domainLabels";
+import { showApiRouteHints } from "@/lib/showApiRouteHints";
 import { formatApiError } from "@/lib/formatApiError";
 import { useCanWriteBookings } from "@/hooks/useAuthz";
 import { formatIsoDateLocal } from "@/utils/boardDates";
@@ -31,10 +41,25 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   no_show: [],
 };
 
+function formatMoneyAmount(amount: string, currency: string | null): string {
+  const n = Number(amount.replace(",", "."));
+  if (Number.isNaN(n)) {
+    return currency !== null ? `${amount} ${currency}` : amount;
+  }
+  const formatted = new Intl.NumberFormat("ru-RU", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+  }).format(n);
+  return currency !== null ? `${formatted} ${currency}` : formatted;
+}
+
 export function BookingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const bookingId = id ?? "";
   const canWriteFolio = useCanWriteBookings();
+  const { data: properties } = useProperties();
+  const { data: rooms } = useRooms();
+  const { data: roomTypes } = useRoomTypes();
 
   const {
     data: booking,
@@ -121,6 +146,52 @@ export function BookingDetailPage() {
     return msg;
   }
 
+  const propertyCurrency = useMemo(() => {
+    if (booking === undefined || properties === undefined) {
+      return null;
+    }
+    return (
+      properties.find((p) => p.id === booking.property_id)?.currency ?? null
+    );
+  }, [booking, properties]);
+
+  const roomLabel = useMemo(() => {
+    if (booking === undefined || rooms === undefined) {
+      return null;
+    }
+    if (booking.room_id === null) {
+      return null;
+    }
+    const room = rooms.find((r) => r.id === booking.room_id);
+    return room?.name ?? null;
+  }, [booking, rooms]);
+
+  const roomTypeLabel = useMemo(() => {
+    if (
+      booking === undefined ||
+      roomTypes === undefined ||
+      booking.room_type_id === undefined ||
+      booking.room_type_id === null
+    ) {
+      return null;
+    }
+    return roomTypes.find((t) => t.id === booking.room_type_id)?.name ?? null;
+  }, [booking, roomTypes]);
+
+  const bookingTitle = useMemo(() => {
+    if (booking === undefined) {
+      return `Бронь ${bookingId.slice(0, 8)}…`;
+    }
+    const who = `${booking.guest.last_name} ${booking.guest.first_name}`.trim();
+    const roomBit =
+      roomLabel !== null
+        ? ` · комн. ${roomLabel}`
+        : roomTypeLabel !== null
+          ? ` · ${roomTypeLabel}`
+          : "";
+    return `Бронь: ${who}${roomBit}`;
+  }, [booking, bookingId, roomLabel, roomTypeLabel]);
+
   const bookingStatus = booking?.status.trim().toLowerCase() ?? "";
   const allowedTransitions = ALLOWED_TRANSITIONS[bookingStatus] ?? [];
   const canShowStatusActions =
@@ -142,9 +213,12 @@ export function BookingDetailPage() {
         </Button>
       </div>
       <div>
-        <h2 className="text-lg font-semibold text-foreground">
-          Бронь {bookingId.slice(0, 8)}…
-        </h2>
+        <h2 className="text-lg font-semibold text-foreground">{bookingTitle}</h2>
+        {showApiRouteHints() ? (
+          <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">
+            id: {bookingId}
+          </p>
+        ) : null}
         {bookingPending ? (
           <p className="text-sm text-muted-foreground">Загрузка карточки…</p>
         ) : bookingError ? (
@@ -164,7 +238,7 @@ export function BookingDetailPage() {
               </div>
               <div>
                 <dt className="text-muted-foreground">Статус</dt>
-                <dd>{booking.status}</dd>
+                <dd>{bookingStatusLabel(booking.status)}</dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">Заезд / выезд</dt>
@@ -175,9 +249,21 @@ export function BookingDetailPage() {
               </div>
               <div>
                 <dt className="text-muted-foreground">Сумма брони</dt>
-                <dd className="tabular-nums">{booking.total_amount}</dd>
+                <dd className="tabular-nums">
+                  {formatMoneyAmount(booking.total_amount, propertyCurrency)}
+                </dd>
               </div>
             </dl>
+            <p className="mt-2 text-sm text-muted-foreground">
+              <Link
+                to="/audit-log"
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
+                Журнал аудита
+              </Link>
+              {" — "}
+              там могут быть записи по этой брони (поиск по ID сущности).
+            </p>
             {patchBookingMutation.isError ? (
               <p className="mt-2 text-sm text-destructive" role="alert">
                 {formatApiError(patchBookingMutation.error)}
@@ -185,9 +271,14 @@ export function BookingDetailPage() {
             ) : null}
             {canShowStatusActions ? (
               <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Действия с бронью (PATCH /bookings/…)
+                <span className="text-sm font-medium text-muted-foreground">
+                  Действия с бронью
                 </span>
+                <ApiRouteHint>
+                  <code className="rounded bg-muted px-1 font-mono text-[10px]">
+                    PATCH /bookings/…
+                  </code>
+                </ApiRouteHint>
                 <div className="flex flex-wrap gap-2">
                   {allowedTransitions.includes("confirmed") ? (
                     <Button
@@ -302,6 +393,7 @@ export function BookingDetailPage() {
                   setChargeOpen(true);
                 }}
               >
+                <PlusCircle className="mr-1.5 h-4 w-4" />
                 Начисление
               </Button>
               <Button
@@ -313,6 +405,7 @@ export function BookingDetailPage() {
                   setPaymentOpen(true);
                 }}
               >
+                <Banknote className="mr-1.5 h-4 w-4" />
                 Оплата
               </Button>
             </div>
@@ -336,7 +429,9 @@ export function BookingDetailPage() {
           <div className="mt-2 space-y-2">
             <p className="text-sm">
               Баланс:{" "}
-              <span className="font-semibold tabular-nums">{folio.balance}</span>
+              <span className="font-semibold tabular-nums">
+                {formatMoneyAmount(folio.balance, propertyCurrency)}
+              </span>
             </p>
             <div className="overflow-x-auto rounded-md border">
               <table className="w-full min-w-[640px] text-left text-sm">
@@ -357,10 +452,12 @@ export function BookingDetailPage() {
                       <td className="px-2 py-1.5 tabular-nums text-muted-foreground">
                         {t.created_at.slice(0, 19).replace("T", " ")}
                       </td>
-                      <td className="px-2 py-1.5">{t.transaction_type}</td>
+                      <td className="px-2 py-1.5">
+                        {folioTransactionTypeLabel(t.transaction_type)}
+                      </td>
                       <td className="px-2 py-1.5">{t.category}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums">
-                        {t.amount}
+                        {formatMoneyAmount(t.amount, propertyCurrency)}
                       </td>
                       {canWriteFolio ? (
                         <td className="px-2 py-1.5 text-right">
@@ -412,10 +509,11 @@ export function BookingDetailPage() {
             <DialogHeader>
               <DialogTitle>Начисление</DialogTitle>
               <DialogDescription>
-                POST{" "}
-                <code className="text-xs">/bookings/…/folio</code> с{" "}
-                <code className="text-xs">entry_type=charge</code>
+                Добавить начисление в фолио брони.
               </DialogDescription>
+              <ApiRouteHint>
+                POST <code className="text-xs">/bookings/…/folio</code>, charge
+              </ApiRouteHint>
             </DialogHeader>
             <div className="grid gap-3 py-2">
               <div className="space-y-1">
@@ -470,7 +568,14 @@ export function BookingDetailPage() {
                 Отмена
               </Button>
               <Button type="submit" disabled={folioEntryMutation.isPending}>
-                {folioEntryMutation.isPending ? "Отправка…" : "Добавить"}
+                {folioEntryMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Отправка…
+                  </>
+                ) : (
+                  "Добавить"
+                )}
               </Button>
             </DialogFooter>
           </form>
@@ -483,9 +588,11 @@ export function BookingDetailPage() {
             <DialogHeader>
               <DialogTitle>Оплата</DialogTitle>
               <DialogDescription>
-                POST <code className="text-xs">/bookings/…/folio</code> с{" "}
-                <code className="text-xs">entry_type=payment</code>
+                Зарегистрировать оплату по фолио.
               </DialogDescription>
+              <ApiRouteHint>
+                POST <code className="text-xs">/bookings/…/folio</code>, payment
+              </ApiRouteHint>
             </DialogHeader>
             <div className="grid gap-3 py-2">
               <div className="space-y-1">
@@ -540,7 +647,14 @@ export function BookingDetailPage() {
                 Отмена
               </Button>
               <Button type="submit" disabled={folioEntryMutation.isPending}>
-                {folioEntryMutation.isPending ? "Отправка…" : "Провести оплату"}
+                {folioEntryMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Отправка…
+                  </>
+                ) : (
+                  "Провести оплату"
+                )}
               </Button>
             </DialogFooter>
           </form>

@@ -1,7 +1,10 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 
+import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { useBookings } from "@/hooks/useBookings";
 import { useCreateBooking } from "@/hooks/useCreateBooking";
 import { useRatePlans } from "@/hooks/useRatePlans";
@@ -25,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { BOOKING_STATUS_OPTIONS } from "@/lib/constants";
+import { bookingStatusLabel } from "@/lib/i18n/domainLabels";
 import { formatApiError } from "@/lib/formatApiError";
 import { useCanWriteBookings } from "@/hooks/useAuthz";
 import { usePropertyStore } from "@/stores/property-store";
@@ -57,9 +61,11 @@ function formatCreateBookingError(err: unknown): string {
 const BOOKINGS_PAGE_SIZE = 25;
 
 export function BookingsListPage() {
+  const navigate = useNavigate();
   const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
   const canCreateBooking = useCanWriteBookings();
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [guestNameFilter, setGuestNameFilter] = useState("");
   const [page, setPage] = useState(0);
 
   const range = useMemo(() => {
@@ -125,8 +131,22 @@ export function BookingsListPage() {
     }
   }, [ratePlans, ratePlanId]);
 
-  const rows: Booking[] = tape?.items ?? [];
+  const rows: Booking[] = useMemo(
+    () => tape?.items ?? [],
+    [tape?.items]
+  );
   const total = tape?.total ?? 0;
+
+  const displayedRows = useMemo(() => {
+    const q = guestNameFilter.trim().toLowerCase();
+    if (q === "") {
+      return rows;
+    }
+    return rows.filter((b) => {
+      const full = `${b.guest.first_name} ${b.guest.last_name}`.toLowerCase();
+      return full.includes(q);
+    });
+  }, [rows, guestNameFilter]);
 
   useEffect(() => {
     setPage(0);
@@ -254,7 +274,7 @@ export function BookingsListPage() {
         </p>
       ) : null}
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
         <div className="space-y-1">
           <span className="text-xs font-medium text-muted-foreground">
             Статус
@@ -265,23 +285,45 @@ export function BookingsListPage() {
               setStatusFilter(v === "__all__" ? "" : v);
             }}
           >
-            <SelectTrigger className="w-[200px]" aria-label="Фильтр статуса">
+            <SelectTrigger className="w-[220px]" aria-label="Фильтр статуса">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__all__">Все</SelectItem>
               {BOOKING_STATUS_OPTIONS.map((s) => (
                 <SelectItem key={s} value={s}>
-                  {s}
+                  {bookingStatusLabel(s)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
+        <div className="min-w-[200px] flex-1 space-y-1 sm:max-w-md">
+          <label
+            htmlFor="bookings-guest-filter"
+            className="text-xs font-medium text-muted-foreground"
+          >
+            Гость на этой странице
+          </label>
+          <Input
+            id="bookings-guest-filter"
+            value={guestNameFilter}
+            onChange={(e) => {
+              setGuestNameFilter(e.target.value);
+            }}
+            placeholder="Часть имени или фамилии…"
+            autoComplete="off"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Фильтрует только текущую страницу списка (до {BOOKINGS_PAGE_SIZE}{" "}
+            строк).
+          </p>
+        </div>
       </div>
 
       {!isPending && !isError ? (
         <Pagination
+          className="rounded-lg border border-border bg-card p-3"
           total={total}
           limit={BOOKINGS_PAGE_SIZE}
           offset={page * BOOKINGS_PAGE_SIZE}
@@ -296,7 +338,20 @@ export function BookingsListPage() {
           {bookingsError !== null ? ` ${formatApiError(bookingsError)}` : ""}
         </p>
       ) : isPending ? (
-        <div className="h-40 animate-pulse rounded-md bg-muted" aria-hidden />
+        <div className="overflow-x-auto rounded-md border border-border">
+          <table className="w-full min-w-[640px] text-left text-sm">
+            <thead className="border-b bg-muted/50">
+              <tr>
+                <th className="px-3 py-2 font-medium">Гость</th>
+                <th className="px-3 py-2 font-medium">Статус</th>
+                <th className="px-3 py-2 font-medium">Заезд</th>
+                <th className="px-3 py-2 font-medium">Выезд</th>
+                <th className="px-3 py-2 font-medium" />
+              </tr>
+            </thead>
+            <TableSkeleton rows={6} cols={5} />
+          </table>
+        </div>
       ) : (
         <div className="overflow-x-auto rounded-md border border-border">
           <table className="w-full min-w-[640px] text-left text-sm">
@@ -310,13 +365,27 @@ export function BookingsListPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((b) => (
-                <tr key={b.id} className="border-b border-border/80">
+              {displayedRows.map((b) => (
+                <tr
+                  key={b.id}
+                  role="link"
+                  tabIndex={0}
+                  className="cursor-pointer border-b border-border/80 hover:bg-muted/40"
+                  onClick={() => {
+                    navigate(`/bookings/${b.id}`);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      navigate(`/bookings/${b.id}`);
+                    }
+                  }}
+                >
                   <td className="px-3 py-2">
                     {b.guest.last_name} {b.guest.first_name}
                   </td>
-                  <td className="px-3 py-2 tabular-nums text-muted-foreground">
-                    {b.status}
+                  <td className="px-3 py-2 text-muted-foreground">
+                    {bookingStatusLabel(b.status)}
                   </td>
                   <td className="px-3 py-2 tabular-nums">
                     {b.check_in_date ?? "—"}
@@ -325,7 +394,14 @@ export function BookingsListPage() {
                     {b.check_out_date ?? "—"}
                   </td>
                   <td className="px-3 py-2 text-right">
-                    <Button variant="outline" size="sm" asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      asChild
+                      onClick={(ev) => {
+                        ev.stopPropagation();
+                      }}
+                    >
                       <Link to={`/bookings/${b.id}`}>Открыть</Link>
                     </Button>
                   </td>
@@ -335,6 +411,10 @@ export function BookingsListPage() {
           </table>
           {rows.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground">Нет записей.</p>
+          ) : displayedRows.length === 0 ? (
+            <p className="p-4 text-sm text-muted-foreground">
+              Нет совпадений по фильтру гостя.
+            </p>
           ) : null}
         </div>
       )}
@@ -352,12 +432,14 @@ export function BookingsListPage() {
           <DialogHeader>
             <DialogTitle>Новое бронирование</DialogTitle>
             <DialogDescription>
-              Создание через{" "}
-              <code className="rounded bg-muted px-1 font-mono text-xs">
+              Укажите тип номера, тарифный план и гостя. На все ночи должны быть
+              заданы цены в разделе «Тарифы».
+            </DialogDescription>
+            <ApiRouteHint>
+              <code className="rounded bg-muted px-1 font-mono text-[10px]">
                 POST /bookings
               </code>
-              . Нужны тип номера, тариф и цены на все ночи.
-            </DialogDescription>
+            </ApiRouteHint>
           </DialogHeader>
           <form
             className="space-y-3"
@@ -545,9 +627,14 @@ export function BookingsListPage() {
                   !hasRatePlans
                 }
               >
-                {createBookingMutation.isPending
-                  ? "Создаём…"
-                  : "Создать бронь"}
+                {createBookingMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Создаём…
+                  </>
+                ) : (
+                  "Создать бронь"
+                )}
               </Button>
             </DialogFooter>
           </form>

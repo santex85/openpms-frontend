@@ -1,8 +1,9 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import axios from "axios";
-import { Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
 
+import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { useCanManageProperties } from "@/hooks/useAuthz";
 import {
   useCreateRoom,
@@ -27,8 +29,13 @@ import {
 } from "@/hooks/useRoomMutations";
 import { useRoomTypes } from "@/hooks/useRoomTypes";
 import { useRooms } from "@/hooks/useRooms";
+import {
+  housekeepingPriorityLabel,
+  housekeepingStatusLabel,
+} from "@/lib/i18n/domainLabels";
 import { usePropertyStore } from "@/stores/property-store";
 import type { RoomCreate, RoomRow } from "@/types/api";
+import { cn } from "@/lib/utils";
 
 const ROOM_STATUS_PRESETS = [
   { value: "available", label: "Доступен" },
@@ -74,6 +81,7 @@ export function RoomsPage() {
   const patchRoomMut = usePatchRoom();
   const deleteRoomMut = useDeleteRoom();
 
+  const [createOpen, setCreateOpen] = useState(false);
   const [roomTypeId, setRoomTypeId] = useState<string>("");
   const [name, setName] = useState("");
   const [status, setStatus] = useState<string>(ROOM_STATUS_PRESETS[0].value);
@@ -82,6 +90,41 @@ export function RoomsPage() {
   const [nameDialogRoom, setNameDialogRoom] = useState<RoomRow | null>(null);
   const [nameEdit, setNameEdit] = useState("");
   const [deleteRoomRow, setDeleteRoomRow] = useState<RoomRow | null>(null);
+
+  const roomList = useMemo(() => rooms ?? [], [rooms]);
+
+  const typeNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const t of roomTypes ?? []) {
+      m.set(t.id, t.name);
+    }
+    return m;
+  }, [roomTypes]);
+
+  const duplicateNameKeys = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of roomList) {
+      const key = r.name.trim().toLowerCase();
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    const dup = new Set<string>();
+    for (const [k, n] of counts) {
+      if (n > 1) {
+        dup.add(k);
+      }
+    }
+    return dup;
+  }, [roomList]);
+
+  const showHousekeepingCols = useMemo(
+    () =>
+      roomList.some(
+        (r) =>
+          (r.housekeeping_status ?? "").trim() !== "" ||
+          (r.housekeeping_priority ?? "").trim() !== ""
+      ),
+    [roomList]
+  );
 
   if (selectedPropertyId === null) {
     return (
@@ -120,18 +163,49 @@ export function RoomsPage() {
       await createMutation.mutateAsync(body);
       setFormSuccess("Номер создан.");
       setName("");
+      setCreateOpen(false);
     } catch (err) {
       setFormError(formatRoomMutationError(err));
     }
   }
 
+  function resetCreateForm(): void {
+    setFormError(null);
+    setFormSuccess(null);
+    setName("");
+    setStatus(ROOM_STATUS_PRESETS[0].value);
+    if (hasRoomTypes && roomTypes !== undefined && roomTypes[0] !== undefined) {
+      setRoomTypeId(roomTypes[0].id);
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">Номера</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Физические номера выбранного отеля (GET /rooms). Создание: POST /rooms.
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Номера</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Физические комнаты выбранного отеля и их категория.
+          </p>
+          <ApiRouteHint className="mt-1">
+            <span className="font-mono text-[10px]">GET/POST/PATCH/DELETE /rooms</span>
+          </ApiRouteHint>
+        </div>
+        {canManage && hasRoomTypes ? (
+          <Button
+            type="button"
+            onClick={() => {
+              resetCreateForm();
+              if (roomTypes?.[0] !== undefined) {
+                setRoomTypeId(roomTypes[0].id);
+              }
+              setCreateOpen(true);
+            }}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Добавить номер
+          </Button>
+        ) : null}
       </div>
 
       {canManage ? (
@@ -152,11 +226,27 @@ export function RoomsPage() {
             </Link>
             .
           </p>
-        ) : (
-          <form
-            className="max-w-md space-y-4 rounded-lg border border-border bg-card p-4"
-            onSubmit={handleCreateRoom}
-          >
+        ) : null
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Создание номеров доступно ролям owner и manager.
+        </p>
+      )}
+
+      <Dialog
+        open={createOpen}
+        onOpenChange={(open) => {
+          setCreateOpen(open);
+          if (!open) {
+            resetCreateForm();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Новый номер</DialogTitle>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={handleCreateRoom}>
             {formError !== null ? (
               <p className="text-sm text-destructive" role="alert">
                 {formError}
@@ -179,7 +269,7 @@ export function RoomsPage() {
                   <SelectValue placeholder="Выберите категорию" />
                 </SelectTrigger>
                 <SelectContent>
-                  {roomTypes.map((rt) => (
+                  {roomTypes?.map((rt) => (
                     <SelectItem key={rt.id} value={rt.id}>
                       {rt.name}
                     </SelectItem>
@@ -216,30 +306,51 @@ export function RoomsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <Button type="submit" disabled={createMutation.isPending}>
-              {createMutation.isPending ? "Создаём…" : "Создать номер"}
-            </Button>
+            <DialogFooter className="gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCreateOpen(false)}
+              >
+                Отмена
+              </Button>
+              <Button type="submit" disabled={createMutation.isPending}>
+                {createMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Создаём…
+                  </>
+                ) : (
+                  "Создать номер"
+                )}
+              </Button>
+            </DialogFooter>
           </form>
-        )
-      ) : (
-        <p className="text-sm text-muted-foreground">
-          Создание номеров доступно ролям owner и manager.
-        </p>
-      )}
+        </DialogContent>
+      </Dialog>
 
       <div>
         <h3 className="mb-2 text-sm font-medium text-foreground">Список</h3>
-        <p className="mb-3 text-xs text-muted-foreground">
-          Статус и название:{" "}
-          <code className="rounded bg-muted px-1 font-mono">
+        <ApiRouteHint className="mb-3 text-xs">
+          <code className="rounded bg-muted px-1 font-mono text-[10px]">
             PATCH /rooms/{"{"}id{"}"}
           </code>
-          .
-        </p>
+        </ApiRouteHint>
         {isError ? (
           <p className="text-sm text-destructive">Не удалось загрузить номера.</p>
         ) : isPending ? (
-          <div className="h-40 animate-pulse rounded-md bg-muted" aria-hidden />
+          <div className="overflow-x-auto rounded-md border">
+            <table className="w-full min-w-[720px] text-left text-sm">
+              <thead className="border-b bg-muted/50">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Название</th>
+                  <th className="px-3 py-2 font-medium">Статус</th>
+                  <th className="px-3 py-2 font-medium">Категория</th>
+                </tr>
+              </thead>
+              <TableSkeleton rows={6} cols={3} />
+            </table>
+          </div>
         ) : (
           <div className="overflow-x-auto rounded-md border">
             <table className="w-full min-w-[720px] text-left text-sm">
@@ -247,9 +358,13 @@ export function RoomsPage() {
                 <tr>
                   <th className="px-3 py-2 font-medium">Название</th>
                   <th className="px-3 py-2 font-medium">Статус</th>
-                  <th className="px-3 py-2 font-medium">Housekeeping</th>
-                  <th className="px-3 py-2 font-medium">Приоритет</th>
-                  <th className="px-3 py-2 font-medium">Тип (id)</th>
+                  {showHousekeepingCols ? (
+                    <>
+                      <th className="px-3 py-2 font-medium">Housekeeping</th>
+                      <th className="px-3 py-2 font-medium">Приоритет</th>
+                    </>
+                  ) : null}
+                  <th className="px-3 py-2 font-medium">Категория</th>
                   {canManage ? (
                     <th className="px-3 py-2 text-right font-medium">
                       Удалить
@@ -258,81 +373,104 @@ export function RoomsPage() {
                 </tr>
               </thead>
               <tbody>
-                {(rooms ?? []).map((r) => (
-                  <tr key={r.id} className="border-b border-border/80">
-                    <td className="px-3 py-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span>{r.name}</span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() => {
-                            setNameDialogRoom(r);
-                            setNameEdit(r.name);
-                          }}
-                        >
-                          Изменить
-                        </Button>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2">
-                      <Select
-                        value={r.status}
-                        onValueChange={(v) => {
-                          patchRoomMut.mutate({
-                            roomId: r.id,
-                            body: { status: v },
-                          });
-                        }}
-                        disabled={patchRoomMut.isPending}
-                      >
-                        <SelectTrigger className="h-8 w-[160px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {ROOM_STATUS_PRESETS.map((s) => (
-                            <SelectItem key={s.value} value={s.value}>
-                              {s.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </td>
-                    <td className="px-3 py-2 text-muted-foreground">
-                      {r.housekeeping_status}
-                    </td>
-                    <td className="px-3 py-2 text-muted-foreground">
-                      {r.housekeeping_priority}
-                    </td>
-                    <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
-                      {r.room_type_id}
-                    </td>
-                    {canManage ? (
-                      <td className="px-3 py-2 text-right">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 text-destructive hover:bg-destructive/10"
-                          aria-label="Удалить номер"
-                          onClick={() => {
-                            setDeleteRoomRow(r);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                {roomList.map((r) => {
+                  const isDup = duplicateNameKeys.has(r.name.trim().toLowerCase());
+                  return (
+                    <tr
+                      key={r.id}
+                      className={cn(
+                        "border-b border-border/80",
+                        isDup && "bg-destructive/5 ring-1 ring-inset ring-destructive/30"
+                      )}
+                      title={
+                        isDup
+                          ? "Одинаковое имя номера — проверьте данные"
+                          : undefined
+                      }
+                    >
+                      <td className="px-3 py-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span>{r.name}</span>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="h-8 shrink-0"
+                            onClick={() => {
+                              setNameDialogRoom(r);
+                              setNameEdit(r.name);
+                            }}
+                          >
+                            Переименовать
+                          </Button>
+                        </div>
                       </td>
-                    ) : null}
-                  </tr>
-                ))}
+                      <td className="px-3 py-2">
+                        <Select
+                          value={r.status}
+                          onValueChange={(v) => {
+                            patchRoomMut.mutate({
+                              roomId: r.id,
+                              body: { status: v },
+                            });
+                          }}
+                          disabled={patchRoomMut.isPending}
+                        >
+                          <SelectTrigger className="h-8 w-[180px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ROOM_STATUS_PRESETS.map((s) => (
+                              <SelectItem key={s.value} value={s.value}>
+                                {s.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      {showHousekeepingCols ? (
+                        <>
+                          <td className="px-3 py-2 text-muted-foreground">
+                            {(r.housekeeping_status ?? "").trim() === ""
+                              ? "—"
+                              : housekeepingStatusLabel(r.housekeeping_status)}
+                          </td>
+                          <td className="px-3 py-2 text-muted-foreground">
+                            {(r.housekeeping_priority ?? "").trim() === ""
+                              ? "—"
+                              : housekeepingPriorityLabel(
+                                  r.housekeeping_priority
+                                )}
+                          </td>
+                        </>
+                      ) : null}
+                      <td className="px-3 py-2">
+                        {typeNameById.get(r.room_type_id) ?? "—"}
+                      </td>
+                      {canManage ? (
+                        <td className="px-3 py-2 text-right">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-9 text-destructive hover:bg-destructive/10"
+                            aria-label="Удалить номер"
+                            onClick={() => {
+                              setDeleteRoomRow(r);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </td>
+                      ) : null}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
-
 
       <Dialog
         open={deleteRoomRow !== null}
@@ -345,12 +483,13 @@ export function RoomsPage() {
             <DialogTitle>Удалить номер?</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Номер «{deleteRoomRow?.name ?? ""}» будет помечен удалённым (
-            <code className="rounded bg-muted px-1 font-mono text-xs">
+            Номер «{deleteRoomRow?.name ?? ""}» будет помечен удалённым.
+          </p>
+          <ApiRouteHint>
+            <code className="rounded bg-muted px-1 font-mono text-[10px]">
               DELETE /rooms/{"{"}id{"}"}
             </code>
-            ).
-          </p>
+          </ApiRouteHint>
           <DialogFooter className="gap-2">
             <Button type="button" variant="outline" onClick={() => setDeleteRoomRow(null)}>
               Отмена
@@ -366,7 +505,14 @@ export function RoomsPage() {
                 });
               }}
             >
-              Удалить
+              {deleteRoomMut.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Удаляем…
+                </>
+              ) : (
+                "Удалить"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -419,15 +565,18 @@ export function RoomsPage() {
                 }
                 patchRoomMut.mutate(
                   { roomId: nameDialogRoom.id, body: { name: t } },
-                  {
-                    onSuccess: () => {
-                      setNameDialogRoom(null);
-                    },
-                  }
+                  { onSuccess: () => setNameDialogRoom(null) }
                 );
               }}
             >
-              Сохранить
+              {patchRoomMut.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Сохраняем…
+                </>
+              ) : (
+                "Сохранить"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -19,6 +19,8 @@ interface BoardTapeGridProps {
   availabilityPending: boolean;
   availabilityError: boolean;
   bookingMenuApi?: BoardBookingMenuApi | null;
+  duplicateRoomNameKeys?: ReadonlySet<string>;
+  todayIso?: string;
   onEmptyCellClick?: (payload: { room: RoomRow; nightIso: string }) => void;
 }
 
@@ -31,6 +33,8 @@ export function BoardTapeGrid({
   availabilityPending,
   availabilityError,
   bookingMenuApi,
+  duplicateRoomNameKeys,
+  todayIso,
   onEmptyCellClick,
 }: BoardTapeGridProps) {
   const colTemplate = useMemo(() => {
@@ -118,16 +122,19 @@ export function BoardTapeGrid({
             key={day.iso}
             className={cn(
               cellBorder,
-              "sticky top-0 z-20 bg-card/95 px-1 py-2 text-center backdrop-blur-sm"
+              "sticky top-0 z-20 bg-card/95 px-1 py-2 text-center backdrop-blur-sm",
+              todayIso !== undefined &&
+                day.iso === todayIso &&
+                "bg-primary/10 ring-2 ring-inset ring-primary/35"
             )}
           >
-            <div className="text-xs font-medium capitalize leading-tight text-foreground">
+            <div className="text-sm font-medium capitalize leading-tight text-foreground md:text-base">
               {dayFormatter.format(day.date)}
             </div>
-            <div className="mt-1 text-[0.65rem] tabular-nums text-muted-foreground">
+            <div className="mt-1 text-xs tabular-nums text-muted-foreground md:text-[0.7rem]">
               {day.iso.slice(5)}
             </div>
-            <div className="mt-1 text-sm font-semibold tabular-nums text-foreground">
+            <div className="mt-1 text-base font-semibold tabular-nums text-foreground md:text-lg">
               {availabilityError ? (
                 <span className="text-destructive">—</span>
               ) : availabilityPending ? (
@@ -170,6 +177,12 @@ export function BoardTapeGrid({
                   roomBookings={bookingsByRoomId.get(room.id) ?? []}
                   cellBorder={cellBorder}
                   bookingMenuApi={bookingMenuApi}
+                  duplicateName={
+                    duplicateRoomNameKeys?.has(
+                      room.name.trim().toLowerCase()
+                    ) ?? false
+                  }
+                  todayIso={todayIso}
                   onEmptyCellClick={onEmptyCellClick}
                 />
               ))}

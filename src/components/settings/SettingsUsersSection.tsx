@@ -1,5 +1,7 @@
 import { FormEvent, useMemo, useState } from "react";
+import { Loader2 } from "lucide-react";
 
+import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,14 +24,15 @@ import { useInviteUser } from "@/hooks/useInviteUser";
 import { usePatchTenantUser } from "@/hooks/usePatchTenantUser";
 import { useTenantUsers } from "@/hooks/useTenantUsers";
 import { copyToClipboard } from "@/lib/copyToClipboard";
+import { tenantUserRoleLabel } from "@/lib/i18n/domainLabels";
 import { formatApiError } from "@/lib/formatApiError";
 import { toastError, toastSuccess } from "@/lib/toast";
 import axios from "axios";
 
 const ROLE_OPTIONS = [
-  { value: "manager", label: "manager" },
-  { value: "receptionist", label: "receptionist" },
-  { value: "housekeeping", label: "housekeeping" },
+  { value: "manager", label: tenantUserRoleLabel("manager") },
+  { value: "receptionist", label: tenantUserRoleLabel("receptionist") },
+  { value: "housekeeping", label: tenantUserRoleLabel("housekeeping") },
 ] as const;
 
 interface SettingsUsersSectionProps {
@@ -114,19 +117,13 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
       <div>
         <h3 className="text-sm font-semibold text-foreground">Пользователи</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          <code className="rounded bg-muted px-1 font-mono text-xs">
-            GET /auth/users
-          </code>
-          ,{" "}
-          <code className="rounded bg-muted px-1 font-mono text-xs">
-            PATCH /auth/users/{"{"}id{"}"}
-          </code>
-          ,{" "}
-          <code className="rounded bg-muted px-1 font-mono text-xs">
-            POST /auth/invite
-          </code>
-          .
+          Приглашение и управление активностью пользователей организации.
         </p>
+        <ApiRouteHint className="mt-1">
+          <span className="font-mono text-[10px]">
+            GET/PATCH /auth/users, POST /auth/invite
+          </span>
+        </ApiRouteHint>
       </div>
 
       {isError ? (
@@ -156,6 +153,7 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
                     <td className="px-3 py-2">{u.email}</td>
                     <td className="px-3 py-2">{u.full_name}</td>
                     <td className="px-3 py-2">
+                      <span className="sr-only">{u.role}</span>
                       <Select
                         value={u.role}
                         disabled={patchUserMut.isPending}
@@ -184,7 +182,7 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
                         <SelectContent>
                           {patchRoleChoices.map((r) => (
                             <SelectItem key={r} value={r}>
-                              {r}
+                              {tenantUserRoleLabel(r)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -291,7 +289,14 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
           </Select>
         </div>
         <Button type="submit" disabled={inviteMutation.isPending}>
-          {inviteMutation.isPending ? "Отправка…" : "Отправить приглашение"}
+          {inviteMutation.isPending ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Отправка…
+            </>
+          ) : (
+            "Отправить приглашение"
+          )}
         </Button>
       </form>
 

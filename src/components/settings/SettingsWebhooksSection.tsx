@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 
+import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -100,19 +101,11 @@ export function SettingsWebhooksSection({
       <div>
         <h3 className="text-sm font-semibold text-foreground">Вебхуки</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          <code className="rounded bg-muted px-1 font-mono text-xs">
-            GET /webhooks/subscriptions
-          </code>
-          ,{" "}
-          <code className="rounded bg-muted px-1 font-mono text-xs">
-            GET /webhooks/delivery-logs
-          </code>
-          ,{" "}
-          <code className="rounded bg-muted px-1 font-mono text-xs">
-            PATCH /webhooks/subscriptions/{"{"}id{"}"}
-          </code>
-          .
+          Подписки на события OpenPMS и журнал доставки на ваш URL.
         </p>
+        <ApiRouteHint className="mt-1">
+          <span className="font-mono text-[10px]">GET/PATCH /webhooks/…</span>
+        </ApiRouteHint>
       </div>
 
       {subsError ? (

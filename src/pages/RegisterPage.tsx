@@ -1,8 +1,10 @@
 import { FormEvent, useState } from "react";
 import axios from "axios";
+import { Loader2 } from "lucide-react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 
 import { registerRequest } from "@/api/auth";
+import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -67,8 +69,13 @@ export function RegisterPage() {
         <div className="space-y-1 text-center">
           <h1 className="text-xl font-semibold text-foreground">Регистрация</h1>
           <p className="text-sm text-muted-foreground">
-            Новая организация и учётная запись (POST /auth/register).
+            Создайте организацию и первого пользователя.
           </p>
+          <ApiRouteHint className="mt-1 text-center">
+            <code className="rounded bg-muted px-1 font-mono text-[10px]">
+              POST /auth/register
+            </code>
+          </ApiRouteHint>
         </div>
         <form className="space-y-4" onSubmit={(e) => void handleSubmit(e)}>
           {error !== null ? (
@@ -154,7 +161,14 @@ export function RegisterPage() {
             />
           </div>
           <Button type="submit" className="w-full" disabled={pending}>
-            {pending ? "Создаём…" : "Зарегистрироваться"}
+            {pending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Создаём…
+              </>
+            ) : (
+              "Зарегистрироваться"
+            )}
           </Button>
         </form>
         <p className="text-center text-sm text-muted-foreground">

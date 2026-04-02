@@ -1,13 +1,24 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Loader2 } from "lucide-react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
+import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useGuest } from "@/hooks/useGuest";
 import { usePatchGuest } from "@/hooks/useGuestMutations";
+import { bookingStatusLabel } from "@/lib/i18n/domainLabels";
+import { showApiRouteHints } from "@/lib/showApiRouteHints";
 import { formatApiError } from "@/lib/formatApiError";
 
+function guestInitials(first: string, last: string): string {
+  const a = last.trim().charAt(0) || first.trim().charAt(0) || "?";
+  const b = first.trim().charAt(0) || "";
+  return (a + b).toUpperCase().slice(0, 2);
+}
+
 export function GuestDetailPage() {
+  const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { data: guest, isPending, isError, error } = useGuest(id);
   const patchMut = usePatchGuest();
@@ -85,13 +96,23 @@ export function GuestDetailPage() {
         />
       ) : (
         <>
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">
-              {guest.last_name} {guest.first_name}
-            </h2>
-            <p className="mt-1 font-mono text-xs text-muted-foreground">
-              {guest.id}
-            </p>
+          <div className="flex items-start gap-3">
+            <div
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-semibold text-muted-foreground"
+              aria-hidden
+            >
+              {guestInitials(guest.first_name, guest.last_name)}
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">
+                {guest.last_name} {guest.first_name}
+              </h2>
+            {showApiRouteHints() ? (
+              <p className="mt-1 font-mono text-[10px] text-muted-foreground">
+                id: {guest.id}
+              </p>
+            ) : null}
+            </div>
           </div>
 
           <section className="rounded-lg border border-border bg-card p-4">
@@ -116,8 +137,24 @@ export function GuestDetailPage() {
                   </thead>
                   <tbody>
                     {guest.bookings.map((b) => (
-                      <tr key={b.id} className="border-b border-border/80">
-                        <td className="px-3 py-2">{b.status}</td>
+                      <tr
+                        key={b.id}
+                        role="link"
+                        tabIndex={0}
+                        className="cursor-pointer border-b border-border/80 hover:bg-muted/40"
+                        onClick={() => {
+                          navigate(`/bookings/${b.id}`);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            navigate(`/bookings/${b.id}`);
+                          }
+                        }}
+                      >
+                        <td className="px-3 py-2">
+                          {bookingStatusLabel(b.status)}
+                        </td>
                         <td className="px-3 py-2 tabular-nums">
                           {b.check_in_date ?? "—"}
                         </td>
@@ -140,11 +177,11 @@ export function GuestDetailPage() {
             <h3 className="text-sm font-semibold text-foreground">
               Редактирование
             </h3>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <ApiRouteHint className="mt-1">
               <code className="rounded bg-muted px-1 font-mono text-xs">
                 PATCH /guests/{"{"}id{"}"}
               </code>
-            </p>
+            </ApiRouteHint>
             <form
               className="mt-4 grid max-w-xl gap-4 sm:grid-cols-2"
               onSubmit={(e) => void handleSubmit(e)}
@@ -266,7 +303,14 @@ export function GuestDetailPage() {
               </div>
               <div className="sm:col-span-2">
                 <Button type="submit" disabled={patchMut.isPending}>
-                  {patchMut.isPending ? "Сохраняем…" : "Сохранить"}
+                  {patchMut.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Сохраняем…
+                    </>
+                  ) : (
+                    "Сохранить"
+                  )}
                 </Button>
               </div>
             </form>

@@ -1,12 +1,21 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { Loader2, Plus } from "lucide-react";
 import { useLocation } from "react-router-dom";
+import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { SettingsChangePasswordSection } from "@/components/settings/SettingsChangePasswordSection";
 import { SettingsApiKeysSection } from "@/components/settings/SettingsApiKeysSection";
 import { SettingsUsersSection } from "@/components/settings/SettingsUsersSection";
 import { SettingsRoomTypesTable } from "@/components/settings/SettingsRoomTypesTable";
 import { SettingsWebhooksSection } from "@/components/settings/SettingsWebhooksSection";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -138,6 +147,7 @@ export function SettingsPage() {
   const [rtMax, setRtMax] = useState("4");
   const [rtFormError, setRtFormError] = useState<string | null>(null);
   const [rtFormSuccess, setRtFormSuccess] = useState<string | null>(null);
+  const [roomTypeModalOpen, setRoomTypeModalOpen] = useState(false);
 
   async function handleCreateRoomType(
     e: FormEvent<HTMLFormElement>
@@ -185,6 +195,7 @@ export function SettingsPage() {
       setRtName("");
       setRtBase("2");
       setRtMax("4");
+      setRoomTypeModalOpen(false);
     } catch (err) {
       setRtFormError(formatRoomTypeMutationError(err));
     }
@@ -344,28 +355,13 @@ export function SettingsPage() {
                 справочник
               </a>
               ).{" "}
-              {selectedPropertyId !== null ? (
-                <>
-                  Редактируете выбранный в шапке отель: сохранение вызывает{" "}
-                  <code className="rounded bg-muted px-1 font-mono text-xs">
-                    PATCH /properties/{"{"}id{"}"}
-                  </code>
-                  . Поля подгружаются из{" "}
-                  <code className="rounded bg-muted px-1 font-mono text-xs">
-                    GET /properties
-                  </code>
-                  .
-                </>
-              ) : (
-                <>
-                  Новый отель создаётся через{" "}
-                  <code className="rounded bg-muted px-1 font-mono text-xs">
-                    POST /properties
-                  </code>
-                  . Выберите отель в шапке, чтобы править существующий.
-                </>
-              )}
+              {selectedPropertyId !== null
+                ? "Сохранение применяется к отелю, выбранному в шапке."
+                : "Выберите отель в шапке, чтобы изменить существующий, или создайте новый ниже."}
             </p>
+            <ApiRouteHint className="text-sm">
+              <span className="font-mono text-[10px]">GET/POST/PATCH /properties</span>
+            </ApiRouteHint>
             {formError !== null ? (
               <p className="text-sm text-destructive" role="alert">
                 {formError}
@@ -475,13 +471,23 @@ export function SettingsPage() {
               type="submit"
               disabled={createMutation.isPending || updateMutation.isPending}
             >
-              {selectedPropertyId !== null
-                ? updateMutation.isPending
-                  ? "Сохраняем…"
-                  : "Сохранить"
-                : createMutation.isPending
-                  ? "Создаём…"
-                  : "Создать отель"}
+              {selectedPropertyId !== null ? (
+                updateMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Сохраняем…
+                  </>
+                ) : (
+                  "Сохранить"
+                )
+              ) : createMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Создаём…
+                </>
+              ) : (
+                "Создать отель"
+              )}
             </Button>
           </form>
         )}
@@ -500,12 +506,14 @@ export function SettingsPage() {
             ) : null}
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Категории для физических номеров выбранного отеля (
-            <code className="rounded bg-muted px-1 font-mono text-xs">
+            Категории (Стандарт, Делюкс и т.д.) для физических номеров выбранного
+            отеля.
+          </p>
+          <ApiRouteHint className="mt-1">
+            <code className="rounded bg-muted px-1 font-mono text-[10px]">
               POST /room-types
             </code>
-            ).
-          </p>
+          </ApiRouteHint>
         </div>
 
         {selectedPropertyId === null ? (
@@ -518,76 +526,119 @@ export function SettingsPage() {
           </p>
         ) : (
           <>
-            <form
-              className="max-w-md space-y-4"
-              onSubmit={(e) => void handleCreateRoomType(e)}
-            >
-              {rtFormError !== null ? (
-                <p className="text-sm text-destructive" role="alert">
-                  {rtFormError}
-                </p>
-              ) : null}
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                onClick={() => {
+                  setRtFormError(null);
+                  setRtFormSuccess(null);
+                  setRoomTypeModalOpen(true);
+                }}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Добавить тип номера
+              </Button>
               {rtFormSuccess !== null ? (
                 <p className="text-sm text-emerald-600 dark:text-emerald-400">
                   {rtFormSuccess}
                 </p>
               ) : null}
-              <div className="space-y-2">
-                <label htmlFor="rt-name" className="text-sm font-medium">
-                  Название категории
-                </label>
-                <Input
-                  id="rt-name"
-                  value={rtName}
-                  onChange={(e) => {
-                    setRtName(e.target.value);
-                  }}
-                  placeholder="Стандарт"
-                  autoComplete="off"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <label htmlFor="rt-base" className="text-sm font-medium">
-                    Базовая вместимость
-                  </label>
-                  <Input
-                    id="rt-base"
-                    type="number"
-                    min={1}
-                    value={rtBase}
-                    onChange={(e) => {
-                      setRtBase(e.target.value);
-                    }}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label htmlFor="rt-max" className="text-sm font-medium">
-                    Макс. вместимость
-                  </label>
-                  <Input
-                    id="rt-max"
-                    type="number"
-                    min={1}
-                    value={rtMax}
-                    onChange={(e) => {
-                      setRtMax(e.target.value);
-                    }}
-                  />
-                </div>
-              </div>
-              <Button
-                type="submit"
-                disabled={createRoomTypeMutation.isPending}
-              >
-                {createRoomTypeMutation.isPending
-                  ? "Создаём…"
-                  : "Создать тип номера"}
-              </Button>
-            </form>
+            </div>
+
+            <Dialog
+              open={roomTypeModalOpen}
+              onOpenChange={(open) => {
+                setRoomTypeModalOpen(open);
+                if (!open) {
+                  setRtFormError(null);
+                }
+              }}
+            >
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Новый тип номера</DialogTitle>
+                </DialogHeader>
+                <form
+                  className="space-y-4"
+                  onSubmit={(e) => void handleCreateRoomType(e)}
+                >
+                  {rtFormError !== null ? (
+                    <p className="text-sm text-destructive" role="alert">
+                      {rtFormError}
+                    </p>
+                  ) : null}
+                  <div className="space-y-2">
+                    <label htmlFor="rt-name" className="text-sm font-medium">
+                      Название категории
+                    </label>
+                    <Input
+                      id="rt-name"
+                      value={rtName}
+                      onChange={(e) => {
+                        setRtName(e.target.value);
+                      }}
+                      placeholder="Стандарт"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <label htmlFor="rt-base" className="text-sm font-medium">
+                        Базовая вместимость
+                      </label>
+                      <Input
+                        id="rt-base"
+                        type="number"
+                        min={1}
+                        value={rtBase}
+                        onChange={(e) => {
+                          setRtBase(e.target.value);
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label htmlFor="rt-max" className="text-sm font-medium">
+                        Макс. вместимость
+                      </label>
+                      <Input
+                        id="rt-max"
+                        type="number"
+                        min={1}
+                        value={rtMax}
+                        onChange={(e) => {
+                          setRtMax(e.target.value);
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setRoomTypeModalOpen(false)}
+                    >
+                      Отмена
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={createRoomTypeMutation.isPending}
+                    >
+                      {createRoomTypeMutation.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Создаём…
+                        </>
+                      ) : (
+                        "Создать"
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
 
             <div>
-              <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <h4 className="mb-2 text-xs font-medium tracking-tight text-muted-foreground">
                 Уже созданные
               </h4>
               <SettingsRoomTypesTable
@@ -598,6 +649,42 @@ export function SettingsPage() {
             </div>
           </>
         )}
+      </section>
+      <section className="space-y-3 rounded-lg border border-border bg-card p-4">
+        <h3 className="text-sm font-semibold text-foreground">Роли и права</h3>
+        <p className="text-sm text-muted-foreground">
+          Краткая памятка по ролям в тенанте (управление на уровне API; назначение
+          — в разделе «Пользователи»).
+        </p>
+        <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
+          <li>
+            <span className="font-medium text-foreground">Владелец (owner)</span>{" "}
+            — полный доступ, управление отелем и пользователями.
+          </li>
+          <li>
+            <span className="font-medium text-foreground">Менеджер (manager)</span>{" "}
+            — операционное управление: номера, тарифы, брони, настройки без
+            смены владельца.
+          </li>
+          <li>
+            <span className="font-medium text-foreground">
+              Администратор стойки (receptionist)
+            </span>{" "}
+            — брони, гости, фолио, сетка.
+          </li>
+          <li>
+            <span className="font-medium text-foreground">Housekeeping</span> —
+            уборка и статусы номеров.
+          </li>
+          <li>
+            <span className="font-medium text-foreground">Наблюдатель (viewer)</span>{" "}
+            — просмотр без изменений.
+          </li>
+        </ul>
+        <p className="text-xs text-muted-foreground">
+          Повторная отправка приглашения с тем же email не предусмотрена API; при
+          проблемах со входом обратитесь к владельцу тенанта.
+        </p>
       </section>
       <SettingsUsersSection canManage={canManage} />
       <SettingsApiKeysSection canManage={canManage} />

@@ -1,15 +1,21 @@
-import { ChevronLeft, ChevronRight, Pencil, Trash2 } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import {
   FormEvent,
   useEffect,
   useMemo,
   useState,
-  type ReactElement,
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { Link } from "react-router-dom";
 
+import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -47,7 +53,12 @@ import type { AvailabilityCell } from "@/types/inventory";
 import type { BulkRateSegment, RatePlanRead } from "@/types/rates";
 import type { RatePlanCreate } from "@/types/rate-plans";
 import { cn } from "@/lib/utils";
-import { getMonthRange, shiftMonthAnchor } from "@/utils/boardDates";
+import {
+  formatIsoDateLocal,
+  getMonthFortnightRange,
+  getMonthRange,
+  shiftMonthAnchor,
+} from "@/utils/boardDates";
 
 const DEFAULT_CANCELLATION_POLICY =
   "Отмена бесплатно не позднее чем за 24 часа до заезда; при более поздней отмене может удерживаться стоимость первой ночи.";
@@ -69,36 +80,20 @@ function monthTitleRu(anchor: Date): string {
   });
 }
 
-function availabilityOccupancyLine(
+function occupancyTitle(
   cell: AvailabilityCell | undefined,
   availabilityPending: boolean,
   availabilityErrored: boolean
-): ReactElement | null {
-  if (availabilityErrored) {
-    return null;
-  }
-  if (availabilityPending) {
-    return (
-      <span className="block text-[10px] leading-tight text-muted-foreground">
-        …
-      </span>
-    );
+): string | undefined {
+  if (availabilityErrored || availabilityPending) {
+    return undefined;
   }
   if (cell === undefined) {
-    return (
-      <span className="block text-[10px] leading-tight text-muted-foreground">
-        —
-      </span>
-    );
+    return undefined;
   }
   const blockedSuffix =
-    cell.blocked_rooms > 0 ? ` · блок ${String(cell.blocked_rooms)}` : "";
-  return (
-    <span className="block text-[10px] leading-tight text-muted-foreground">
-      занято {cell.booked_rooms}
-      {blockedSuffix} · свободно {cell.available_rooms}
-    </span>
-  );
+    cell.blocked_rooms > 0 ? `, блок ${String(cell.blocked_rooms)}` : "";
+  return `Занято: ${String(cell.booked_rooms)}${blockedSuffix}. Свободно: ${String(cell.available_rooms)}`;
 }
 
 export function RatesPage() {
@@ -106,7 +101,15 @@ export function RatesPage() {
   const canWriteRates = useCanManageProperties();
   const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
   const [monthAnchor, setMonthAnchor] = useState(() => new Date());
-  const month = useMemo(() => getMonthRange(monthAnchor), [monthAnchor]);
+  const [gridView, setGridView] = useState<"month" | "fortnight">("month");
+  const month = useMemo(
+    () =>
+      gridView === "month"
+        ? getMonthRange(monthAnchor)
+        : getMonthFortnightRange(monthAnchor),
+    [monthAnchor, gridView]
+  );
+  const todayIso = useMemo(() => formatIsoDateLocal(new Date()), []);
 
   const { data: roomTypes, isPending: roomTypesPending } = useRoomTypes();
   const { data: ratePlans, isPending: ratePlansPending } = useRatePlans();
@@ -348,15 +351,8 @@ export function RatesPage() {
           Тарифы и цены
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Календарная сетка ночных тарифов (
-          <code className="rounded bg-muted px-1 font-mono text-xs">
-            GET /rates
-          </code>
-          ,{" "}
-          <code className="rounded bg-muted px-1 font-mono text-xs">
-            PUT /rates/bulk
-          </code>
-          ). Остатки по дням см. на{" "}
+          Календарная сетка ночных тарифов. Остатки по дням подсказкой при наведении;
+          полная картина — на{" "}
           <Link
             to="/board"
             className="font-medium text-primary underline-offset-4 hover:underline"
@@ -365,14 +361,41 @@ export function RatesPage() {
           </Link>
           .
         </p>
+        <ApiRouteHint className="mt-1 text-sm">
+          <span className="font-mono text-[10px]">GET /rates, PUT /rates/bulk</span>
+        </ApiRouteHint>
       </div>
 
       <section className="rounded-lg border border-border bg-card p-4 space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-sm font-semibold text-foreground">
-            Сетка за месяц
+            Сетка тарифов
           </h3>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="mr-1 flex rounded-md border border-border p-0.5">
+              <Button
+                type="button"
+                variant={gridView === "month" ? "secondary" : "ghost"}
+                size="sm"
+                className="h-8 px-2.5"
+                onClick={() => {
+                  setGridView("month");
+                }}
+              >
+                Месяц
+              </Button>
+              <Button
+                type="button"
+                variant={gridView === "fortnight" ? "secondary" : "ghost"}
+                size="sm"
+                className="h-8 px-2.5"
+                onClick={() => {
+                  setGridView("fortnight");
+                }}
+              >
+                2 недели
+              </Button>
+            </div>
             <Button
               type="button"
               variant="outline"
@@ -422,16 +445,13 @@ export function RatesPage() {
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
               Для сетки цен нужен хотя бы один тарифный план (BAR, пакет и т.д.).
-              Его можно создать здесь или через{" "}
-              <code className="rounded bg-muted px-1 font-mono text-xs">
-                POST /rate-plans
-              </code>{" "}
-              в{" "}
-              <code className="rounded bg-muted px-1 font-mono text-xs">
-                /docs
-              </code>
-              .
+              Создайте его ниже или через документацию API.
             </p>
+            <ApiRouteHint className="text-sm">
+              <code className="rounded bg-muted px-1 font-mono text-[10px]">
+                POST /rate-plans
+              </code>
+            </ApiRouteHint>
             {canWriteRates ? (
               <form
                 className="max-w-lg space-y-3 rounded-md border border-dashed bg-muted/20 p-3"
@@ -482,9 +502,14 @@ export function RatesPage() {
                   type="submit"
                   disabled={createRatePlanMutation.isPending}
                 >
-                  {createRatePlanMutation.isPending
-                    ? "Создаём…"
-                    : "Создать тарифный план"}
+                  {createRatePlanMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Создаём…
+                    </>
+                  ) : (
+                    "Создать тарифный план"
+                  )}
                 </Button>
               </form>
             ) : (
@@ -568,16 +593,9 @@ export function RatesPage() {
                 ) : null}
               </div>
               <p className="text-xs text-muted-foreground">
-                Сетка показывает все категории номеров для выбранного плана. Во
-                второй строке ячейки — остатки из инвентаря (не зависят от
-                тарифа).
-                {canWriteRates ? (
-                  <>
-                    {" "}
-                    Клик по ячейке с ценой открывает правку на одну ночь (owner /
-                    manager).
-                  </>
-                ) : null}
+                Все категории номеров для выбранного плана. «—» — цена не задана.
+                Наведите на ячейку для остатков. Сегодня выделено рамкой.
+                {canWriteRates ? <> Клик по ячейке — правка одной ночи.</> : null}
               </p>
             </div>
 
@@ -609,7 +627,7 @@ export function RatesPage() {
                     <tr>
                       <th
                         scope="col"
-                        className="sticky left-0 z-20 min-w-[8.5rem] border-b border-r bg-muted/40 px-2 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
+                        className="sticky left-0 z-20 min-w-[8.5rem] border-b border-r bg-muted/40 px-2 py-2 text-left text-xs font-semibold tracking-tight text-muted-foreground"
                       >
                         Категория
                       </th>
@@ -620,9 +638,13 @@ export function RatesPage() {
                         return (
                           <th
                             key={d.iso}
-                            className="min-w-[3.25rem] border-b bg-muted/40 px-0.5 py-2 text-center font-medium leading-tight text-foreground"
+                            className={cn(
+                              "min-w-[3.25rem] border-b bg-muted/40 px-0.5 py-2 text-center text-sm font-medium leading-tight text-foreground md:text-base",
+                              d.iso === todayIso &&
+                                "bg-primary/10 ring-2 ring-inset ring-primary/40"
+                            )}
                           >
-                            <div className="text-[10px] uppercase text-muted-foreground">
+                            <div className="text-[11px] text-muted-foreground md:text-xs">
                               {weekday}
                             </div>
                             <div className="tabular-nums">{d.date.getDate()}</div>
@@ -672,14 +694,30 @@ export function RatesPage() {
                                 priceDraft: p ?? "",
                               });
                             }
+                            const priceMissing = !rowPending && p === undefined;
+                            const occTitle = occupancyTitle(
+                              availCell,
+                              availabilityPending,
+                              availabilityError
+                            );
                             return (
                               <td
                                 key={d.iso}
                                 role={cellEditable ? "button" : undefined}
                                 tabIndex={cellEditable ? 0 : undefined}
+                                title={
+                                  [
+                                    priceMissing ? "Цена не задана" : null,
+                                    occTitle ?? null,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" · ") || undefined
+                                }
                                 className={cn(
                                   "border-b border-border/80 px-0.5 py-1.5 align-top text-center tabular-nums text-foreground",
                                   rowPending && "animate-pulse bg-muted/30",
+                                  d.iso === todayIso &&
+                                    "bg-primary/5 ring-1 ring-inset ring-primary/25",
                                   cellEditable &&
                                     "cursor-pointer hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                 )}
@@ -692,19 +730,19 @@ export function RatesPage() {
                                   }
                                 }}
                               >
-                                <div className="flex min-h-[2.5rem] flex-col items-center justify-center gap-0.5 leading-tight">
-                                  <span>
+                                <div className="flex min-h-[2.25rem] flex-col items-center justify-center leading-tight">
+                                  <span
+                                    className={cn(
+                                      "text-sm font-semibold md:text-base",
+                                      priceMissing && "text-muted-foreground"
+                                    )}
+                                  >
                                     {rowPending
                                       ? "…"
                                       : p !== undefined
                                         ? p
                                         : "—"}
                                   </span>
-                                  {availabilityOccupancyLine(
-                                    availCell,
-                                    availabilityPending,
-                                    availabilityError
-                                  )}
                                 </div>
                               </td>
                             );
@@ -799,7 +837,14 @@ export function RatesPage() {
                   </div>
                 </div>
                 <Button type="submit" disabled={bulkMutation.isPending}>
-                  {bulkMutation.isPending ? "Сохраняем…" : "Применить к диапазону"}
+                  {bulkMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Сохраняем…
+                    </>
+                  ) : (
+                    "Применить к диапазону"
+                  )}
                 </Button>
               </form>
             ) : (
@@ -859,7 +904,14 @@ export function RatesPage() {
                 Отмена
               </Button>
               <Button type="submit" disabled={bulkMutation.isPending}>
-                {bulkMutation.isPending ? "Сохранение…" : "Сохранить"}
+                {bulkMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Сохранение…
+                  </>
+                ) : (
+                  "Сохранить"
+                )}
               </Button>
             </DialogFooter>
           </form>
@@ -877,10 +929,13 @@ export function RatesPage() {
           <DialogHeader>
             <DialogTitle>Редактировать тарифный план</DialogTitle>
             <DialogDescription>
-              <code className="rounded bg-muted px-1 font-mono text-xs">
-                {"PATCH /rate-plans/{id}"}
-              </code>
+              Измените название и политику отмены тарифного плана.
             </DialogDescription>
+            <ApiRouteHint>
+              <code className="rounded bg-muted px-1 font-mono text-[10px]">
+                PATCH /rate-plans/{"{"}id{"}"}
+              </code>
+            </ApiRouteHint>
           </DialogHeader>
           <form
             className="space-y-3"
@@ -946,7 +1001,14 @@ export function RatesPage() {
                 Отмена
               </Button>
               <Button type="submit" disabled={patchRatePlanMutation.isPending}>
-                {patchRatePlanMutation.isPending ? "Сохраняем…" : "Сохранить"}
+                {patchRatePlanMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Сохраняем…
+                  </>
+                ) : (
+                  "Сохранить"
+                )}
               </Button>
             </DialogFooter>
           </form>
@@ -1025,7 +1087,14 @@ export function RatesPage() {
                 })();
               }}
             >
-              {deleteRatePlanMutation.isPending ? "Удаляем…" : "Удалить"}
+              {deleteRatePlanMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Удаляем…
+                </>
+              ) : (
+                "Удалить"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1104,9 +1173,14 @@ export function RatesPage() {
                 Отмена
               </Button>
               <Button type="submit" disabled={createRatePlanMutation.isPending}>
-                {createRatePlanMutation.isPending
-                  ? "Создаём…"
-                  : "Создать"}
+                {createRatePlanMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Создаём…
+                  </>
+                ) : (
+                  "Создать"
+                )}
               </Button>
             </DialogFooter>
           </form>
