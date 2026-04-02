@@ -11,6 +11,7 @@ import {
   POST_REGISTER_STORAGE_KEY,
 } from "@/lib/constants";
 import { getAccessToken } from "@/lib/authSession";
+import { useOnboardingModalStore } from "@/stores/onboarding-modal-store";
 import { usePropertyStore } from "@/stores/property-store";
 
 export function RegisterPage() {
@@ -45,7 +46,8 @@ export function RegisterPage() {
       } catch {
         /* ignore */
       }
-      navigate("/onboarding", { replace: true });
+      useOnboardingModalStore.getState().openModal();
+      navigate("/", { replace: true });
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.data !== undefined) {
         const data = err.response.data as { detail?: unknown };

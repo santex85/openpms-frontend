@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
 import { Pagination } from "@/components/ui/pagination";
 import { PageTableSkeleton } from "@/components/ui/page-table-skeleton";
@@ -267,13 +268,11 @@ export function AuditLogPage() {
           >
             С даты
           </label>
-          <Input
+          <DatePickerField
             id="audit-from"
-            type="date"
             value={dateFrom}
-            onChange={(e) => {
-              setDateFrom(e.target.value);
-            }}
+            onChange={setDateFrom}
+            className="w-full sm:w-[11.5rem]"
           />
         </div>
         <div className="space-y-1">
@@ -283,13 +282,12 @@ export function AuditLogPage() {
           >
             По дату
           </label>
-          <Input
+          <DatePickerField
             id="audit-to"
-            type="date"
             value={dateTo}
-            onChange={(e) => {
-              setDateTo(e.target.value);
-            }}
+            onChange={setDateTo}
+            min={dateFrom.trim() || undefined}
+            className="w-full sm:w-[11.5rem]"
           />
         </div>
       </div>

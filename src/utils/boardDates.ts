@@ -39,15 +39,16 @@ export function getMonthRange(anchor: Date): {
   };
 }
 
-function parseIsoLocal(iso: string): Date {
+/** Parse YYYY-MM-DD as local calendar date (00:00). */
+export function parseIsoDateLocal(iso: string): Date {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(y, m - 1, d);
 }
 
 /** Inclusive list of calendar days from startIso to endIso (YYYY-MM-DD). */
 export function buildDaysInclusive(startIso: string, endIso: string): MonthDayMeta[] {
-  const start = parseIsoLocal(startIso);
-  const end = parseIsoLocal(endIso);
+  const start = parseIsoDateLocal(startIso);
+  const end = parseIsoDateLocal(endIso);
   if (start > end) {
     return buildDaysInclusive(endIso, startIso);
   }

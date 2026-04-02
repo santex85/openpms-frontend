@@ -41,7 +41,6 @@ function parseJwtTenantId(token: string): string | null {
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [tenantId, setTenantId] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -105,7 +104,7 @@ export function LoginPage() {
     const from =
       (location.state as { from?: string } | null)?.from ?? "/";
     try {
-      await loginRequest(tenantId.trim(), email.trim(), password);
+      await loginRequest(email.trim(), password);
       usePropertyStore.getState().setSelectedPropertyId(null);
       navigate(from, { replace: true });
     } catch (err) {
@@ -130,7 +129,7 @@ export function LoginPage() {
         <div className="space-y-1 text-center">
           <h1 className="text-xl font-semibold text-foreground">OpenPMS</h1>
           <p className="flex flex-wrap items-center justify-center gap-2 text-sm text-muted-foreground">
-            <span>Вход: tenant, email и пароль.</span>
+            <span>Вход по email и паролю.</span>
             <ApiRouteHint>POST /auth/login</ApiRouteHint>
           </p>
         </div>
@@ -148,25 +147,6 @@ export function LoginPage() {
               {error}
             </p>
           ) : null}
-          <div className="space-y-2">
-            <label
-              htmlFor="tenant_id"
-              className="text-sm font-medium text-foreground"
-            >
-              Tenant ID (UUID)
-            </label>
-            <Input
-              id="tenant_id"
-              name="tenant_id"
-              type="text"
-              autoComplete="off"
-              placeholder="00000000-0000-0000-0000-000000000000"
-              value={tenantId}
-              onChange={(e) => {
-                setTenantId(e.target.value);
-              }}
-            />
-          </div>
           <div className="space-y-2">
             <label
               htmlFor="email"

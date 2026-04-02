@@ -2,6 +2,7 @@ import { FormEvent } from "react";
 import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -100,26 +101,21 @@ export function RatesBulkEditor({
           <label htmlFor="bulk-start" className="text-xs font-medium">
             С
           </label>
-          <Input
+          <DatePickerField
             id="bulk-start"
-            type="date"
             value={bulkStart}
-            onChange={(e) => {
-              onBulkStartChange(e.target.value);
-            }}
+            onChange={onBulkStartChange}
           />
         </div>
         <div className="space-y-1">
           <label htmlFor="bulk-end" className="text-xs font-medium">
             По
           </label>
-          <Input
+          <DatePickerField
             id="bulk-end"
-            type="date"
             value={bulkEnd}
-            onChange={(e) => {
-              onBulkEndChange(e.target.value);
-            }}
+            onChange={onBulkEndChange}
+            min={bulkStart.trim() || undefined}
           />
         </div>
         <div className="space-y-1">

@@ -4,12 +4,14 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { Button } from "@/components/ui/button";
+import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
 import { useGuest } from "@/hooks/useGuest";
 import { usePatchGuest } from "@/hooks/useGuestMutations";
 import { bookingStatusLabel } from "@/lib/i18n/domainLabels";
 import { showApiRouteHints } from "@/lib/showApiRouteHints";
 import { formatApiError } from "@/lib/formatApiError";
+import { formatIsoDateLocal } from "@/utils/boardDates";
 
 function guestInitials(first: string, last: string): string {
   const a = last.trim().charAt(0) || first.trim().charAt(0) || "?";
@@ -266,13 +268,11 @@ export function GuestDetailPage() {
                 <label htmlFor="g-dob" className="text-sm font-medium">
                   Дата рождения
                 </label>
-                <Input
+                <DatePickerField
                   id="g-dob"
-                  type="date"
                   value={dateOfBirth}
-                  onChange={(e) => {
-                    setDateOfBirth(e.target.value);
-                  }}
+                  onChange={setDateOfBirth}
+                  max={formatIsoDateLocal(new Date())}
                 />
               </div>
               <div className="space-y-2 sm:col-span-2">

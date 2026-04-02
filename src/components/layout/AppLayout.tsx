@@ -3,6 +3,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 
 import { CurrentUserQueryProvider } from "@/contexts/current-user-query-provider";
+import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 import { PropertySwitcher } from "@/components/layout/PropertySwitcher";
 import { UserMenu } from "@/components/layout/UserMenu";
 import { Button } from "@/components/ui/button";
@@ -140,6 +141,7 @@ function AppLayoutShell() {
           <Outlet />
         </div>
       </main>
+      <OnboardingModal />
     </div>
   );
 }

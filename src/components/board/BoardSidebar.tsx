@@ -2,7 +2,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DatePickerField } from "@/components/ui/date-picker-field";
 import {
   Select,
   SelectContent,
@@ -95,23 +95,18 @@ export function BoardSidebar({
           </Select>
           {boardRangeMode === "custom" ? (
             <>
-              <Input
-                type="date"
+              <DatePickerField
                 className="w-[150px]"
                 value={customFromIso}
-                onChange={(e) => {
-                  onCustomFromIsoChange(e.target.value);
-                }}
+                onChange={onCustomFromIsoChange}
                 aria-label="Начало периода"
               />
               <span className="text-muted-foreground">—</span>
-              <Input
-                type="date"
+              <DatePickerField
                 className="w-[150px]"
                 value={customToIso}
-                onChange={(e) => {
-                  onCustomToIsoChange(e.target.value);
-                }}
+                onChange={onCustomToIsoChange}
+                min={customFromIso.trim() || undefined}
                 aria-label="Конец периода"
               />
             </>

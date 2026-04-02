@@ -9,11 +9,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { POST_REGISTER_STORAGE_KEY } from "@/lib/constants";
+import { useOnboardingProgress } from "@/hooks/useOnboardingProgress";
 import { useProperties } from "@/hooks/useProperties";
+import { useOnboardingModalStore } from "@/stores/onboarding-modal-store";
 import { usePropertyStore } from "@/stores/property-store";
 
 export function PropertySwitcher() {
   const { data: properties, isLoading, isError } = useProperties();
+  const { allDone } = useOnboardingProgress();
+  const openOnboardingModal = useOnboardingModalStore((s) => s.openModal);
   const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
   const setSelectedPropertyId = usePropertyStore(
     (s) => s.setSelectedPropertyId
@@ -69,12 +73,15 @@ export function PropertySwitcher() {
     return (
       <span className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         Нет отелей
-        <Link
-          to="/onboarding"
+        <button
+          type="button"
           className="font-medium text-primary underline underline-offset-2"
+          onClick={() => {
+            openOnboardingModal();
+          }}
         >
           {postRegister ? "Мастер настройки" : "Первичная настройка"}
-        </Link>
+        </button>
         <span aria-hidden className="text-border">
           ·
         </span>
@@ -95,17 +102,30 @@ export function PropertySwitcher() {
       : properties[0].id;
 
   return (
-    <Select value={selectValue} onValueChange={setSelectedPropertyId}>
-      <SelectTrigger className="w-[220px]" aria-label="Выбор отеля">
-        <SelectValue placeholder="Выберите отель" />
-      </SelectTrigger>
-      <SelectContent>
-        {properties.map((p) => (
-          <SelectItem key={p.id} value={p.id}>
-            {p.name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      <Select value={selectValue} onValueChange={setSelectedPropertyId}>
+        <SelectTrigger className="w-[220px]" aria-label="Выбор отеля">
+          <SelectValue placeholder="Выберите отель" />
+        </SelectTrigger>
+        <SelectContent>
+          {properties.map((p) => (
+            <SelectItem key={p.id} value={p.id}>
+              {p.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {!allDone ? (
+        <button
+          type="button"
+          className="shrink-0 text-sm font-medium text-primary underline underline-offset-2"
+          onClick={() => {
+            openOnboardingModal();
+          }}
+        >
+          Первичная настройка
+        </button>
+      ) : null}
+    </div>
   );
 }

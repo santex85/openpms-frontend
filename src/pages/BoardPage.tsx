@@ -37,6 +37,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -677,22 +678,17 @@ export function BoardPage() {
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-2">
                   <span className="text-sm font-medium">Заезд</span>
-                  <Input
-                    type="date"
+                  <DatePickerField
                     value={cellCheckIn}
-                    onChange={(e) => {
-                      setCellCheckIn(e.target.value);
-                    }}
+                    onChange={setCellCheckIn}
                   />
                 </div>
                 <div className="space-y-2">
                   <span className="text-sm font-medium">Выезд (эксклюзивно)</span>
-                  <Input
-                    type="date"
+                  <DatePickerField
                     value={cellCheckOut}
-                    onChange={(e) => {
-                      setCellCheckOut(e.target.value);
-                    }}
+                    onChange={setCellCheckOut}
+                    min={cellCheckIn.trim() || undefined}
                   />
                 </div>
               </div>
@@ -937,26 +933,21 @@ export function BoardPage() {
               <label htmlFor="res-ci" className="text-sm font-medium">
                 Заезд (check_in)
               </label>
-              <Input
+              <DatePickerField
                 id="res-ci"
-                type="date"
                 value={rescheduleCheckIn}
-                onChange={(e) => {
-                  setRescheduleCheckIn(e.target.value);
-                }}
+                onChange={setRescheduleCheckIn}
               />
             </div>
             <div className="space-y-2">
               <label htmlFor="res-co" className="text-sm font-medium">
                 Выезд (check_out, эксклюзивно)
               </label>
-              <Input
+              <DatePickerField
                 id="res-co"
-                type="date"
                 value={rescheduleCheckOut}
-                onChange={(e) => {
-                  setRescheduleCheckOut(e.target.value);
-                }}
+                onChange={setRescheduleCheckOut}
+                min={rescheduleCheckIn.trim() || undefined}
               />
             </div>
           </div>

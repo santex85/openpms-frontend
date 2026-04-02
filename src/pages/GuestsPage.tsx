@@ -13,12 +13,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
 import { useCanWriteBookings } from "@/hooks/useAuthz";
 import { useCreateGuest } from "@/hooks/useGuestMutations";
 import { useGuests } from "@/hooks/useGuests";
 import { formatApiError } from "@/lib/formatApiError";
 import { PageTableSkeleton } from "@/components/ui/page-table-skeleton";
+import { formatIsoDateLocal } from "@/utils/boardDates";
 
 const GUESTS_PAGE_SIZE = 25;
 
@@ -372,11 +374,11 @@ export function GuestsPage() {
                 <label htmlFor="cg-dob" className="text-sm font-medium">
                   Дата рождения
                 </label>
-                <Input
+                <DatePickerField
                   id="cg-dob"
-                  type="date"
                   value={cgDob}
-                  onChange={(e) => setCgDob(e.target.value)}
+                  onChange={setCgDob}
+                  max={formatIsoDateLocal(new Date())}
                 />
               </div>
               <div className="space-y-2 sm:col-span-2">

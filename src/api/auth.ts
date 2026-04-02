@@ -45,15 +45,26 @@ export async function registerRequest(
 }
 
 export async function loginRequest(
-  tenantId: string,
   email: string,
-  password: string
+  password: string,
+  tenantId?: string
 ): Promise<AuthLoginPublicResponse> {
-  const { data } = await authHttp.post<AuthLoginPublicResponse>("/auth/login", {
-    tenant_id: tenantId,
+  const body: {
+    email: string;
+    password: string;
+    tenant_id?: string;
+  } = {
     email: email.trim(),
     password,
-  });
+  };
+  const tid = tenantId?.trim();
+  if (tid !== undefined && tid !== "") {
+    body.tenant_id = tid;
+  }
+  const { data } = await authHttp.post<AuthLoginPublicResponse>(
+    "/auth/login",
+    body
+  );
   setSession(data.access_token, String(data.user.tenant_id));
   queryClient.clear();
   return data;

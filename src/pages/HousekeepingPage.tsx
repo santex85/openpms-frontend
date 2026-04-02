@@ -19,7 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { DatePickerField } from "@/components/ui/date-picker-field";
 import {
   Select,
   SelectContent,
@@ -286,14 +286,11 @@ export function HousekeepingPage() {
           <label htmlFor="hk-date" className="text-sm font-medium">
             Дата (опционально)
           </label>
-          <Input
+          <DatePickerField
             id="hk-date"
-            type="date"
-            className="w-auto"
+            className="w-auto min-w-[11.5rem]"
             value={dateIso}
-            onChange={(e) => {
-              setDateInput(e.target.value);
-            }}
+            onChange={setDateInput}
           />
         </div>
         <Button

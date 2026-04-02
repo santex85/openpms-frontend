@@ -18,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -527,26 +528,21 @@ export function BookingsListPage() {
                 <label htmlFor="bk-check-in" className="text-sm font-medium">
                   Заезд
                 </label>
-                <Input
+                <DatePickerField
                   id="bk-check-in"
-                  type="date"
                   value={checkIn}
-                  onChange={(e) => {
-                    setCheckIn(e.target.value);
-                  }}
+                  onChange={setCheckIn}
                 />
               </div>
               <div className="space-y-2">
                 <label htmlFor="bk-check-out" className="text-sm font-medium">
                   Выезд
                 </label>
-                <Input
+                <DatePickerField
                   id="bk-check-out"
-                  type="date"
                   value={checkOut}
-                  onChange={(e) => {
-                    setCheckOut(e.target.value);
-                  }}
+                  onChange={setCheckOut}
+                  min={checkIn.trim() || undefined}
                 />
               </div>
               <div className="space-y-2">
