@@ -77,17 +77,67 @@ export async function fetchBooking(bookingId: string): Promise<Booking> {
   return data;
 }
 
+const UNPAID_FOLIO_PATHS = [
+  "/unpaid-folio-summary",
+  "/bookings/unpaid-folio-summary",
+  "/dashboard/unpaid-folio-summary",
+] as const;
+
+function shouldRetryUnpaidFolioPath(
+  status: number | null,
+  detail: unknown
+): boolean {
+  if (status === 404) {
+    return true;
+  }
+  if (status !== 422 || !Array.isArray(detail)) {
+    return false;
+  }
+  return detail.some((row: unknown) => {
+    if (typeof row !== "object" || row === null) {
+      return false;
+    }
+    const o = row as { type?: string; loc?: unknown };
+    if (o.type !== "uuid_parsing") {
+      return false;
+    }
+    if (!Array.isArray(o.loc)) {
+      return false;
+    }
+    return o.loc.includes("path") && o.loc.includes("booking_id");
+  });
+}
+
 /** Брони с положительным балансом фолио (агрегат на бэке). */
 export async function fetchBookingsUnpaidFolio(
   propertyId: string
 ): Promise<BookingUnpaidFolioRow[]> {
-  const { data } = await apiClient.get<BookingUnpaidFolioRow[]>(
-    "/bookings/unpaid-folio-summary",
-    {
-      params: { [PROPERTY_ID_QUERY_PARAM]: propertyId },
+  const params = { [PROPERTY_ID_QUERY_PARAM]: propertyId };
+  let lastErr: unknown;
+
+  for (let i = 0; i < UNPAID_FOLIO_PATHS.length; i++) {
+    const path = UNPAID_FOLIO_PATHS[i];
+    try {
+      const { data } = await apiClient.get<BookingUnpaidFolioRow[]>(path, {
+        params,
+      });
+      return data;
+    } catch (err) {
+      lastErr = err;
+      const ax = axios.isAxiosError(err) ? err : null;
+      const body = ax?.response?.data as { detail?: unknown } | undefined;
+      const detail = body?.detail ?? null;
+      const status = ax?.response?.status ?? null;
+      const canTryNext =
+        i < UNPAID_FOLIO_PATHS.length - 1 &&
+        shouldRetryUnpaidFolioPath(status, detail);
+      if (!canTryNext) {
+        throw err;
+      }
     }
-  );
-  return data;
+  }
+
+  throw lastErr;
 }
 
 export async function createBooking(

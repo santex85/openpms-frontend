@@ -174,18 +174,28 @@ export function DashboardPage() {
         </h3>
         <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span>Брони с положительным балансом.</span>
-          <ApiRouteHint>GET /bookings/unpaid-folio-summary</ApiRouteHint>
+          <ApiRouteHint>
+            GET /dashboard/summary (поле unpaid_folio)
+          </ApiRouteHint>
         </p>
         {unpaid.isError ? (
           <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-2 text-sm text-destructive">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-              <span>Не удалось загрузить балансы фолио.</span>
+              <span>
+                Не удалось загрузить балансы фолио.
+                {unpaid.error != null ? (
+                  <span className="mt-1 block text-xs font-normal text-muted-foreground">
+                    {formatApiError(unpaid.error)}
+                  </span>
+                ) : null}
+              </span>
             </div>
             <Button
               type="button"
               variant="outline"
               size="sm"
+              className="shrink-0"
               onClick={() => {
                 void unpaid.refetch();
               }}

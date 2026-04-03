@@ -119,4 +119,6 @@ export interface DashboardSummary {
   total_rooms: number;
   dirty_rooms: number;
   currency: string;
+  /** Present on API builds that embed unpaid folio rows in the dashboard summary. */
+  unpaid_folio?: BookingUnpaidFolioRow[];
 }
