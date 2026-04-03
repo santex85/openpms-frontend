@@ -39,7 +39,7 @@ export function useBookingsUnpaidFolio(
   }
 
   if (summaryQuery.isPending || summaryQuery.isLoading) {
-    return { ...summaryQuery, data: undefined } as UseQueryResult<
+    return { ...summaryQuery, data: undefined } as unknown as UseQueryResult<
       BookingUnpaidFolioRow[]
     >;
   }
@@ -54,7 +54,7 @@ export function useBookingsUnpaidFolio(
       error: null,
       isSuccess: true,
       status: "success",
-    } as UseQueryResult<BookingUnpaidFolioRow[]>;
+    } as unknown as UseQueryResult<BookingUnpaidFolioRow[]>;
   }
 
   return fallbackQuery;

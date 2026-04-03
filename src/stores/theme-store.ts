@@ -1,8 +1,10 @@
 import { create } from "zustand";
 
-export type ThemeMode = "light" | "dark";
+export type ThemeMode = "light" | "neutral" | "dark";
 
 const STORAGE_KEY = "openpms_theme";
+
+const MODE_ORDER: ThemeMode[] = ["light", "neutral", "dark"];
 
 function readStoredMode(): ThemeMode {
   if (typeof window === "undefined") {
@@ -10,7 +12,7 @@ function readStoredMode(): ThemeMode {
   }
   try {
     const v = localStorage.getItem(STORAGE_KEY);
-    if (v === "dark" || v === "light") {
+    if (v === "dark" || v === "light" || v === "neutral") {
       return v;
     }
   } catch {
@@ -21,10 +23,11 @@ function readStoredMode(): ThemeMode {
 
 function applyToDocument(mode: ThemeMode): void {
   const root = document.documentElement;
+  root.classList.remove("dark", "neutral");
   if (mode === "dark") {
     root.classList.add("dark");
-  } else {
-    root.classList.remove("dark");
+  } else if (mode === "neutral") {
+    root.classList.add("neutral");
   }
   try {
     localStorage.setItem(STORAGE_KEY, mode);
@@ -49,7 +52,9 @@ export const useThemeStore = create<ThemeStoreState>((set, get) => ({
     set({ mode });
   },
   toggle: () => {
-    const next = get().mode === "dark" ? "light" : "dark";
+    const current = get().mode;
+    const idx = MODE_ORDER.indexOf(current);
+    const next = MODE_ORDER[(idx + 1) % MODE_ORDER.length];
     get().setMode(next);
   },
 }));

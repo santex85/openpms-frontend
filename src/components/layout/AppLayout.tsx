@@ -1,4 +1,4 @@
-import { Menu, Moon, Sun } from "lucide-react";
+import { Menu, Moon, Sun, SunMedium } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 
@@ -119,16 +119,27 @@ function AppLayoutShell() {
               size="icon"
               className="shrink-0"
               aria-label={
-                themeMode === "dark"
-                  ? "Переключить на светлую тему"
-                  : "Переключить на тёмную тему"
+                themeMode === "light"
+                  ? "Светлая"
+                  : themeMode === "neutral"
+                    ? "Нейтральная"
+                    : "Тёмная"
+              }
+              title={
+                themeMode === "light"
+                  ? "Светлая"
+                  : themeMode === "neutral"
+                    ? "Нейтральная"
+                    : "Тёмная"
               }
               onClick={() => {
                 toggleTheme();
               }}
             >
-              {themeMode === "dark" ? (
+              {themeMode === "light" ? (
                 <Sun className="h-4 w-4" />
+              ) : themeMode === "neutral" ? (
+                <SunMedium className="h-4 w-4" />
               ) : (
                 <Moon className="h-4 w-4" />
               )}
