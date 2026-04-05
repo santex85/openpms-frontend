@@ -213,117 +213,120 @@ export function AuditLogPage() {
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-3">
-        <div className="space-y-1">
-          <label
-            htmlFor="audit-action"
-            className="text-xs font-medium text-muted-foreground"
-          >
-            Действие содержит
-          </label>
-          <Input
-            id="audit-action"
-            value={actionQ}
-            onChange={(e) => {
-              setActionQ(e.target.value);
-            }}
-            placeholder="например update"
-            className="w-44"
-          />
+      <div className="rounded-lg border border-border bg-muted/15 p-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <label
+              htmlFor="audit-action"
+              className="text-xs font-medium leading-none text-muted-foreground"
+            >
+              Действие содержит
+            </label>
+            <Input
+              id="audit-action"
+              value={actionQ}
+              onChange={(e) => {
+                setActionQ(e.target.value);
+              }}
+              placeholder="например update"
+              className="w-full min-w-0"
+            />
+          </div>
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <label
+              htmlFor="audit-entity"
+              className="text-xs font-medium leading-none text-muted-foreground"
+            >
+              Тип сущности содержит
+            </label>
+            <Input
+              id="audit-entity"
+              value={entityQ}
+              onChange={(e) => {
+                setEntityQ(e.target.value);
+              }}
+              placeholder="booking, guest…"
+              className="w-full min-w-0"
+            />
+          </div>
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <label
+              htmlFor="audit-entity-id"
+              className="text-xs font-medium leading-none text-muted-foreground"
+            >
+              ID сущности содержит
+            </label>
+            <Input
+              id="audit-entity-id"
+              value={entityIdQ}
+              onChange={(e) => {
+                setEntityIdQ(e.target.value);
+              }}
+              placeholder="UUID или фрагмент"
+              className="w-full min-w-0 font-mono text-xs"
+            />
+          </div>
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <label
+              htmlFor="audit-from"
+              className="text-xs font-medium leading-none text-muted-foreground"
+            >
+              С даты
+            </label>
+            <DatePickerField
+              id="audit-from"
+              value={dateFrom}
+              onChange={setDateFrom}
+              className="w-full min-w-0"
+            />
+          </div>
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <label
+              htmlFor="audit-to"
+              className="text-xs font-medium leading-none text-muted-foreground"
+            >
+              По дату
+            </label>
+            <DatePickerField
+              id="audit-to"
+              value={dateTo}
+              onChange={setDateTo}
+              min={dateFrom.trim() || undefined}
+              className="w-full min-w-0"
+            />
+          </div>
         </div>
-        <div className="space-y-1">
-          <label
-            htmlFor="audit-entity"
-            className="text-xs font-medium text-muted-foreground"
-          >
-            Тип сущности содержит
-          </label>
-          <Input
-            id="audit-entity"
-            value={entityQ}
-            onChange={(e) => {
-              setEntityQ(e.target.value);
-            }}
-            placeholder="booking, guest…"
-            className="w-44"
-          />
-        </div>
-        <div className="space-y-1">
-          <label
-            htmlFor="audit-entity-id"
-            className="text-xs font-medium text-muted-foreground"
-          >
-            ID сущности содержит
-          </label>
-          <Input
-            id="audit-entity-id"
-            value={entityIdQ}
-            onChange={(e) => {
-              setEntityIdQ(e.target.value);
-            }}
-            placeholder="UUID или фрагмент"
-            className="w-48 font-mono text-xs"
-          />
-        </div>
-        <div className="space-y-1">
-          <label
-            htmlFor="audit-from"
-            className="text-xs font-medium text-muted-foreground"
-          >
-            С даты
-          </label>
-          <DatePickerField
-            id="audit-from"
-            value={dateFrom}
-            onChange={setDateFrom}
-            className="w-full sm:w-[11.5rem]"
-          />
-        </div>
-        <div className="space-y-1">
-          <label
-            htmlFor="audit-to"
-            className="text-xs font-medium text-muted-foreground"
-          >
-            По дату
-          </label>
-          <DatePickerField
-            id="audit-to"
-            value={dateTo}
-            onChange={setDateTo}
-            min={dateFrom.trim() || undefined}
-            className="w-full sm:w-[11.5rem]"
-          />
-        </div>
-      </div>
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        {!isPending && !isError ? (
-          <Pagination
-            className="rounded-md border border-border bg-muted/20 px-3 py-2"
-            total={data?.total ?? 0}
-            limit={AUDIT_LOG_PAGE_SIZE}
-            offset={page * AUDIT_LOG_PAGE_SIZE}
-            hasMore={data?.hasMore}
-            showTotalCount={false}
-            onPageChange={(newOffset) => {
-              setPage(Math.floor(newOffset / AUDIT_LOG_PAGE_SIZE));
-            }}
-          />
-        ) : null}
-        <div className="flex flex-col gap-1">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={filtered.length === 0}
-            onClick={exportCsv}
-          >
-            Экспорт CSV (эта страница)
-          </Button>
-          <p className="text-[11px] text-muted-foreground">
-            Полный архив — только через выгрузку на сервере или обход всех
-            страниц.
-          </p>
+        <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+          {!isPending && !isError ? (
+            <Pagination
+              className="w-full shrink-0 rounded-md border border-border bg-background px-3 py-2 sm:w-auto"
+              total={data?.total ?? 0}
+              limit={AUDIT_LOG_PAGE_SIZE}
+              offset={page * AUDIT_LOG_PAGE_SIZE}
+              hasMore={data?.hasMore}
+              showTotalCount={false}
+              onPageChange={(newOffset) => {
+                setPage(Math.floor(newOffset / AUDIT_LOG_PAGE_SIZE));
+              }}
+            />
+          ) : null}
+          <div className="flex min-w-0 flex-col gap-1 sm:max-w-md sm:text-right">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full sm:ml-auto sm:w-auto"
+              disabled={filtered.length === 0}
+              onClick={exportCsv}
+            >
+              Экспорт CSV (эта страница)
+            </Button>
+            <p className="text-[11px] leading-snug text-muted-foreground sm:text-right">
+              Полный архив — только через выгрузку на сервере или обход всех
+              страниц.
+            </p>
+          </div>
         </div>
       </div>
 
