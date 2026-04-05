@@ -101,12 +101,14 @@ export function BoardGrid({
         </div>
       )}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-        <UnassignedPool
-          bookings={unassignedBookings}
-          roomTypes={sortedRoomTypes}
-          isLoading={bookingsPending}
-          className="order-first lg:max-w-[240px]"
-        />
+        {(bookingsPending || unassignedBookings.length > 0) && (
+          <UnassignedPool
+            bookings={unassignedBookings}
+            roomTypes={sortedRoomTypes}
+            isLoading={bookingsPending}
+            className="order-first lg:max-w-[240px]"
+          />
+        )}
         <div className="min-w-0 flex-1 overflow-x-auto lg:order-last">
           <BoardTapeGrid
             days={days}

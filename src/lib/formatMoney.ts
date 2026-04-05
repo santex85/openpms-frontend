@@ -8,6 +8,13 @@ export function formatMoneyAmount(isoCurrency: string, amountRaw: string): strin
   if (cur.length !== 3) {
     return `${amountRaw} ${isoCurrency}`.trim();
   }
+  if (cur === "THB") {
+    const formatted = new Intl.NumberFormat("ru-RU", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(n);
+    return `${formatted}\u00a0฿`;
+  }
   try {
     return new Intl.NumberFormat("ru-RU", {
       style: "currency",

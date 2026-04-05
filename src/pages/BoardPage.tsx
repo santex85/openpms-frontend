@@ -25,6 +25,7 @@ import { useNavigate } from "react-router-dom";
 
 import { type BookingPatchBody, patchBooking } from "@/api/bookings";
 import { putAvailabilityOverride } from "@/api/inventory";
+import { BoardBookingSummaryDialog } from "@/components/board/BoardBookingSummaryDialog";
 import { BoardGrid } from "@/components/board/BoardGrid";
 import type { BoardBookingMenuApi } from "@/components/board/BookingBlock";
 import { BoardSidebar } from "@/components/board/BoardSidebar";
@@ -59,7 +60,6 @@ import {
   parseRoomIdFromDndOver,
 } from "@/lib/boardDnd";
 import { formatApiError } from "@/lib/formatApiError";
-import { bookingStatusLabel } from "@/lib/i18n/domainLabels";
 import { duplicateRoomNameKeys } from "@/lib/roomDuplicateNames";
 import { useCanWriteBookings, useCanWriteInventory } from "@/hooks/useAuthz";
 import { usePropertyStore } from "@/stores/property-store";
@@ -192,6 +192,9 @@ export function BoardPage() {
     }) => patchBooking(bookingId, body),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["bookings", "folio"],
+      });
       void queryClient.invalidateQueries({
         queryKey: ["inventory", "availability"],
       });
@@ -410,6 +413,24 @@ export function BoardPage() {
     () => duplicateRoomNameKeys(rooms ?? []),
     [rooms]
   );
+
+  const summaryRoomName = useMemo(() => {
+    if (summaryBooking === null || summaryBooking.room_id === null) {
+      return null;
+    }
+    return roomNameById.get(summaryBooking.room_id) ?? null;
+  }, [summaryBooking, roomNameById]);
+
+  const summaryRoomTypeName = useMemo(() => {
+    if (
+      summaryBooking === null ||
+      summaryBooking.room_type_id === null ||
+      summaryBooking.room_type_id === undefined
+    ) {
+      return null;
+    }
+    return roomTypeNameById.get(summaryBooking.room_type_id) ?? null;
+  }, [summaryBooking, roomTypeNameById]);
 
   const showAvailabilityPending =
     Boolean(selectedPropertyId) && availabilityPending;
@@ -696,7 +717,7 @@ export function BoardPage() {
               строки.
             </DialogDescription>
           </DialogHeader>
-          {canWriteInventory ? (
+          {canWriteInventory && !canWriteBookings ? (
             <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
               <p className="text-sm text-foreground">
                 Снять с продажи слот категории (+1 к блокировкам в ночлеге)
@@ -933,92 +954,39 @@ export function BoardPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog
+      <BoardBookingSummaryDialog
+        booking={summaryBooking}
         open={summaryBooking !== null}
-        onOpenChange={(open) => {
-          if (!open) {
+        onOpenChange={(next) => {
+          if (!next) {
             setSummaryBooking(null);
           }
         }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {summaryBooking !== null
-                ? `${summaryBooking.guest.last_name} ${summaryBooking.guest.first_name}`.trim()
-                : "Бронь"}
-            </DialogTitle>
-            <DialogDescription>
-              Краткие данные по выбранной брони на сетке.
-            </DialogDescription>
-          </DialogHeader>
-          {summaryBooking !== null ? (
-            <div className="space-y-1 py-2 text-sm">
-              <p className="text-foreground">
-                Статус:{" "}
-                <span className="font-medium">
-                  {bookingStatusLabel(summaryBooking.status)}
-                </span>
-              </p>
-              <p className="tabular-nums text-muted-foreground">
-                Заезд: {summaryBooking.check_in_date ?? "—"} · Выезд:{" "}
-                {summaryBooking.check_out_date ?? "—"}
-              </p>
-              <p className="text-muted-foreground">
-                Номер:{" "}
-                {summaryBooking.room_id !== null
-                  ? (roomNameById.get(summaryBooking.room_id) ?? "—")
-                  : "—"}
-              </p>
-              <p className="text-muted-foreground">
-                Категория:{" "}
-                {summaryBooking.room_type_id !== null &&
-                summaryBooking.room_type_id !== undefined
-                  ? (roomTypeNameById.get(summaryBooking.room_type_id) ?? "—")
-                  : "—"}
-              </p>
-            </div>
-          ) : null}
-          <DialogFooter className="flex-col gap-2 sm:flex-row">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setSummaryBooking(null);
-              }}
-            >
-              Закрыть
-            </Button>
-            {summaryBooking !== null && bookingMenuApi !== null ? (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={bookingMenuApi.patchIsPending}
-                  onClick={() => {
-                    const b = summaryBooking;
-                    const api = bookingMenuApi;
-                    setSummaryBooking(null);
-                    api.openReschedule(b);
-                  }}
-                >
-                  Перенос дат…
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    const id = summaryBooking.id;
-                    bookingMenuApi.openFolio(id);
-                  }}
-                >
-                  Карточка / фолио
-                </Button>
-              </>
-            ) : null}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        roomName={summaryRoomName}
+        roomTypeName={summaryRoomTypeName}
+        canWriteBookings={canWriteBookings}
+        patchIsPending={patchBookingMut.isPending}
+        onPatch={(bookingId, body) => {
+          setBoardMessage(null);
+          patchBookingMut.mutate(
+            { bookingId, body },
+            {
+              onError: (e) => {
+                setBoardMessage(formatApiError(e));
+              },
+            }
+          );
+        }}
+        onReschedule={(b) => {
+          if (bookingMenuApi !== null) {
+            bookingMenuApi.openReschedule(b);
+          }
+        }}
+        onGoToBooking={(id) => {
+          navigate(`/bookings/${id}`);
+          setSummaryBooking(null);
+        }}
+      />
 
       <Dialog
         open={rescheduleBooking !== null}

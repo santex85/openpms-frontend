@@ -103,6 +103,8 @@ export function BoardTapeGrid({
     );
   }
 
+  const totalRooms = rooms.length;
+
   return (
     <div className="max-h-[min(70vh,calc(100vh-8rem))] overflow-auto rounded-md border border-border bg-background shadow-sm">
       <div
@@ -117,8 +119,17 @@ export function BoardTapeGrid({
           )}
         >
           {labelHeader}
+          <div className="mt-0.5 text-[0.6rem] text-muted-foreground">
+            ЗАНЯТОСТЬ
+          </div>
         </div>
-        {days.map((day) => (
+        {days.map((day) => {
+          const available = sumsByDate.get(day.iso) ?? 0;
+          const occ =
+            totalRooms > 0
+              ? Math.round(((totalRooms - available) / totalRooms) * 100)
+              : 0;
+          return (
           <div
             key={day.iso}
             className={cn(
@@ -134,17 +145,21 @@ export function BoardTapeGrid({
             <div className="mt-1 text-[0.65rem] tabular-nums text-muted-foreground md:text-xs">
               {day.iso.slice(5)}
             </div>
-            <div className="mt-1 text-sm font-semibold tabular-nums text-foreground">
-              {availabilityError ? (
-                <span className="text-destructive">—</span>
-              ) : availabilityPending ? (
-                <span className="text-muted-foreground">…</span>
-              ) : (
-                sumsByDate.get(day.iso) ?? 0
+            <div
+              className={cn(
+                "mt-1 text-sm font-semibold tabular-nums",
+                occ >= 80
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : occ >= 50
+                    ? "text-foreground"
+                    : "text-muted-foreground"
               )}
+            >
+              {availabilityError ? "—" : availabilityPending ? "…" : `${occ}%`}
             </div>
           </div>
-        ))}
+          );
+        })}
 
         {roomTypes.map((rt) => {
           const roomsInType = roomsByTypeId.get(rt.id) ?? [];

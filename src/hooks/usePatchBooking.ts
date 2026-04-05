@@ -18,6 +18,9 @@ export function usePatchBooking(bookingId: string) {
         queryKey: ["bookings", "detail", authKey, bookingId],
       });
       void queryClient.invalidateQueries({
+        queryKey: ["bookings", "folio", authKey, bookingId],
+      });
+      void queryClient.invalidateQueries({
         queryKey: ["bookings", authKey],
         exact: false,
       });

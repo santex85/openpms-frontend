@@ -11,7 +11,7 @@ export interface FolioTransactionRead {
   created_at: string;
   created_by: string | null;
   category: string;
-  /** Если false — строку нельзя сторнировать через DELETE. */
+  /** Если false — строку нельзя отменить через DELETE. */
   voidable?: boolean;
 }
 

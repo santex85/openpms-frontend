@@ -24,6 +24,10 @@ import { formatIsoDateLocal } from "@/utils/boardDates";
 
 const GUESTS_PAGE_SIZE = 25;
 
+/** Shared grid for sticky header + absolute virtual rows (plain table layout desyncs columns). */
+const GUESTS_LIST_ROW_GRID =
+  "grid w-full grid-cols-[2.5rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.25fr)_7rem_4rem_7rem]";
+
 function guestInitials(first: string, last: string): string {
   const a = first.trim()[0] ?? "";
   const b = last.trim()[0] ?? "";
@@ -195,21 +199,21 @@ export function GuestsPage() {
       ) : (
         <div
           ref={guestsScrollRef}
-          className="max-h-[min(520px,65vh)] overflow-auto rounded-md border"
+          className="max-h-[min(520px,65vh)] overflow-auto rounded-md border border-border"
         >
-          <table className="w-full min-w-[640px] table-fixed text-left text-sm">
-            <thead className="sticky top-0 z-10 border-b bg-muted/50">
-              <tr>
-                <th className="w-10 px-2 py-2" aria-hidden />
-                <th className="px-3 py-2 font-medium">Фамилия</th>
-                <th className="px-3 py-2 font-medium">Имя</th>
-                <th className="px-3 py-2 font-medium">Email</th>
-                <th className="w-[7rem] px-3 py-2 font-medium">Телефон</th>
-                <th className="w-[4rem] px-3 py-2 font-medium">VIP</th>
-                <th className="w-[7rem] px-3 py-2 font-medium">Создан</th>
-              </tr>
-            </thead>
-            <tbody
+          <div className="min-w-[640px] text-left text-sm">
+            <div
+              className={`${GUESTS_LIST_ROW_GRID} sticky top-0 z-10 border-b border-border bg-muted/50`}
+            >
+              <div className="px-2 py-2" aria-hidden />
+              <div className="px-3 py-2 font-medium">Фамилия</div>
+              <div className="px-3 py-2 font-medium">Имя</div>
+              <div className="px-3 py-2 font-medium">Email</div>
+              <div className="px-3 py-2 font-medium">Телефон</div>
+              <div className="px-3 py-2 font-medium">VIP</div>
+              <div className="px-3 py-2 font-medium">Создан</div>
+            </div>
+            <div
               className="relative"
               style={{
                 height:
@@ -223,10 +227,11 @@ export function GuestsPage() {
                 : guestsVirtual.getVirtualItems().map((vi) => {
                     const g = guests[vi.index];
                     return (
-                      <tr
+                      <div
                         key={g.id}
                         tabIndex={0}
-                        className="absolute left-0 table w-full cursor-pointer border-b border-border/80 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        role="button"
+                        className={`${GUESTS_LIST_ROW_GRID} absolute left-0 cursor-pointer items-center border-b border-border/80 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
                         style={{
                           transform: `translateY(${vi.start}px)`,
                           height: `${vi.size}px`,
@@ -235,32 +240,33 @@ export function GuestsPage() {
                           navigate(`/guests/${g.id}`);
                         }}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter") {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
                             navigate(`/guests/${g.id}`);
                           }
                         }}
                       >
-                        <td className="px-2 py-2 align-middle">
+                        <div className="flex justify-center px-2 py-2 align-middle">
                           <span
-                            className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary"
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary"
                             aria-hidden
                           >
                             {guestInitials(g.first_name, g.last_name)}
                           </span>
-                        </td>
-                        <td className="px-3 py-2 align-middle font-medium text-foreground">
-                          {g.last_name}
-                        </td>
-                        <td className="px-3 py-2 align-middle text-foreground">
-                          {g.first_name}
-                        </td>
-                        <td className="px-3 py-2 align-middle text-muted-foreground">
-                          {g.email}
-                        </td>
-                        <td className="px-3 py-2 align-middle tabular-nums text-muted-foreground">
-                          {g.phone}
-                        </td>
-                        <td className="px-3 py-2 align-middle">
+                        </div>
+                        <div className="min-w-0 px-3 py-2 align-middle font-medium text-foreground">
+                          <span className="block truncate">{g.last_name}</span>
+                        </div>
+                        <div className="min-w-0 px-3 py-2 align-middle text-foreground">
+                          <span className="block truncate">{g.first_name}</span>
+                        </div>
+                        <div className="min-w-0 px-3 py-2 align-middle text-muted-foreground">
+                          <span className="block truncate">{g.email}</span>
+                        </div>
+                        <div className="min-w-0 px-3 py-2 align-middle tabular-nums text-muted-foreground">
+                          <span className="block truncate">{g.phone}</span>
+                        </div>
+                        <div className="px-3 py-2 align-middle">
                           {g.vip_status ? (
                             <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-900/30 dark:text-amber-100">
                               VIP
@@ -268,15 +274,17 @@ export function GuestsPage() {
                           ) : (
                             <span className="text-muted-foreground">—</span>
                           )}
-                        </td>
-                        <td className="px-3 py-2 align-middle text-xs tabular-nums text-muted-foreground">
-                          {formatGuestDate(g.created_at)}
-                        </td>
-                      </tr>
+                        </div>
+                        <div className="min-w-0 px-3 py-2 align-middle text-xs tabular-nums text-muted-foreground">
+                          <span className="block truncate">
+                            {formatGuestDate(g.created_at)}
+                          </span>
+                        </div>
+                      </div>
                     );
                   })}
-            </tbody>
-          </table>
+            </div>
+          </div>
           {guests.length === 0 ? (
             <p className="px-3 py-8 text-center text-sm text-muted-foreground">
               Нет гостей по текущему запросу.

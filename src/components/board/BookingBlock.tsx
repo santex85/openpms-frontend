@@ -77,7 +77,16 @@ const DraggableBookingTile = memo(function DraggableBookingTile({
         }
       }}
     >
-      <span className="block truncate">{booking.guest.last_name}</span>
+      <span className="block truncate">
+        {[
+          booking.guest.last_name,
+          booking.guest.first_name?.charAt(0)
+            ? `${booking.guest.first_name.charAt(0).toUpperCase()}.`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      </span>
     </div>
   );
 

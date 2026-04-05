@@ -14,6 +14,15 @@ export function bookingStatusLabel(status: string): string {
   return BOOKING_STATUS_RU[k] ?? status;
 }
 
+/** Label inside compact summary badges (pending → «Ожидание» per UI spec). */
+export function bookingSummaryBadgeLabel(status: string): string {
+  const k = status.trim().toLowerCase();
+  if (k === "pending") {
+    return "Ожидание";
+  }
+  return bookingStatusLabel(status);
+}
+
 export function bookingStatusFilterItems(): { value: BookingStatusValue; label: string }[] {
   return BOOKING_STATUS_OPTIONS.map((v) => ({
     value: v,
@@ -21,7 +30,56 @@ export function bookingStatusFilterItems(): { value: BookingStatusValue; label: 
   }));
 }
 
+const BOOKING_SOURCE_RU: Record<string, string> = {
+  direct: "Прямое бронирование",
+  ota: "ОТА",
+  phone: "Телефон",
+  walk_in: "Walk-in",
+  website: "Сайт",
+  email: "E-mail",
+};
+
+export function bookingSourceLabel(source: string | null | undefined): string {
+  if (source === null || source === undefined) {
+    return "—";
+  }
+  const s = source.trim();
+  if (s === "") {
+    return "—";
+  }
+  const k = s.toLowerCase();
+  return BOOKING_SOURCE_RU[k] ?? s;
+}
+
 /** Tailwind classes for booking tiles (board / legend). */
+/** Compact badge for booking summary modals (light semantic backgrounds). */
+export function bookingSummaryStatusBadgeClass(status: string): string {
+  const s = status.trim().toLowerCase();
+  if (s === "pending") {
+    return "border border-border bg-muted text-foreground";
+  }
+  if (s === "confirmed") {
+    return "border border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-100";
+  }
+  if (s === "checked_in" || s === "checked-in") {
+    return "border border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-100";
+  }
+  if (
+    s === "checked_out" ||
+    s === "checked-out" ||
+    s === "checkedout"
+  ) {
+    return "border border-border bg-muted/90 text-muted-foreground";
+  }
+  if (s === "cancelled" || s === "canceled") {
+    return "border border-red-200 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950/50 dark:text-red-100";
+  }
+  if (s === "no_show" || s === "no-show") {
+    return "border border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-100";
+  }
+  return "border border-border bg-muted text-foreground";
+}
+
 export function bookingStatusTileClasses(status: string): string {
   const s = status.trim().toLowerCase();
   if (s === "confirmed") {

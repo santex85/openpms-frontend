@@ -128,6 +128,20 @@ export function RoomsPage() {
     [rooms]
   );
 
+  /** Та же сетка для sticky-шапки и absolute virtual-строк (иначе thead и tbody расходятся). */
+  const roomsListGrid = useMemo(() => {
+    if (hkActive && canManage) {
+      return "grid w-full grid-cols-[minmax(10rem,1.35fr)_11rem_minmax(8rem,1fr)_minmax(8rem,1fr)_3.25rem] items-center";
+    }
+    if (hkActive && !canManage) {
+      return "grid w-full grid-cols-[minmax(10rem,1.35fr)_11rem_minmax(8rem,1fr)_minmax(8rem,1fr)] items-center";
+    }
+    if (!hkActive && canManage) {
+      return "grid w-full grid-cols-[minmax(10rem,1.35fr)_11rem_minmax(8rem,1fr)_3.25rem] items-center";
+    }
+    return "grid w-full grid-cols-[minmax(10rem,1.35fr)_11rem_minmax(8rem,1fr)] items-center";
+  }, [hkActive, canManage]);
+
   if (selectedPropertyId === null) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -255,24 +269,27 @@ export function RoomsPage() {
             ref={roomsScrollRef}
             className="max-h-[min(560px,65vh)] overflow-auto rounded-md border"
           >
-            <table className="w-full min-w-[720px] table-fixed text-left text-sm">
-              <thead className="sticky top-0 z-10 border-b bg-muted/50">
-                <tr>
-                  <th className="w-[32%] px-3 py-2 font-medium">Название</th>
-                  <th className="w-[22%] px-3 py-2 font-medium">Статус</th>
-                  {hkActive ? (
-                    <th className="w-[16%] px-3 py-2 font-medium">Уборка</th>
-                  ) : null}
-                  <th className="px-3 py-2 font-medium">Категория</th>
-                  {canManage ? (
-                    <th className="w-[5rem] px-3 py-2 text-right font-medium">
-                      Удалить
-                    </th>
-                  ) : null}
-                </tr>
-              </thead>
-              <tbody
-                className="relative text-sm"
+            <div className="min-w-[720px] text-left text-sm">
+              <div
+                className={cn(
+                  roomsListGrid,
+                  "sticky top-0 z-10 border-b border-border bg-muted/50"
+                )}
+              >
+                <div className="px-3 py-2 font-medium">Название</div>
+                <div className="px-3 py-2 font-medium">Статус</div>
+                {hkActive ? (
+                  <div className="px-3 py-2 font-medium">Уборка</div>
+                ) : null}
+                <div className="px-3 py-2 font-medium">Категория</div>
+                {canManage ? (
+                  <div className="px-3 py-2 text-right font-medium">
+                    Удалить
+                  </div>
+                ) : null}
+              </div>
+              <div
+                className="relative"
                 style={{
                   height:
                     roomList.length === 0
@@ -285,10 +302,11 @@ export function RoomsPage() {
                   : roomsVirtual.getVirtualItems().map((vi) => {
                       const r = roomList[vi.index];
                       return (
-                        <tr
+                        <div
                           key={r.id}
                           className={cn(
-                            "absolute left-0 table w-full border-b border-border/80",
+                            roomsListGrid,
+                            "absolute left-0 w-full border-b border-border/80",
                             duplicateKeys.has(r.name.trim().toLowerCase()) &&
                               "bg-destructive/5 ring-1 ring-inset ring-destructive/25"
                           )}
@@ -302,14 +320,16 @@ export function RoomsPage() {
                               : undefined
                           }
                         >
-                          <td className="px-3 py-2 align-middle">
+                          <div className="min-w-0 px-3 py-2">
                             <div className="flex flex-wrap items-center gap-2">
-                              <span>{r.name}</span>
+                              <span className="font-medium text-foreground">
+                                {r.name}
+                              </span>
                               <Button
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                className="h-8 text-xs"
+                                className="h-8 shrink-0 text-xs"
                                 onClick={() => {
                                   setNameDialogRoom(r);
                                   setNameEdit(r.name);
@@ -318,8 +338,8 @@ export function RoomsPage() {
                                 Изменить
                               </Button>
                             </div>
-                          </td>
-                          <td className="px-3 py-2 align-middle">
+                          </div>
+                          <div className="min-w-0 px-3 py-2">
                             <Select
                               value={r.status}
                               onValueChange={(v) => {
@@ -330,7 +350,7 @@ export function RoomsPage() {
                               }}
                               disabled={patchRoomMut.isPending}
                             >
-                              <SelectTrigger className="h-8 w-[160px]">
+                              <SelectTrigger className="h-8 w-full max-w-[11rem]">
                                 <SelectValue
                                   placeholder={roomStatusLabel(r.status)}
                                 />
@@ -343,22 +363,26 @@ export function RoomsPage() {
                                 ))}
                               </SelectContent>
                             </Select>
-                          </td>
+                          </div>
                           {hkActive ? (
-                            <td className="px-3 py-2 align-middle text-muted-foreground">
-                              {hkCellText(r)}
-                            </td>
+                            <div className="min-w-0 px-3 py-2 text-muted-foreground">
+                              <span className="block break-words">
+                                {hkCellText(r)}
+                              </span>
+                            </div>
                           ) : null}
-                          <td className="px-3 py-2 align-middle text-foreground">
-                            {roomTypeNameById.get(r.room_type_id) ?? "—"}
-                          </td>
+                          <div className="min-w-0 px-3 py-2 text-foreground">
+                            <span className="block truncate">
+                              {roomTypeNameById.get(r.room_type_id) ?? "—"}
+                            </span>
+                          </div>
                           {canManage ? (
-                            <td className="px-3 py-2 text-right align-middle">
+                            <div className="flex justify-end px-3 py-2">
                               <Button
                                 type="button"
                                 variant="ghost"
                                 size="sm"
-                                className="h-8 text-destructive hover:bg-destructive/10"
+                                className="h-8 shrink-0 text-destructive hover:bg-destructive/10"
                                 aria-label="Удалить номер"
                                 onClick={() => {
                                   setDeleteRoomRow(r);
@@ -366,13 +390,13 @@ export function RoomsPage() {
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
-                            </td>
+                            </div>
                           ) : null}
-                        </tr>
+                        </div>
                       );
                     })}
-              </tbody>
-            </table>
+              </div>
+            </div>
           </div>
         )}
       </div>

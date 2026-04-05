@@ -75,6 +75,12 @@ export interface Booking {
   room_id: string | null;
   /** Present when all booking lines share one room type. */
   room_type_id?: string | null;
+  /** When API returns booking-level notes (optional). */
+  notes?: string | null;
+  /** Additional guests on the booking when API embeds them (optional). */
+  guests?: Guest[];
+  booking_type?: string | null;
+  rate_plan_id?: string | null;
 }
 
 /** Guest on POST /bookings body */

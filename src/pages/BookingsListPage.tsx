@@ -61,6 +61,10 @@ function formatCreateBookingError(err: unknown): string {
 
 const BOOKINGS_PAGE_SIZE = 25;
 
+/** Absolute virtual rows break sync with table-fixed headers; shared grid keeps columns aligned. */
+const BOOKINGS_LIST_ROW_GRID =
+  "grid w-full grid-cols-[minmax(0,1fr)_9rem_7rem_7rem_6rem]";
+
 export function BookingsListPage() {
   const navigate = useNavigate();
   const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
@@ -354,17 +358,17 @@ export function BookingsListPage() {
           ref={bookingsScrollRef}
           className="max-h-[min(520px,65vh)] overflow-auto rounded-md border border-border"
         >
-          <table className="w-full min-w-[640px] table-fixed text-left text-sm">
-            <thead className="sticky top-0 z-10 border-b bg-muted/50">
-              <tr>
-                <th className="px-3 py-2 font-medium">Гость</th>
-                <th className="w-[9rem] px-3 py-2 font-medium">Статус</th>
-                <th className="w-[7rem] px-3 py-2 font-medium">Заезд</th>
-                <th className="w-[7rem] px-3 py-2 font-medium">Выезд</th>
-                <th className="w-[6rem] px-3 py-2 font-medium" />
-              </tr>
-            </thead>
-            <tbody
+          <div className="min-w-[640px] text-left text-sm">
+            <div
+              className={`${BOOKINGS_LIST_ROW_GRID} sticky top-0 z-10 border-b border-border bg-muted/50`}
+            >
+              <div className="px-3 py-2 font-medium">Гость</div>
+              <div className="px-3 py-2 font-medium">Статус</div>
+              <div className="px-3 py-2 font-medium">Заезд</div>
+              <div className="px-3 py-2 font-medium">Выезд</div>
+              <div className="px-3 py-2 font-medium" aria-hidden />
+            </div>
+            <div
               className="relative"
               style={{
                 height:
@@ -378,10 +382,11 @@ export function BookingsListPage() {
                 : bookingsVirtual.getVirtualItems().map((vi) => {
                     const b = filteredRows[vi.index];
                     return (
-                      <tr
+                      <div
                         key={b.id}
                         tabIndex={0}
-                        className="absolute left-0 table w-full cursor-pointer border-b border-border/80 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        role="button"
+                        className={`${BOOKINGS_LIST_ROW_GRID} absolute left-0 cursor-pointer items-center border-b border-border/80 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
                         style={{
                           transform: `translateY(${vi.start}px)`,
                           height: `${vi.size}px`,
@@ -390,24 +395,27 @@ export function BookingsListPage() {
                           navigate(`/bookings/${b.id}`);
                         }}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter") {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
                             navigate(`/bookings/${b.id}`);
                           }
                         }}
                       >
-                        <td className="px-3 py-2 align-middle">
-                          {b.guest.last_name} {b.guest.first_name}
-                        </td>
-                        <td className="px-3 py-2 align-middle tabular-nums text-muted-foreground">
+                        <div className="min-w-0 px-3 py-2 align-middle">
+                          <span className="block truncate">
+                            {b.guest.last_name} {b.guest.first_name}
+                          </span>
+                        </div>
+                        <div className="px-3 py-2 align-middle tabular-nums text-muted-foreground">
                           {bookingStatusLabel(b.status)}
-                        </td>
-                        <td className="px-3 py-2 align-middle tabular-nums">
+                        </div>
+                        <div className="px-3 py-2 align-middle tabular-nums">
                           {b.check_in_date ?? "—"}
-                        </td>
-                        <td className="px-3 py-2 align-middle tabular-nums">
+                        </div>
+                        <div className="px-3 py-2 align-middle tabular-nums">
                           {b.check_out_date ?? "—"}
-                        </td>
-                        <td
+                        </div>
+                        <div
                           className="px-3 py-2 text-right align-middle"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -416,12 +424,12 @@ export function BookingsListPage() {
                           <Button variant="outline" size="sm" asChild>
                             <Link to={`/bookings/${b.id}`}>Открыть</Link>
                           </Button>
-                        </td>
-                      </tr>
+                        </div>
+                      </div>
                     );
                   })}
-            </tbody>
-          </table>
+            </div>
+          </div>
           {rows.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground">Нет записей.</p>
           ) : filteredRows.length === 0 ? (

@@ -113,6 +113,10 @@ function csvEscape(s: string): string {
   return s;
 }
 
+/** Общая сетка для шапки и virtual-строк (absolute + display:table ломает колонки). */
+const AUDIT_LIST_GRID_COLS =
+  "grid w-full grid-cols-[11rem_8rem_7rem_minmax(9rem,14rem)_minmax(10rem,1.2fr)_6rem_minmax(12rem,2fr)]";
+
 export function AuditLogPage() {
   const [searchParams] = useSearchParams();
   const [page, setPage] = useState(0);
@@ -334,21 +338,19 @@ export function AuditLogPage() {
           ref={auditScrollRef}
           className="max-h-[min(520px,65vh)] overflow-auto rounded-md border"
         >
-          <table className="w-full min-w-[960px] table-fixed text-left text-sm">
-            <thead className="sticky top-0 z-10 border-b bg-muted/50">
-              <tr>
-                <th className="w-[11rem] px-3 py-2 font-medium">Время</th>
-                <th className="w-[8rem] px-3 py-2 font-medium">Действие</th>
-                <th className="w-[7rem] px-3 py-2 font-medium">Сущность</th>
-                <th className="w-[10rem] px-3 py-2 font-medium">ID</th>
-                <th className="w-[11rem] px-3 py-2 font-medium">
-                  Пользователь
-                </th>
-                <th className="w-[6rem] px-3 py-2 font-medium">IP</th>
-                <th className="px-3 py-2 font-medium">Новые значения</th>
-              </tr>
-            </thead>
-            <tbody
+          <div className="min-w-[960px] text-left text-sm">
+            <div
+              className={`${AUDIT_LIST_GRID_COLS} sticky top-0 z-10 items-center border-b border-border bg-muted/50`}
+            >
+              <div className="px-3 py-2 font-medium">Время</div>
+              <div className="px-3 py-2 font-medium">Действие</div>
+              <div className="px-3 py-2 font-medium">Сущность</div>
+              <div className="px-3 py-2 font-medium">ID</div>
+              <div className="px-3 py-2 font-medium">Пользователь</div>
+              <div className="px-3 py-2 font-medium">IP</div>
+              <div className="px-3 py-2 font-medium">Новые значения</div>
+            </div>
+            <div
               className="relative"
               style={{
                 height:
@@ -362,10 +364,11 @@ export function AuditLogPage() {
                 : auditVirtual.getVirtualItems().map((vi) => {
                     const r = filtered[vi.index];
                     return (
-                      <tr
+                      <div
                         key={r.id}
                         tabIndex={0}
-                        className="absolute left-0 table w-full cursor-pointer border-b border-border/80 align-top hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        role="button"
+                        className={`${AUDIT_LIST_GRID_COLS} absolute left-0 w-full cursor-pointer items-start border-b border-border/80 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
                         style={{
                           transform: `translateY(${vi.start}px)`,
                           height: `${vi.size}px`,
@@ -379,30 +382,36 @@ export function AuditLogPage() {
                           }
                         }}
                       >
-                        <td className="px-3 py-2 align-top tabular-nums text-muted-foreground">
+                        <div className="min-w-0 px-3 py-2 tabular-nums text-muted-foreground">
                           {formatTs(r.created_at)}
-                        </td>
-                        <td className="px-3 py-2 align-top font-mono text-xs">
+                        </div>
+                        <div className="min-w-0 break-all px-3 py-2 font-mono text-xs">
                           {r.action}
-                        </td>
-                        <td className="px-3 py-2 align-top">{r.entity_type}</td>
-                        <td className="px-3 py-2 align-top font-mono text-xs text-muted-foreground">
+                        </div>
+                        <div className="min-w-0 px-3 py-2 break-words">
+                          {r.entity_type}
+                        </div>
+                        <div className="min-w-0 break-all px-3 py-2 font-mono text-xs text-muted-foreground">
                           {r.entity_id ?? "—"}
-                        </td>
-                        <td className="max-w-[200px] px-3 py-2 align-top text-xs text-foreground">
-                          {userLabel(userMap, r.user_id)}
-                        </td>
-                        <td className="px-3 py-2 align-top text-xs text-muted-foreground">
+                        </div>
+                        <div className="min-w-0 px-3 py-2 text-xs text-foreground">
+                          <span className="block break-words">
+                            {userLabel(userMap, r.user_id)}
+                          </span>
+                        </div>
+                        <div className="min-w-0 px-3 py-2 text-xs text-muted-foreground">
                           {r.ip_address ?? "—"}
-                        </td>
-                        <td className="max-w-[240px] px-3 py-2 align-top font-mono text-[10px] text-muted-foreground">
-                          {shortJson(r.new_values)}
-                        </td>
-                      </tr>
+                        </div>
+                        <div className="min-w-0 px-3 py-2 font-mono text-[10px] text-muted-foreground">
+                          <span className="block break-words">
+                            {shortJson(r.new_values)}
+                          </span>
+                        </div>
+                      </div>
                     );
                   })}
-            </tbody>
-          </table>
+            </div>
+          </div>
           {filtered.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground">
               Нет записей (или нет совпадений фильтру).

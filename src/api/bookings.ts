@@ -159,6 +159,8 @@ export interface BookingPatchBody {
   check_in?: string | null;
   check_out?: string | null;
   cancellation_reason?: string | null;
+  /** Supported only if backend accepts notes on PATCH; otherwise API returns an error. */
+  notes?: string | null;
 }
 
 export async function patchBooking(
