@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Navigate, useLocation } from "react-router-dom";
 
 import { refreshAccessToken } from "@/api/auth";
@@ -12,6 +13,7 @@ interface RequireAuthProps {
 type GateState = "loading" | "authed" | "anon";
 
 export function RequireAuth({ children }: RequireAuthProps) {
+  const { t } = useTranslation();
   const location = useLocation();
   const [gate, setGate] = useState<GateState>(() =>
     getAccessToken() !== null && getAccessToken() !== "" ? "authed" : "loading"
@@ -48,7 +50,7 @@ export function RequireAuth({ children }: RequireAuthProps) {
   if (gate === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <p className="text-sm text-muted-foreground">Загрузка сессии…</p>
+        <p className="text-sm text-muted-foreground">{t("app.sessionLoading")}</p>
       </div>
     );
   }

@@ -1,4 +1,5 @@
 import { lazy, Suspense, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { RequireAuth } from "@/components/auth/RequireAuth";
@@ -59,17 +60,19 @@ const RegisterPage = lazy(() =>
 );
 
 function FullScreenFallback() {
+  const { t } = useTranslation();
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
-      <p className="text-sm text-muted-foreground">Загрузка…</p>
+      <p className="text-sm text-muted-foreground">{t("app.loading")}</p>
     </div>
   );
 }
 
 function PageFallback() {
+  const { t } = useTranslation();
   return (
     <div className="flex min-h-[40vh] items-center justify-center">
-      <p className="text-sm text-muted-foreground">Загрузка…</p>
+      <p className="text-sm text-muted-foreground">{t("app.loading")}</p>
     </div>
   );
 }

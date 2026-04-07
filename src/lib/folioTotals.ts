@@ -1,5 +1,7 @@
 import type { FolioTransactionRead } from "@/api/folio";
 
+import { isCountryPackAutoTaxTransaction } from "@/lib/folioCountryPack";
+
 function parseAmt(s: string): number {
   const n = Number.parseFloat(s);
   return Number.isFinite(n) ? n : 0;
@@ -9,6 +11,8 @@ export interface FolioComputedTotals {
   chargesGross: number;
   roomCharges: number;
   extrasCharges: number;
+  /** Auto tax lines from country pack (subset of charges). */
+  countryPackTaxes: number;
   paymentsTotal: number;
 }
 
@@ -34,6 +38,7 @@ export function computeFolioTotals(
   let chargesGross = 0;
   let roomCharges = 0;
   let extrasCharges = 0;
+  let countryPackTaxes = 0;
   let paymentsTotal = 0;
 
   for (const t of transactions) {
@@ -45,6 +50,10 @@ export function computeFolioTotals(
     }
     if (typ === "charge") {
       chargesGross += amt;
+      if (isCountryPackAutoTaxTransaction(t)) {
+        countryPackTaxes += amt;
+        continue;
+      }
       if (isRoomLikeFolioCategory(t.category)) {
         roomCharges += amt;
       } else {
@@ -53,5 +62,11 @@ export function computeFolioTotals(
     }
   }
 
-  return { chargesGross, roomCharges, extrasCharges, paymentsTotal };
+  return {
+    chargesGross,
+    roomCharges,
+    extrasCharges,
+    countryPackTaxes,
+    paymentsTotal,
+  };
 }

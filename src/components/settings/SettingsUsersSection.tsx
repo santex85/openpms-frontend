@@ -1,6 +1,9 @@
 import { FormEvent, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import axios from "axios";
 
+import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,7 +22,6 @@ import {
 } from "@/components/ui/select";
 import { useAuthRole } from "@/hooks/useAuthz";
 import { useCurrentUserQueryContext } from "@/hooks/useCurrentUserQueryContext";
-import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { useInviteUser } from "@/hooks/useInviteUser";
 import { usePatchTenantUser } from "@/hooks/usePatchTenantUser";
 import { useTenantUsers } from "@/hooks/useTenantUsers";
@@ -27,19 +29,13 @@ import { copyToClipboard } from "@/lib/copyToClipboard";
 import { formatApiError } from "@/lib/formatApiError";
 import { tenantRoleLabel } from "@/lib/i18n/domainLabels";
 import { toastError, toastSuccess } from "@/lib/toast";
-import axios from "axios";
-
-const ROLE_OPTIONS = [
-  { value: "manager", label: tenantRoleLabel("manager") },
-  { value: "receptionist", label: tenantRoleLabel("receptionist") },
-  { value: "housekeeping", label: tenantRoleLabel("housekeeping") },
-] as const;
 
 interface SettingsUsersSectionProps {
   canManage: boolean;
 }
 
 export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
+  const { t, i18n } = useTranslation();
   const { data: me } = useCurrentUserQueryContext();
   const { data: users, isPending, isError } = useTenantUsers(canManage);
   const inviteMutation = useInviteUser();
@@ -60,9 +56,19 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
     return base;
   }, [authRole]);
 
+  const roleInviteOptions = useMemo(
+    () =>
+      [
+        { value: "manager", label: tenantRoleLabel("manager") },
+        { value: "receptionist", label: tenantRoleLabel("receptionist") },
+        { value: "housekeeping", label: tenantRoleLabel("housekeeping") },
+      ] as const,
+    [i18n.language]
+  );
+
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<string>(ROLE_OPTIONS[0].value);
+  const [role, setRole] = useState<string>(roleInviteOptions[0].value);
   const [formError, setFormError] = useState<string | null>(null);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [invitePasswordPayload, setInvitePasswordPayload] = useState<{
@@ -76,11 +82,11 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
     const em = email.trim();
     const fn = fullName.trim();
     if (em === "") {
-      setFormError("Укажите email.");
+      setFormError(t("settings.users.err.emailRequired"));
       return;
     }
     if (fn === "") {
-      setFormError("Укажите полное имя (full_name).");
+      setFormError(t("settings.users.err.fullNameRequired"));
       return;
     }
     try {
@@ -104,9 +110,11 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
   if (!canManage) {
     return (
       <section className="space-y-2 rounded-lg border border-border bg-card p-4">
-        <h3 className="text-sm font-semibold text-foreground">Пользователи</h3>
+        <h3 className="text-sm font-semibold text-foreground">
+          {t("settings.users.title")}
+        </h3>
         <p className="text-sm text-muted-foreground">
-          Список и приглашения доступны ролям owner и manager.
+          {t("settings.users.noPermission")}
         </p>
       </section>
     );
@@ -115,9 +123,11 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
   return (
     <section className="space-y-4 rounded-lg border border-border bg-card p-4">
       <div>
-        <h3 className="text-sm font-semibold text-foreground">Пользователи</h3>
+        <h3 className="text-sm font-semibold text-foreground">
+          {t("settings.users.title")}
+        </h3>
         <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          <span>Управление пользователями тенанта.</span>
+          <span>{t("settings.users.intro")}</span>
           <ApiRouteHint>GET /auth/users</ApiRouteHint>
           <ApiRouteHint>PATCH /auth/users/{"{"}id{"}"}</ApiRouteHint>
           <ApiRouteHint>POST /auth/invite</ApiRouteHint>
@@ -126,7 +136,7 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
 
       {isError ? (
         <p className="text-sm text-destructive">
-          Не удалось загрузить пользователей.
+          {t("settings.users.loadError")}
         </p>
       ) : isPending ? (
         <div className="h-24 animate-pulse rounded-md bg-muted" aria-hidden />
@@ -135,10 +145,18 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead className="border-b bg-muted/50">
               <tr>
-                <th className="px-3 py-2 font-medium">Email</th>
-                <th className="px-3 py-2 font-medium">Имя</th>
-                <th className="px-3 py-2 font-medium">Роль</th>
-                <th className="px-3 py-2 font-medium">Активен</th>
+                <th className="px-3 py-2 font-medium">
+                  {t("settings.users.colEmail")}
+                </th>
+                <th className="px-3 py-2 font-medium">
+                  {t("settings.users.colName")}
+                </th>
+                <th className="px-3 py-2 font-medium">
+                  {t("settings.users.colRole")}
+                </th>
+                <th className="px-3 py-2 font-medium">
+                  {t("settings.users.colActive")}
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -191,9 +209,7 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
                           type="checkbox"
                           className="h-4 w-4 rounded border border-input"
                           checked={u.is_active}
-                          disabled={
-                            activeDisabled || (isSelf && u.is_active)
-                          }
+                          disabled={activeDisabled || (isSelf && u.is_active)}
                           onChange={(e) => {
                             const next = e.target.checked;
                             void (async () => {
@@ -215,11 +231,11 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
                             })();
                           }}
                         />
-                        {u.is_active ? "да" : "нет"}
+                        {u.is_active ? t("common.yes") : t("common.no")}
                       </label>
                       {isSelf && u.is_active ? (
                         <p className="mt-1 text-[10px] text-muted-foreground">
-                          Себя деактивировать нельзя.
+                          {t("settings.users.cannotDeactivateSelf")}
                         </p>
                       ) : null}
                     </td>
@@ -236,7 +252,7 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
         onSubmit={(e) => void onInvite(e)}
       >
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Пригласить пользователя
+          {t("settings.users.inviteSection")}
         </p>
         {formError !== null ? (
           <p className="text-sm text-destructive" role="alert">
@@ -245,7 +261,7 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
         ) : null}
         <div className="space-y-1">
           <label htmlFor="inv-email" className="text-sm font-medium">
-            Email
+            {t("settings.users.colEmail")}
           </label>
           <Input
             id="inv-email"
@@ -259,7 +275,7 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
         </div>
         <div className="space-y-1">
           <label htmlFor="inv-name" className="text-sm font-medium">
-            Полное имя (full_name)
+            {t("settings.users.fullName")}
           </label>
           <Input
             id="inv-name"
@@ -271,13 +287,15 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
           />
         </div>
         <div className="space-y-1">
-          <span className="text-sm font-medium">Роль</span>
+          <span className="text-sm font-medium">
+            {t("settings.users.roleLabel")}
+          </span>
           <Select value={role} onValueChange={setRole}>
-            <SelectTrigger aria-label="Роль приглашения">
+            <SelectTrigger aria-label={t("settings.users.roleInviteAria")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {ROLE_OPTIONS.map((r) => (
+              {roleInviteOptions.map((r) => (
                 <SelectItem key={r.value} value={r.value}>
                   {r.label}
                 </SelectItem>
@@ -289,25 +307,24 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
           {inviteMutation.isPending ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
           ) : null}
-          {inviteMutation.isPending ? "Отправка…" : "Отправить приглашение"}
+          {inviteMutation.isPending
+            ? t("settings.users.sending")
+            : t("settings.users.sendInvite")}
         </Button>
         <p className="text-xs text-muted-foreground">
-          Повторная отправка приглашения тем же email не предусмотрена API —
-          при необходимости обратитесь к администратору тенанта.
+          {t("settings.users.inviteHint")}
         </p>
       </form>
 
       <Dialog open={passwordModalOpen} onOpenChange={setPasswordModalOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Временный пароль</DialogTitle>
+            <DialogTitle>{t("settings.users.tempPasswordTitle")}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Сообщите пользователю{" "}
-            <span className="font-medium text-foreground">
-              {invitePasswordPayload?.email}
-            </span>{" "}
-            одноразовый пароль. При следующем входе попросите сменить пароль.
+            {t("settings.users.tempPasswordHint", {
+              email: invitePasswordPayload?.email ?? "",
+            })}
           </p>
           {invitePasswordPayload !== null ? (
             <pre className="overflow-x-auto rounded-md bg-muted p-3 text-sm">
@@ -325,17 +342,17 @@ export function SettingsUsersSection({ canManage }: SettingsUsersSectionProps) {
                     await copyToClipboard(
                       invitePasswordPayload.temporary_password
                     );
-                    toastSuccess("Пароль скопирован");
+                    toastSuccess(t("settings.users.toastPasswordCopied"));
                   } catch {
-                    toastError("Не удалось скопировать");
+                    toastError(t("common.copyFailed"));
                   }
                 })();
               }}
             >
-              Копировать
+              {t("common.copy")}
             </Button>
             <Button type="button" onClick={() => setPasswordModalOpen(false)}>
-              Закрыть
+              {t("common.close")}
             </Button>
           </DialogFooter>
         </DialogContent>

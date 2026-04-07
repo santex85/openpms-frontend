@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -28,6 +30,7 @@ export function Pagination({
   showTotalCount = true,
   className,
 }: PaginationProps) {
+  const { t } = useTranslation();
   const safeLimit = Math.max(1, limit);
   const pageIndex = Math.floor(offset / safeLimit);
   const totalPages = Math.max(1, Math.ceil(total / safeLimit));
@@ -49,10 +52,14 @@ export function Pagination({
       <p className="text-sm text-muted-foreground">
         {showTotalCount ? (
           <>
-            Всего: {total}. Стр. {pageIndex + 1} из {totalPages}.
+            {t("pagination.total", {
+              total,
+              page: pageIndex + 1,
+              pages: totalPages,
+            })}
           </>
         ) : (
-          <>Стр. {pageIndex + 1}</>
+          <>{t("pagination.page", { page: pageIndex + 1 })}</>
         )}
       </p>
       <div className="flex flex-wrap gap-2">
@@ -65,7 +72,7 @@ export function Pagination({
             onPageChange(Math.max(0, offset - safeLimit));
           }}
         >
-          Назад
+          {t("pagination.prev")}
         </Button>
         <Button
           type="button"
@@ -76,7 +83,7 @@ export function Pagination({
             onPageChange(offset + safeLimit);
           }}
         >
-          Вперёд
+          {t("pagination.next")}
         </Button>
       </div>
     </div>

@@ -5,6 +5,10 @@ import {
   deleteWebhookSubscription,
   patchWebhookSubscription,
 } from "@/api/webhooks-admin";
+import {
+  reencryptWebhookSecrets,
+  type WebhookReencryptSecretsBody,
+} from "@/api/webhooks-reencrypt";
 import { authQueryKeyPart } from "@/lib/authQueryKey";
 import { usePropertyStore } from "@/stores/property-store";
 import type {
@@ -69,5 +73,12 @@ export function usePatchWebhookSubscription() {
         queryKey: ["webhooks", "delivery-logs", authKey, selectedPropertyId],
       });
     },
+  });
+}
+
+export function useReencryptWebhookSecrets() {
+  return useMutation({
+    mutationFn: (body: WebhookReencryptSecretsBody) =>
+      reencryptWebhookSecrets(body),
   });
 }

@@ -1,6 +1,8 @@
 import { FormEvent, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Banknote,
+  Calculator,
   Copy,
   Loader2,
   MoreHorizontal,
@@ -11,6 +13,7 @@ import { Link, useParams } from "react-router-dom";
 
 import type { BookingPatchBody } from "@/api/bookings";
 import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
+import { CheckInRequirementsModal } from "@/components/bookings/CheckInRequirementsModal";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -33,12 +36,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useCanWriteBookings } from "@/hooks/useAuthz";
+import { useCanManageProperties, useCanWriteBookings } from "@/hooks/useAuthz";
+import { useCountryPackExtensions } from "@/hooks/useCountryPackExtensions";
 import { useBooking } from "@/hooks/useBooking";
 import { useBookingFolio } from "@/hooks/useBookingFolio";
 import {
-  useFolioDeleteTransaction,
   useFolioEntry,
+  useFolioReverseTransaction,
 } from "@/hooks/useFolioMutations";
 import { usePatchBooking } from "@/hooks/usePatchBooking";
 import { useProperties } from "@/hooks/useProperties";
@@ -46,16 +50,24 @@ import { useRatePlansForProperty } from "@/hooks/useRatePlans";
 import { useRoomTypes } from "@/hooks/useRoomTypes";
 import { useRooms } from "@/hooks/useRooms";
 import { bookingDisplayHash } from "@/lib/bookingDisplay";
+import { capitalizeGuestName } from "@/lib/capitalizeGuestName";
 import { BOOKING_STATUS_TRANSITIONS } from "@/lib/bookingStatusTransitions";
 import { showApiRouteHints } from "@/lib/devUi";
 import { formatApiError } from "@/lib/formatApiError";
 import { formatMoneyAmount } from "@/lib/formatMoney";
+import {
+  isCountryPackAutoTaxTransaction,
+  folioRowAllowsManualReverse,
+  stripCountryPackTaxDescription,
+} from "@/lib/folioCountryPack";
 import { computeFolioTotals, isRoomLikeFolioCategory } from "@/lib/folioTotals";
+import { parseCheckInMissingFields } from "@/lib/parseCheckInMissingFields";
 import {
   bookingSourceLabel,
   bookingSummaryBadgeLabel,
   bookingSummaryStatusBadgeClass,
   folioTransactionTypeLabel,
+  roomTypeDisplayName,
 } from "@/lib/i18n/domainLabels";
 import { cn } from "@/lib/utils";
 import type { Booking } from "@/types/api";
@@ -91,9 +103,13 @@ const PAYMENT_METHOD_OPTIONS = [
 ] as const;
 
 export function BookingDetailPage() {
+  const { t, i18n } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const bookingId = id ?? "";
   const canWriteBookings = useCanWriteBookings();
+  const canManageProperty = useCanManageProperties();
+  const { data: countryPackExtensions } =
+    useCountryPackExtensions(canManageProperty);
   const { data: properties } = useProperties();
   const { data: rooms } = useRooms();
   const { data: roomTypes } = useRoomTypes();
@@ -111,7 +127,7 @@ export function BookingDetailPage() {
     useBookingFolio(bookingId || undefined);
 
   const folioEntryMutation = useFolioEntry();
-  const deleteTxMutation = useFolioDeleteTransaction();
+  const reverseTxMutation = useFolioReverseTransaction();
   const patchBookingMutation = usePatchBooking(bookingId);
 
   const [chargeOpen, setChargeOpen] = useState(false);
@@ -131,6 +147,10 @@ export function BookingDetailPage() {
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const [noShowConfirmOpen, setNoShowConfirmOpen] = useState(false);
   const [cancelReasonDraft, setCancelReasonDraft] = useState("");
+  const [checkInModalOpen, setCheckInModalOpen] = useState(false);
+  const [checkInMissingFields, setCheckInMissingFields] = useState<string[]>(
+    []
+  );
 
   const propertyCurrency = useMemo(() => {
     if (booking === undefined || properties === undefined) {
@@ -170,9 +190,8 @@ export function BookingDetailPage() {
     ) {
       return null;
     }
-    return (
-      roomTypes.find((t) => t.id === booking.room_type_id)?.name ?? "категория"
-    );
+    const nm = roomTypes.find((t) => t.id === booking.room_type_id)?.name;
+    return nm !== undefined ? roomTypeDisplayName(nm) : "категория";
   }, [booking, roomTypes]);
 
   const ratePlanLabel = useMemo(() => {
@@ -198,9 +217,44 @@ export function BookingDetailPage() {
       if (t.transaction_type.trim().toLowerCase() !== "charge") {
         return false;
       }
+      if (isCountryPackAutoTaxTransaction(t)) {
+        return false;
+      }
       return !isRoomLikeFolioCategory(t.category);
     });
   }, [folio?.transactions]);
+
+  const countryPackTaxTransactions = useMemo(() => {
+    return (folio?.transactions ?? []).filter(
+      (t) =>
+        t.transaction_type.trim().toLowerCase() === "charge" &&
+        isCountryPackAutoTaxTransaction(t)
+    );
+  }, [folio?.transactions]);
+
+  const showExtensionCheckInBanner = useMemo(() => {
+    if (booking === undefined) {
+      return false;
+    }
+    if (booking.status.trim().toLowerCase() !== "confirmed") {
+      return false;
+    }
+    const ci = booking.check_in_date;
+    if (ci === null || ci === undefined || ci === "") {
+      return false;
+    }
+    const start = new Date(ci).getTime();
+    if (!Number.isFinite(start)) {
+      return false;
+    }
+    const hours = (start - Date.now()) / (3600 * 1000);
+    if (hours < 0 || hours > 48) {
+      return false;
+    }
+    return (countryPackExtensions ?? []).some(
+      (e) => e.required_fields.length > 0
+    );
+  }, [booking, countryPackExtensions]);
 
   const paymentTransactions = useMemo(() => {
     return (folio?.transactions ?? []).filter(
@@ -231,7 +285,7 @@ export function BookingDetailPage() {
 
   const titleGuest =
     booking !== undefined
-      ? `${booking.guest.last_name} ${booking.guest.first_name}`.trim()
+      ? `${capitalizeGuestName(booking.guest.last_name)} ${capitalizeGuestName(booking.guest.first_name)}`.trim()
       : "";
 
   async function submitCharge(e: FormEvent): Promise<void> {
@@ -316,12 +370,28 @@ export function BookingDetailPage() {
     }
   }
 
-  function deleteTxLabel(err: unknown): string {
+  function reverseTxLabel(err: unknown): string {
     const msg = formatApiError(err);
     if (msg.includes("404") || msg.includes("405")) {
       return "Отменить эту операцию нельзя (ограничение API или правил фолио).";
     }
     return msg;
+  }
+
+  async function submitCheckIn(): Promise<void> {
+    try {
+      await patchBookingMutation.mutateAsync({
+        status: "checked_in",
+        check_in: formatIsoDateLocal(new Date()),
+      });
+    } catch (err) {
+      const missing = parseCheckInMissingFields(err);
+      if (missing !== null && missing.length > 0) {
+        setCheckInMissingFields(missing);
+        setCheckInModalOpen(true);
+        return;
+      }
+    }
   }
 
   /** Короткая подпись: что именно отменяем в фолио. */
@@ -386,12 +456,6 @@ export function BookingDetailPage() {
 
   return (
     <div className="space-y-6 pb-28 print:pb-4">
-      <div className="flex flex-wrap items-center gap-2 print:hidden">
-        <Button variant="outline" size="sm" asChild>
-          <Link to="/bookings">← К списку</Link>
-        </Button>
-      </div>
-
       {bookingPending ? (
         <p className="text-sm text-muted-foreground">Загрузка карточки…</p>
       ) : bookingError ? (
@@ -408,11 +472,20 @@ export function BookingDetailPage() {
             )}
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0 space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-lg font-semibold leading-snug">
-                    {headerTitle}
-                  </h2>
+              <div className="flex min-w-0 flex-1 gap-2 sm:items-start">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  asChild
+                  className="print:hidden mt-0.5 shrink-0 sm:mt-1"
+                >
+                  <Link to="/bookings">← К списку</Link>
+                </Button>
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg font-semibold leading-snug">
+                      {headerTitle}
+                    </h2>
                   <span
                     className={cn(
                       "inline-flex shrink-0 rounded-full px-2 py-0.5 text-xs font-medium",
@@ -421,15 +494,16 @@ export function BookingDetailPage() {
                   >
                     {bookingSummaryBadgeLabel(booking.status)}
                   </span>
-                  <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                    #{bookingDisplayHash(booking.id)}
-                  </span>
+                    <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                      #{bookingDisplayHash(booking.id)}
+                    </span>
+                  </div>
+                  {showApiRouteHints() ? (
+                    <p className="font-mono text-[11px] text-muted-foreground">
+                      id: {bookingId}
+                    </p>
+                  ) : null}
                 </div>
-                {showApiRouteHints() ? (
-                  <p className="font-mono text-[11px] text-muted-foreground">
-                    id: {bookingId}
-                  </p>
-                ) : null}
               </div>
               <div className="flex flex-wrap items-center gap-2 print:hidden">
                 {patchBookingMutation.isPending ? (
@@ -459,12 +533,7 @@ export function BookingDetailPage() {
                         size="sm"
                         variant="default"
                         disabled={patchBookingMutation.isPending}
-                        onClick={() => {
-                          runPatch({
-                            status: "checked_in",
-                            check_in: formatIsoDateLocal(new Date()),
-                          });
-                        }}
+                        onClick={() => void submitCheckIn()}
                       >
                         Заезд
                       </Button>
@@ -571,22 +640,46 @@ export function BookingDetailPage() {
             </p>
           ) : null}
 
+          {showExtensionCheckInBanner ? (
+            <div
+              className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100"
+              role="status"
+            >
+              {t("checkIn.extensionBanner")}
+            </div>
+          ) : null}
+
           <section className="rounded-lg border border-border bg-card/40 p-4 print:break-inside-avoid">
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="mb-3 text-base font-semibold text-foreground">
               Сводка
             </h3>
             <dl className="grid gap-3 text-sm sm:grid-cols-2">
               <div>
                 <dt className="text-muted-foreground">ID брони</dt>
-                <dd className="mt-0.5 font-mono text-xs">
-                  <button
-                    type="button"
-                    className="inline-flex max-w-full items-center gap-1 break-all text-left font-medium text-primary underline-offset-4 hover:underline"
-                    onClick={copyBookingId}
-                  >
-                    {bookingId}
-                    <Copy className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                  </button>
+                <dd className="mt-0.5 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-sm font-semibold text-foreground">
+                      #{bookingDisplayHash(booking.id)}
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 gap-1 text-xs print:hidden"
+                      onClick={copyBookingId}
+                    >
+                      <Copy className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                      Копировать UUID
+                    </Button>
+                  </div>
+                  <details className="text-xs print:hidden">
+                    <summary className="cursor-pointer select-none text-muted-foreground hover:text-foreground">
+                      Полный UUID
+                    </summary>
+                    <code className="mt-1 block break-all font-mono text-[11px] text-foreground">
+                      {bookingId}
+                    </code>
+                  </details>
                 </dd>
               </div>
               <div>
@@ -657,7 +750,11 @@ export function BookingDetailPage() {
               <div>
                 <dt className="text-muted-foreground">Сумма брони</dt>
                 <dd className="mt-0.5 tabular-nums font-medium">
-                  {formatMoneyAmount(propertyCurrency, booking.total_amount)}
+                  {formatMoneyAmount(
+                    propertyCurrency,
+                    booking.total_amount,
+                    i18n.language
+                  )}
                 </dd>
               </div>
               <div>
@@ -674,7 +771,8 @@ export function BookingDetailPage() {
                     ? "…"
                     : formatMoneyAmount(
                         propertyCurrency,
-                        folio?.balance ?? "0"
+                        folio?.balance ?? "0",
+                        i18n.language
                       )}
                 </dd>
               </div>
@@ -760,7 +858,8 @@ export function BookingDetailPage() {
                         >
                           <td className="px-2 py-1.5">
                             <span className="font-medium">
-                              {g.last_name} {g.first_name}
+                              {capitalizeGuestName(g.last_name)}{" "}
+                              {capitalizeGuestName(g.first_name)}
                             </span>
                             {isPrimary ? (
                               <span className="ml-2 inline-flex rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium uppercase text-primary">
@@ -813,10 +912,63 @@ export function BookingDetailPage() {
             )}
           </section>
 
+          {countryPackTaxTransactions.length > 0 ? (
+            <section className="space-y-2 print:break-inside-avoid">
+              <h3 className="text-base font-semibold text-foreground">
+                {t("folio.countryPackTaxesTitle")}
+              </h3>
+              <div className="overflow-x-auto rounded-md border">
+                <table className="w-full min-w-[560px] text-left text-sm">
+                  <thead className="border-b bg-muted/50">
+                    <tr>
+                      <th className="px-2 py-1.5">{t("folio.colDate")}</th>
+                      <th className="px-2 py-1.5">{t("folio.colDescription")}</th>
+                      <th className="px-2 py-1.5 text-right">
+                        {t("folio.colAmount")}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {countryPackTaxTransactions.map((tx) => (
+                      <tr key={tx.id} className="border-b border-border/60">
+                        <td className="px-2 py-1.5 tabular-nums text-muted-foreground">
+                          {tx.created_at.slice(0, 19).replace("T", " ")}
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <span className="inline-flex items-center gap-2">
+                            <Calculator
+                              className="h-4 w-4 shrink-0 text-muted-foreground"
+                              aria-hidden
+                            />
+                            <span className="text-muted-foreground">
+                              {stripCountryPackTaxDescription(
+                                tx.description ?? ""
+                              ) || tx.category}
+                            </span>
+                            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted-foreground">
+                              {t("folio.autoTaxBadge")}
+                            </span>
+                          </span>
+                        </td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">
+                          {formatMoneyAmount(
+                            propertyCurrency,
+                            tx.amount,
+                            i18n.language
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null}
+
           <section className="space-y-2 print:break-inside-avoid">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-base font-semibold text-foreground">
-                Доп. услуги (Extras)
+                Доп. услуги
               </h3>
               {canWriteBookings ? (
                 <Button
@@ -880,11 +1032,11 @@ export function BookingDetailPage() {
                           {t.description?.trim() || "—"}
                         </td>
                         <td className="px-2 py-1.5 text-right tabular-nums">
-                          {formatMoneyAmount(propertyCurrency, t.amount)}
+                          {formatMoneyAmount(propertyCurrency, t.amount, i18n.language)}
                         </td>
                         {canWriteBookings ? (
                           <td className="px-2 py-1.5 text-right print:hidden">
-                            {t.voidable === false ? (
+                            {!folioRowAllowsManualReverse(t) ? (
                               <span className="text-xs text-muted-foreground">
                                 —
                               </span>
@@ -894,17 +1046,17 @@ export function BookingDetailPage() {
                                 variant="ghost"
                                 size="sm"
                                 className="h-7 text-destructive"
-                                disabled={deleteTxMutation.isPending}
+                                disabled={reverseTxMutation.isPending}
                                 onClick={() => {
                                   void (async () => {
                                     setFolioFormError(null);
                                     try {
-                                      await deleteTxMutation.mutateAsync({
+                                      await reverseTxMutation.mutateAsync({
                                         bookingId,
                                         transactionId: t.id,
                                       });
                                     } catch (err) {
-                                      setFolioFormError(deleteTxLabel(err));
+                                      setFolioFormError(reverseTxLabel(err));
                                     }
                                   })();
                                 }}
@@ -926,7 +1078,8 @@ export function BookingDetailPage() {
                       <td className="px-2 py-1.5 text-right tabular-nums">
                         {formatMoneyAmount(
                           propertyCurrency,
-                          String(folioTotals.extrasCharges)
+                          String(folioTotals.extrasCharges),
+                          i18n.language
                         )}
                       </td>
                       {canWriteBookings ? <td className="print:hidden" /> : null}
@@ -939,7 +1092,7 @@ export function BookingDetailPage() {
 
           <section className="space-y-2 print:break-inside-avoid">
             <h3 className="text-base font-semibold text-foreground">
-              Начисления (Charges)
+              Начисления
             </h3>
             {folioError || folioPending ? null : (
               <div className="overflow-x-auto rounded-md border">
@@ -956,7 +1109,20 @@ export function BookingDetailPage() {
                       <td className="px-2 py-1.5 text-right tabular-nums">
                         {formatMoneyAmount(
                           propertyCurrency,
-                          String(folioTotals.roomCharges)
+                          String(folioTotals.roomCharges),
+                          i18n.language
+                        )}
+                      </td>
+                    </tr>
+                    <tr className="border-b border-border/60">
+                      <td className="px-2 py-1.5">
+                        {t("folio.summaryCountryPackTaxes")}
+                      </td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">
+                        {formatMoneyAmount(
+                          propertyCurrency,
+                          String(folioTotals.countryPackTaxes),
+                          i18n.language
                         )}
                       </td>
                     </tr>
@@ -965,7 +1131,8 @@ export function BookingDetailPage() {
                       <td className="px-2 py-1.5 text-right tabular-nums">
                         {formatMoneyAmount(
                           propertyCurrency,
-                          String(folioTotals.extrasCharges)
+                          String(folioTotals.extrasCharges),
+                          i18n.language
                         )}
                       </td>
                     </tr>
@@ -974,7 +1141,8 @@ export function BookingDetailPage() {
                       <td className="px-2 py-1.5 text-right tabular-nums">
                         {formatMoneyAmount(
                           propertyCurrency,
-                          String(folioTotals.chargesGross)
+                          String(folioTotals.chargesGross),
+                          i18n.language
                         )}
                       </td>
                     </tr>
@@ -1073,11 +1241,11 @@ export function BookingDetailPage() {
                               {t.description?.trim() || "—"}
                             </td>
                             <td className="px-2 py-1.5 text-right tabular-nums">
-                              {formatMoneyAmount(propertyCurrency, t.amount)}
+                              {formatMoneyAmount(propertyCurrency, t.amount, i18n.language)}
                             </td>
                             {canWriteBookings ? (
                               <td className="px-2 py-1.5 text-right print:hidden">
-                                {t.voidable === false ? (
+                                {!folioRowAllowsManualReverse(t) ? (
                                   <span className="text-xs text-muted-foreground">
                                     —
                                   </span>
@@ -1087,18 +1255,18 @@ export function BookingDetailPage() {
                                     variant="ghost"
                                     size="sm"
                                     className="h-7 text-destructive"
-                                    disabled={deleteTxMutation.isPending}
+                                    disabled={reverseTxMutation.isPending}
                                     onClick={() => {
                                       void (async () => {
                                         setFolioFormError(null);
                                         try {
-                                          await deleteTxMutation.mutateAsync({
+                                          await reverseTxMutation.mutateAsync({
                                             bookingId,
                                             transactionId: t.id,
                                           });
                                         } catch (err) {
                                           setFolioFormError(
-                                            deleteTxLabel(err)
+                                            reverseTxLabel(err)
                                           );
                                         }
                                       })();
@@ -1121,7 +1289,8 @@ export function BookingDetailPage() {
                           <td className="px-2 py-1.5 text-right tabular-nums">
                             {formatMoneyAmount(
                               propertyCurrency,
-                              String(folioTotals.paymentsTotal)
+                              String(folioTotals.paymentsTotal),
+                              i18n.language
                             )}
                           </td>
                           {canWriteBookings ? (
@@ -1153,7 +1322,8 @@ export function BookingDetailPage() {
                   >
                     {formatMoneyAmount(
                       propertyCurrency,
-                      folio?.balance ?? "0"
+                      folio?.balance ?? "0",
+                      i18n.language
                     )}
                   </div>
                 </div>
@@ -1213,21 +1383,37 @@ export function BookingDetailPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {folio.transactions.map((t) => (
-                        <tr key={t.id} className="border-b border-border/60">
+                      {folio.transactions.map((tx) => (
+                        <tr key={tx.id} className="border-b border-border/60">
                           <td className="px-2 py-1.5 tabular-nums text-muted-foreground">
-                            {t.created_at.slice(0, 19).replace("T", " ")}
+                            {tx.created_at.slice(0, 19).replace("T", " ")}
                           </td>
                           <td className="px-2 py-1.5">
-                            {folioTransactionTypeLabel(t.transaction_type)}
+                            {folioTransactionTypeLabel(tx.transaction_type)}
                           </td>
-                          <td className="px-2 py-1.5">{t.category}</td>
+                          <td className="px-2 py-1.5">
+                            {isCountryPackAutoTaxTransaction(tx) ? (
+                              <span className="inline-flex items-center gap-1.5">
+                                <Calculator
+                                  className="h-3.5 w-3.5 text-muted-foreground"
+                                  aria-hidden
+                                />
+                                <span>
+                                  {stripCountryPackTaxDescription(
+                                    tx.description ?? ""
+                                  ) || tx.category}
+                                </span>
+                              </span>
+                            ) : (
+                              tx.category
+                            )}
+                          </td>
                           <td className="px-2 py-1.5 text-right tabular-nums">
-                            {formatMoneyAmount(propertyCurrency, t.amount)}
+                            {formatMoneyAmount(propertyCurrency, tx.amount, i18n.language)}
                           </td>
                           {canWriteBookings ? (
                             <td className="px-2 py-1.5 text-right">
-                              {t.voidable === false ? (
+                              {!folioRowAllowsManualReverse(tx) ? (
                                 <span className="text-xs text-muted-foreground">
                                   —
                                 </span>
@@ -1237,22 +1423,22 @@ export function BookingDetailPage() {
                                   variant="ghost"
                                   size="sm"
                                   className="h-7 text-destructive"
-                                  disabled={deleteTxMutation.isPending}
+                                  disabled={reverseTxMutation.isPending}
                                   onClick={() => {
                                     void (async () => {
                                       setFolioFormError(null);
                                       try {
-                                        await deleteTxMutation.mutateAsync({
+                                        await reverseTxMutation.mutateAsync({
                                           bookingId,
-                                          transactionId: t.id,
+                                          transactionId: tx.id,
                                         });
                                       } catch (err) {
-                                        setFolioFormError(deleteTxLabel(err));
+                                        setFolioFormError(reverseTxLabel(err));
                                       }
                                     })();
                                   }}
                                 >
-                                  {folioUndoRowLabel(t.transaction_type)}
+                                  {folioUndoRowLabel(tx.transaction_type)}
                                 </Button>
                               )}
                             </td>
@@ -1291,12 +1477,7 @@ export function BookingDetailPage() {
                       size="sm"
                       variant="default"
                       disabled={patchBookingMutation.isPending}
-                      onClick={() => {
-                        runPatch({
-                          status: "checked_in",
-                          check_in: formatIsoDateLocal(new Date()),
-                        });
-                      }}
+                      onClick={() => void submitCheckIn()}
                     >
                       Заезд
                     </Button>
@@ -1332,6 +1513,13 @@ export function BookingDetailPage() {
               </Button>
             </div>
           </footer>
+
+          <CheckInRequirementsModal
+            open={checkInModalOpen}
+            onOpenChange={setCheckInModalOpen}
+            missingFields={checkInMissingFields}
+            guestId={booking.guest.id}
+          />
         </>
       )}
 

@@ -2,8 +2,10 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { FormEvent, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import { Loader2, Trash2 } from "lucide-react";
+import { Trans, useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
+import i18n from "@/i18n";
 import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ForbiddenMessages, isAxiosForbidden } from "@/lib/forbiddenError";
+import { isAxiosForbidden } from "@/lib/forbiddenError";
 import { useCanManageProperties } from "@/hooks/useAuthz";
 import {
   useCreateRoom,
@@ -32,7 +34,9 @@ import {
 import { useRoomTypes } from "@/hooks/useRoomTypes";
 import { useRooms } from "@/hooks/useRooms";
 import {
+  housekeepingPriorityLabel,
   housekeepingStatusLabel,
+  roomTypeDisplayName,
   roomStatusLabel,
 } from "@/lib/i18n/domainLabels";
 import { duplicateRoomNameKeys } from "@/lib/roomDuplicateNames";
@@ -41,10 +45,10 @@ import { PageTableSkeleton } from "@/components/ui/page-table-skeleton";
 import { usePropertyStore } from "@/stores/property-store";
 import type { RoomCreate, RoomRow } from "@/types/api";
 
-const ROOM_STATUS_PRESETS = [
-  { value: "available", label: "Доступен" },
-  { value: "maintenance", label: "Обслуживание" },
-  { value: "out_of_order", label: "Не продаётся" },
+const ROOM_STATUS_VALUES = [
+  "available",
+  "maintenance",
+  "out_of_order",
 ] as const;
 
 function formatRoomMutationError(err: unknown): string {
@@ -66,13 +70,14 @@ function formatRoomMutationError(err: unknown): string {
       }
     }
     if (isAxiosForbidden(err)) {
-      return ForbiddenMessages.roomCreate;
+      return i18n.t("rooms.forbidden403");
     }
   }
-  return "Не удалось создать номер.";
+  return i18n.t("rooms.err.create");
 }
 
 export function RoomsPage() {
+  const { t } = useTranslation();
   const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
   const canManage = useCanManageProperties();
   const { data: rooms, isPending, isError } = useRooms();
@@ -87,7 +92,7 @@ export function RoomsPage() {
 
   const [roomTypeId, setRoomTypeId] = useState<string>("");
   const [name, setName] = useState("");
-  const [status, setStatus] = useState<string>(ROOM_STATUS_PRESETS[0].value);
+  const [status, setStatus] = useState<string>(ROOM_STATUS_VALUES[0]);
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
   const [nameDialogRoom, setNameDialogRoom] = useState<RoomRow | null>(null);
@@ -98,7 +103,7 @@ export function RoomsPage() {
   const roomTypeNameById = useMemo(() => {
     const m = new Map<string, string>();
     for (const rt of roomTypes ?? []) {
-      m.set(rt.id, rt.name);
+      m.set(rt.id, roomTypeDisplayName(rt.name));
     }
     return m;
   }, [roomTypes]);
@@ -144,9 +149,7 @@ export function RoomsPage() {
 
   if (selectedPropertyId === null) {
     return (
-      <p className="text-sm text-muted-foreground">
-        Выберите отель в шапке.
-      </p>
+      <p className="text-sm text-muted-foreground">{t("property.pick")}</p>
     );
   }
 
@@ -160,12 +163,12 @@ export function RoomsPage() {
     setFormSuccess(null);
 
     if (roomTypeId === "") {
-      setFormError("Выберите тип номера.");
+      setFormError(t("rooms.err.selectType"));
       return;
     }
     const trimmedName = name.trim();
     if (trimmedName === "") {
-      setFormError("Введите название или номер комнаты.");
+      setFormError(t("rooms.err.enterName"));
       return;
     }
 
@@ -177,7 +180,7 @@ export function RoomsPage() {
 
     try {
       await createMutation.mutateAsync(body);
-      setFormSuccess("Номер создан.");
+      setFormSuccess(t("rooms.successCreated"));
       setName("");
       setCreateOpen(false);
     } catch (err) {
@@ -196,7 +199,11 @@ export function RoomsPage() {
       parts.push(housekeepingStatusLabel(s));
     }
     if (p !== "") {
-      parts.push(`пр. ${p}`);
+      parts.push(
+        t("rooms.hk.priorityInCell", {
+          label: housekeepingPriorityLabel(p),
+        })
+      );
     }
     return parts.join(" · ");
   }
@@ -204,9 +211,11 @@ export function RoomsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold text-foreground">Номера</h2>
+        <h2 className="text-lg font-semibold text-foreground">
+          {t("nav.rooms")}
+        </h2>
         <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          <span>Физические номера выбранного отеля.</span>
+          <span>{t("rooms.hint")}</span>
           <ApiRouteHint>GET /rooms</ApiRouteHint>
           <ApiRouteHint>POST /rooms</ApiRouteHint>
         </p>
@@ -220,21 +229,22 @@ export function RoomsPage() {
 
       {canManage ? (
         typesError ? (
-          <p className="text-sm text-destructive">
-            Не удалось загрузить типы номеров.
-          </p>
+          <p className="text-sm text-destructive">{t("rooms.err.loadTypes")}</p>
         ) : typesPending ? (
           <div className="h-24 animate-pulse rounded-md bg-muted" aria-hidden />
         ) : !hasRoomTypes ? (
           <p className="text-sm text-muted-foreground">
-            Сначала добавьте хотя бы один тип номера (категорию).{" "}
-            <Link
-              to="/settings#room-types-hint"
-              className="text-primary underline underline-offset-2"
-            >
-              Подсказка в настройках
-            </Link>
-            .
+            <Trans
+              i18nKey="rooms.needRoomTypeRich"
+              components={{
+                settingsLink: (
+                  <Link
+                    to="/settings#room-types-hint"
+                    className="text-primary underline underline-offset-2"
+                  />
+                ),
+              }}
+            />
           </p>
         ) : (
           <Button
@@ -245,23 +255,27 @@ export function RoomsPage() {
               setCreateOpen(true);
             }}
           >
-            Добавить номер
+            {t("rooms.addRoom")}
           </Button>
         )
       ) : (
         <p className="text-sm text-muted-foreground">
-          Создание номеров доступно ролям owner и manager.
+          {t("rooms.manageRolesHint")}
         </p>
       )}
 
       <div>
-        <h3 className="mb-2 text-sm font-medium text-foreground">Список</h3>
+        <h3 className="mb-2 text-sm font-medium text-foreground">
+          {t("rooms.listTitle")}
+        </h3>
         <p className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <span>Статус и название сохраняются на сервере.</span>
+          <span>{t("rooms.listHint")}</span>
           <ApiRouteHint>PATCH /rooms/{"{"}id{"}"}</ApiRouteHint>
         </p>
         {isError ? (
-          <p className="text-sm text-destructive">Не удалось загрузить номера.</p>
+          <p className="text-sm text-destructive">
+            {t("rooms.err.loadRooms")}
+          </p>
         ) : isPending ? (
           <PageTableSkeleton rows={5} cols={6} />
         ) : (
@@ -276,15 +290,25 @@ export function RoomsPage() {
                   "sticky top-0 z-10 border-b border-border bg-muted/50"
                 )}
               >
-                <div className="px-3 py-2 font-medium">Название</div>
-                <div className="px-3 py-2 font-medium">Статус</div>
+                <div className="px-3 py-2 font-medium">{t("rooms.colName")}</div>
+                <div className="px-3 py-2 font-medium">{t("rooms.colStatus")}</div>
                 {hkActive ? (
-                  <div className="px-3 py-2 font-medium">Уборка</div>
+                  <div className="px-3 py-2 font-medium">
+                    {t("rooms.colHousekeeping")}
+                  </div>
                 ) : null}
-                <div className="px-3 py-2 font-medium">Категория</div>
+                <div className="px-3 py-2 font-medium">
+                  {t("rooms.colCategory")}
+                </div>
                 {canManage ? (
-                  <div className="px-3 py-2 text-right font-medium">
-                    Удалить
+                  <div
+                    className="flex justify-end px-3 py-2 text-right"
+                    title={t("rooms.deleteColumnHint")}
+                  >
+                    <Trash2
+                      className="h-4 w-4 shrink-0 text-muted-foreground opacity-50"
+                      aria-hidden
+                    />
                   </div>
                 ) : null}
               </div>
@@ -306,7 +330,7 @@ export function RoomsPage() {
                           key={r.id}
                           className={cn(
                             roomsListGrid,
-                            "absolute left-0 w-full border-b border-border/80",
+                            "group absolute left-0 w-full border-b border-border/80",
                             duplicateKeys.has(r.name.trim().toLowerCase()) &&
                               "bg-destructive/5 ring-1 ring-inset ring-destructive/25"
                           )}
@@ -316,7 +340,7 @@ export function RoomsPage() {
                           }}
                           title={
                             duplicateKeys.has(r.name.trim().toLowerCase())
-                              ? "Дублируется имя номера с другой строкой."
+                              ? t("rooms.duplicateNameHint")
                               : undefined
                           }
                         >
@@ -329,13 +353,13 @@ export function RoomsPage() {
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                className="h-8 shrink-0 text-xs"
+                                className="h-8 shrink-0 text-xs opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
                                 onClick={() => {
                                   setNameDialogRoom(r);
                                   setNameEdit(r.name);
                                 }}
                               >
-                                Изменить
+                                {t("rooms.changeName")}
                               </Button>
                             </div>
                           </div>
@@ -356,9 +380,9 @@ export function RoomsPage() {
                                 />
                               </SelectTrigger>
                               <SelectContent>
-                                {ROOM_STATUS_PRESETS.map((s) => (
-                                  <SelectItem key={s.value} value={s.value}>
-                                    {s.label}
+                                {ROOM_STATUS_VALUES.map((v) => (
+                                  <SelectItem key={v} value={v}>
+                                    {roomStatusLabel(v)}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -383,7 +407,7 @@ export function RoomsPage() {
                                 variant="ghost"
                                 size="sm"
                                 className="h-8 shrink-0 text-destructive hover:bg-destructive/10"
-                                aria-label="Удалить номер"
+                                aria-label={t("rooms.deleteAria")}
                                 onClick={() => {
                                   setDeleteRoomRow(r);
                                 }}
@@ -404,10 +428,8 @@ export function RoomsPage() {
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Новый номер</DialogTitle>
-            <DialogDescription>
-              Укажите категорию, название и операционный статус.
-            </DialogDescription>
+            <DialogTitle>{t("rooms.dialogNewTitle")}</DialogTitle>
+            <DialogDescription>{t("rooms.dialogNewDesc")}</DialogDescription>
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleCreateRoom}>
             {formError !== null ? (
@@ -416,15 +438,15 @@ export function RoomsPage() {
               </p>
             ) : null}
             <div className="space-y-2">
-              <span className="text-sm font-medium">Тип номера</span>
+              <span className="text-sm font-medium">{t("rooms.form.type")}</span>
               <Select
                 value={roomTypeId !== "" ? roomTypeId : undefined}
                 onValueChange={(v) => {
                   setRoomTypeId(v);
                 }}
               >
-                <SelectTrigger aria-label="Тип номера">
-                  <SelectValue placeholder="Выберите категорию" />
+                <SelectTrigger aria-label={t("rooms.form.typeAria")}>
+                  <SelectValue placeholder={t("rooms.form.typePh")} />
                 </SelectTrigger>
                 <SelectContent>
                   {(roomTypes ?? []).map((rt) => (
@@ -437,7 +459,7 @@ export function RoomsPage() {
             </div>
             <div className="space-y-2">
               <label htmlFor="room-name" className="text-sm font-medium">
-                Название / № комнаты
+                {t("rooms.form.nameLabel")}
               </label>
               <Input
                 id="room-name"
@@ -445,20 +467,20 @@ export function RoomsPage() {
                 onChange={(e) => {
                   setName(e.target.value);
                 }}
-                placeholder="101"
+                placeholder={t("rooms.form.namePh")}
                 autoComplete="off"
               />
             </div>
             <div className="space-y-2">
-              <span className="text-sm font-medium">Статус номера</span>
+              <span className="text-sm font-medium">{t("rooms.form.status")}</span>
               <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger aria-label="Статус номера">
+                <SelectTrigger aria-label={t("rooms.form.statusAria")}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {ROOM_STATUS_PRESETS.map((s) => (
-                    <SelectItem key={s.value} value={s.value}>
-                      {s.label}
+                  {ROOM_STATUS_VALUES.map((v) => (
+                    <SelectItem key={v} value={v}>
+                      {roomStatusLabel(v)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -472,13 +494,15 @@ export function RoomsPage() {
                   setCreateOpen(false);
                 }}
               >
-                Отмена
+                {t("common.cancel")}
               </Button>
               <Button type="submit" disabled={createMutation.isPending}>
                 {createMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
                 ) : null}
-                {createMutation.isPending ? "Создаём…" : "Создать номер"}
+                {createMutation.isPending
+                  ? t("rooms.createCreating")
+                  : t("rooms.createRoom")}
               </Button>
             </DialogFooter>
           </form>
@@ -493,18 +517,14 @@ export function RoomsPage() {
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Удалить номер?</DialogTitle>
+            <DialogTitle>{t("rooms.deleteTitle")}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Номер «{deleteRoomRow?.name ?? ""}» будет помечен удалённым (
-            <code className="rounded bg-muted px-1 font-mono text-xs">
-              DELETE /rooms/{"{"}id{"}"}
-            </code>
-            ).
+            {t("rooms.deleteBody", { name: deleteRoomRow?.name ?? "" })}
           </p>
           <DialogFooter className="gap-2">
             <Button type="button" variant="outline" onClick={() => setDeleteRoomRow(null)}>
-              Отмена
+              {t("common.cancel")}
             </Button>
             <Button
               type="button"
@@ -517,7 +537,7 @@ export function RoomsPage() {
                 });
               }}
             >
-              Удалить
+              {t("rooms.deleteConfirm")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -533,11 +553,11 @@ export function RoomsPage() {
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Название номера</DialogTitle>
+            <DialogTitle>{t("rooms.renameTitle")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-2">
             <label htmlFor="room-rename" className="text-sm font-medium">
-              Название / №
+              {t("rooms.renameLabel")}
             </label>
             <Input
               id="room-rename"
@@ -555,7 +575,7 @@ export function RoomsPage() {
                 setNameDialogRoom(null);
               }}
             >
-              Отмена
+              {t("common.cancel")}
             </Button>
             <Button
               type="button"
@@ -564,12 +584,12 @@ export function RoomsPage() {
                 if (nameDialogRoom === null) {
                   return;
                 }
-                const t = nameEdit.trim();
-                if (t === "") {
+                const trimmedRename = nameEdit.trim();
+                if (trimmedRename === "") {
                   return;
                 }
                 patchRoomMut.mutate(
-                  { roomId: nameDialogRoom.id, body: { name: t } },
+                  { roomId: nameDialogRoom.id, body: { name: trimmedRename } },
                   {
                     onSuccess: () => {
                       setNameDialogRoom(null);
@@ -578,7 +598,7 @@ export function RoomsPage() {
                 );
               }}
             >
-              Сохранить
+              {t("common.save")}
             </Button>
           </DialogFooter>
         </DialogContent>

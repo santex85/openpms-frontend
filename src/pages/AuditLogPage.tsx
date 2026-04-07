@@ -1,6 +1,9 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
+
+import { ChevronDown } from "lucide-react";
 
 import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { Button } from "@/components/ui/button";
@@ -15,16 +18,30 @@ import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Input } from "@/components/ui/input";
 import { Pagination } from "@/components/ui/pagination";
 import { PageTableSkeleton } from "@/components/ui/page-table-skeleton";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  AUDIT_FILTER_ACTIONS,
+  AUDIT_FILTER_ENTITY_TYPES,
+} from "@/constants/auditLogFilters";
 import { AUDIT_LOG_PAGE_SIZE, useAuditLog } from "@/hooks/useAuditLog";
 import { useTenantUsers } from "@/hooks/useTenantUsers";
 import { formatApiError } from "@/lib/formatApiError";
-import { tenantRoleLabel } from "@/lib/i18n/domainLabels";
+import {
+  auditActionLabel,
+  auditEntityLabel,
+  tenantRoleLabel,
+} from "@/lib/i18n/domainLabels";
 import type { AuditLogEntry } from "@/types/audit";
 import type { TenantUserRead } from "@/types/tenant-admin";
+import { boardLocaleFromI18n } from "@/utils/boardDates";
 
-function formatTs(iso: string): string {
+function formatAuditTs(iso: string, localeTag: string): string {
   try {
-    return new Date(iso).toLocaleString("ru-RU", {
+    return new Date(iso).toLocaleString(localeTag, {
       dateStyle: "short",
       timeStyle: "medium",
     });
@@ -32,6 +49,8 @@ function formatTs(iso: string): string {
     return iso;
   }
 }
+
+const AUDIT_DIGEST_KEYS = ["status", "amount", "room_id"] as const;
 
 function shortJson(v: Record<string, unknown> | null): string {
   if (v === null || Object.keys(v).length === 0) {
@@ -43,6 +62,43 @@ function shortJson(v: Record<string, unknown> | null): string {
   } catch {
     return "…";
   }
+}
+
+function newValuesDigest(
+  v: Record<string, unknown> | null,
+  t: (key: string, opts?: Record<string, unknown>) => string
+): string {
+  if (v === null || Object.keys(v).length === 0) {
+    return "—";
+  }
+  const lines: string[] = [];
+  for (const k of AUDIT_DIGEST_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(v, k)) {
+      const raw = v[k];
+      let val: string;
+      if (raw === undefined || raw === null) {
+        val = "—";
+      } else if (
+        typeof raw === "string" ||
+        typeof raw === "number" ||
+        typeof raw === "boolean"
+      ) {
+        val = String(raw);
+      } else {
+        val = JSON.stringify(raw);
+      }
+      lines.push(`${t(`audit.field.${k}`)}: ${val}`);
+    }
+  }
+  const used = new Set<string>(AUDIT_DIGEST_KEYS.filter((k) => k in v));
+  const remaining = Object.keys(v).filter((x) => !used.has(x));
+  if (lines.length === 0) {
+    return shortJson(v);
+  }
+  if (remaining.length > 0) {
+    lines.push(t("audit.diffMore", { count: remaining.length }));
+  }
+  return lines.join(" · ");
 }
 
 function prettifyJson(v: Record<string, unknown> | null): string {
@@ -73,22 +129,12 @@ function userLabel(
 
 function filterRows(
   rows: AuditLogEntry[],
-  actionQ: string,
-  entityQ: string,
   entityIdQ: string,
   dateFrom: string,
   dateTo: string
 ): AuditLogEntry[] {
-  const a = actionQ.trim().toLowerCase();
-  const e = entityQ.trim().toLowerCase();
   const idQ = entityIdQ.trim().toLowerCase();
   return rows.filter((r) => {
-    if (a !== "" && !r.action.toLowerCase().includes(a)) {
-      return false;
-    }
-    if (e !== "" && !r.entity_type.toLowerCase().includes(e)) {
-      return false;
-    }
     if (idQ !== "" && !(r.entity_id ?? "").toLowerCase().includes(idQ)) {
       return false;
     }
@@ -113,22 +159,135 @@ function csvEscape(s: string): string {
   return s;
 }
 
-/** Общая сетка для шапки и virtual-строк (absolute + display:table ломает колонки). */
+/** Shared grid for sticky header and virtual rows (absolute + display:table breaks columns). */
 const AUDIT_LIST_GRID_COLS =
   "grid w-full grid-cols-[11rem_8rem_7rem_minmax(9rem,14rem)_minmax(10rem,1.2fr)_6rem_minmax(12rem,2fr)]";
 
+interface AuditLogMultiSelectProps {
+  id: string;
+  label: string;
+  options: readonly string[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  formatOption: (value: string) => string;
+  anyLabel: string;
+}
+
+function AuditLogMultiSelect({
+  id,
+  label,
+  options,
+  selected,
+  onChange,
+  formatOption,
+  anyLabel,
+}: AuditLogMultiSelectProps) {
+  const setSel = new Set(selected);
+  const summary =
+    selected.length === 0 ? anyLabel : `${String(selected.length)}`;
+
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <span
+        id={`${id}-label`}
+        className="text-xs font-medium leading-none text-muted-foreground"
+      >
+        {label}
+      </span>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            id={id}
+            aria-labelledby={`${id}-label`}
+            className="w-full min-w-0 justify-between font-normal"
+          >
+            <span className="truncate">{summary}</span>
+            <ChevronDown className="h-4 w-4 shrink-0 opacity-60" aria-hidden />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-72 p-2" align="start">
+          <div className="mb-2 flex gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => {
+                onChange([...options]);
+              }}
+            >
+              All
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => {
+                onChange([]);
+              }}
+            >
+              Clear
+            </Button>
+          </div>
+          <div className="max-h-56 space-y-1 overflow-y-auto">
+            {options.map((opt) => (
+              <label
+                key={opt}
+                className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm hover:bg-muted/60"
+              >
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border border-input"
+                  checked={setSel.has(opt)}
+                  onChange={() => {
+                    const next = new Set(setSel);
+                    if (next.has(opt)) {
+                      next.delete(opt);
+                    } else {
+                      next.add(opt);
+                    }
+                    onChange(Array.from(next).sort());
+                  }}
+                />
+                <span className="min-w-0 flex-1 truncate">
+                  {formatOption(opt)}
+                </span>
+                <span className="font-mono text-[10px] text-muted-foreground">
+                  {opt}
+                </span>
+              </label>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
 export function AuditLogPage() {
+  const { t, i18n } = useTranslation();
+  const dateLocale = boardLocaleFromI18n(i18n.language);
   const [searchParams] = useSearchParams();
   const [page, setPage] = useState(0);
-  const { data, isPending, isError, error } = useAuditLog(page);
-  const { data: tenantUsers } = useTenantUsers(true);
-
-  const [actionQ, setActionQ] = useState("");
-  const [entityQ, setEntityQ] = useState("");
+  const [filterActions, setFilterActions] = useState<string[]>([]);
+  const [filterEntityTypes, setFilterEntityTypes] = useState<string[]>([]);
   const [entityIdQ, setEntityIdQ] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [detailRow, setDetailRow] = useState<AuditLogEntry | null>(null);
+
+  const { data, isPending, isError, error } = useAuditLog(page, {
+    action: filterActions,
+    entity_type: filterEntityTypes,
+  });
+  const { data: tenantUsers } = useTenantUsers(true);
+
+  useEffect(() => {
+    setPage(0);
+  }, [filterActions.join(","), filterEntityTypes.join(",")]);
 
   useEffect(() => {
     const id = searchParams.get("entity_id");
@@ -146,16 +305,8 @@ export function AuditLogPage() {
   }, [tenantUsers]);
 
   const filtered = useMemo(
-    () =>
-      filterRows(
-        data?.items ?? [],
-        actionQ,
-        entityQ,
-        entityIdQ,
-        dateFrom,
-        dateTo
-      ),
-    [data?.items, actionQ, entityQ, entityIdQ, dateFrom, dateTo]
+    () => filterRows(data?.items ?? [], entityIdQ, dateFrom, dateTo),
+    [data?.items, entityIdQ, dateFrom, dateTo]
   );
 
   const auditScrollRef = useRef<HTMLDivElement>(null);
@@ -203,58 +354,41 @@ export function AuditLogPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-lg font-semibold text-foreground">Журнал аудита</h2>
+        <h2 className="text-lg font-semibold text-foreground">
+          {t("audit.title")}
+        </h2>
         <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          <span>
-            Фильтры ниже применяются только к текущей загруженной странице (
-            limit / offset).
-          </span>
+          <span>{t("audit.filtersHint")}</span>
           <ApiRouteHint>GET /audit-log</ApiRouteHint>
         </p>
       </div>
 
       <div className="rounded-lg border border-border bg-muted/15 p-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <label
-              htmlFor="audit-action"
-              className="text-xs font-medium leading-none text-muted-foreground"
-            >
-              Действие содержит
-            </label>
-            <Input
-              id="audit-action"
-              value={actionQ}
-              onChange={(e) => {
-                setActionQ(e.target.value);
-              }}
-              placeholder="например update"
-              className="w-full min-w-0"
-            />
-          </div>
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <label
-              htmlFor="audit-entity"
-              className="text-xs font-medium leading-none text-muted-foreground"
-            >
-              Тип сущности содержит
-            </label>
-            <Input
-              id="audit-entity"
-              value={entityQ}
-              onChange={(e) => {
-                setEntityQ(e.target.value);
-              }}
-              placeholder="booking, guest…"
-              className="w-full min-w-0"
-            />
-          </div>
+          <AuditLogMultiSelect
+            id="audit-action"
+            label={t("audit.filterAction")}
+            options={AUDIT_FILTER_ACTIONS}
+            selected={filterActions}
+            onChange={setFilterActions}
+            formatOption={(v) => auditActionLabel(v)}
+            anyLabel={t("audit.filterAny")}
+          />
+          <AuditLogMultiSelect
+            id="audit-entity-type"
+            label={t("audit.filterEntityType")}
+            options={AUDIT_FILTER_ENTITY_TYPES}
+            selected={filterEntityTypes}
+            onChange={setFilterEntityTypes}
+            formatOption={(v) => auditEntityLabel(v)}
+            anyLabel={t("audit.filterAny")}
+          />
           <div className="flex min-w-0 flex-col gap-1.5">
             <label
               htmlFor="audit-entity-id"
               className="text-xs font-medium leading-none text-muted-foreground"
             >
-              ID сущности содержит
+              {t("audit.entityIdContains")}
             </label>
             <Input
               id="audit-entity-id"
@@ -262,7 +396,7 @@ export function AuditLogPage() {
               onChange={(e) => {
                 setEntityIdQ(e.target.value);
               }}
-              placeholder="UUID или фрагмент"
+              placeholder={t("audit.placeholder.entityId")}
               className="w-full min-w-0 font-mono text-xs"
             />
           </div>
@@ -271,7 +405,7 @@ export function AuditLogPage() {
               htmlFor="audit-from"
               className="text-xs font-medium leading-none text-muted-foreground"
             >
-              С даты
+              {t("audit.dateFrom")}
             </label>
             <DatePickerField
               id="audit-from"
@@ -285,7 +419,7 @@ export function AuditLogPage() {
               htmlFor="audit-to"
               className="text-xs font-medium leading-none text-muted-foreground"
             >
-              По дату
+              {t("audit.dateTo")}
             </label>
             <DatePickerField
               id="audit-to"
@@ -320,11 +454,10 @@ export function AuditLogPage() {
               disabled={filtered.length === 0}
               onClick={exportCsv}
             >
-              Экспорт CSV (эта страница)
+              {t("audit.exportCsv")}
             </Button>
             <p className="text-[11px] leading-snug text-muted-foreground sm:text-right">
-              Полный архив — только через выгрузку на сервере или обход всех
-              страниц.
+              {t("audit.exportHint")}
             </p>
           </div>
         </div>
@@ -345,13 +478,15 @@ export function AuditLogPage() {
             <div
               className={`${AUDIT_LIST_GRID_COLS} sticky top-0 z-10 items-center border-b border-border bg-muted/50`}
             >
-              <div className="px-3 py-2 font-medium">Время</div>
-              <div className="px-3 py-2 font-medium">Действие</div>
-              <div className="px-3 py-2 font-medium">Сущность</div>
-              <div className="px-3 py-2 font-medium">ID</div>
-              <div className="px-3 py-2 font-medium">Пользователь</div>
-              <div className="px-3 py-2 font-medium">IP</div>
-              <div className="px-3 py-2 font-medium">Новые значения</div>
+              <div className="px-3 py-2 font-medium">{t("audit.colTime")}</div>
+              <div className="px-3 py-2 font-medium">{t("audit.colAction")}</div>
+              <div className="px-3 py-2 font-medium">{t("audit.colEntity")}</div>
+              <div className="px-3 py-2 font-medium">{t("audit.colId")}</div>
+              <div className="px-3 py-2 font-medium">{t("audit.colUser")}</div>
+              <div className="px-3 py-2 font-medium">{t("audit.colIp")}</div>
+              <div className="px-3 py-2 font-medium">
+                {t("audit.colNewValues")}
+              </div>
             </div>
             <div
               className="relative"
@@ -386,13 +521,13 @@ export function AuditLogPage() {
                         }}
                       >
                         <div className="min-w-0 px-3 py-2 tabular-nums text-muted-foreground">
-                          {formatTs(r.created_at)}
+                          {formatAuditTs(r.created_at, dateLocale)}
                         </div>
-                        <div className="min-w-0 break-all px-3 py-2 font-mono text-xs">
-                          {r.action}
+                        <div className="min-w-0 break-all px-3 py-2 text-xs">
+                          {auditActionLabel(r.action)}
                         </div>
-                        <div className="min-w-0 px-3 py-2 break-words">
-                          {r.entity_type}
+                        <div className="min-w-0 px-3 py-2 break-words text-sm">
+                          {auditEntityLabel(r.entity_type)}
                         </div>
                         <div className="min-w-0 break-all px-3 py-2 font-mono text-xs text-muted-foreground">
                           {r.entity_id ?? "—"}
@@ -405,9 +540,9 @@ export function AuditLogPage() {
                         <div className="min-w-0 px-3 py-2 text-xs text-muted-foreground">
                           {r.ip_address ?? "—"}
                         </div>
-                        <div className="min-w-0 px-3 py-2 font-mono text-[10px] text-muted-foreground">
+                        <div className="min-w-0 px-3 py-2 text-xs text-muted-foreground">
                           <span className="block break-words">
-                            {shortJson(r.new_values)}
+                            {newValuesDigest(r.new_values, t)}
                           </span>
                         </div>
                       </div>
@@ -417,7 +552,7 @@ export function AuditLogPage() {
           </div>
           {filtered.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground">
-              Нет записей (или нет совпадений фильтру).
+              {t("audit.emptyFiltered")}
             </p>
           ) : null}
         </div>
@@ -433,48 +568,69 @@ export function AuditLogPage() {
       >
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Запись аудита</DialogTitle>
+            <DialogTitle>{t("audit.detailTitle")}</DialogTitle>
           </DialogHeader>
           {detailRow !== null ? (
             <div className="grid gap-3 text-sm">
               <div className="grid gap-1 sm:grid-cols-2">
                 <div>
-                  <span className="text-xs text-muted-foreground">Время</span>
-                  <p className="font-mono text-xs">{formatTs(detailRow.created_at)}</p>
-                </div>
-                <div>
-                  <span className="text-xs text-muted-foreground">Действие</span>
-                  <p className="font-mono text-xs">{detailRow.action}</p>
+                  <span className="text-xs text-muted-foreground">
+                    {t("audit.colTime")}
+                  </span>
+                  <p className="font-mono text-xs">
+                    {formatAuditTs(detailRow.created_at, dateLocale)}
+                  </p>
                 </div>
                 <div>
                   <span className="text-xs text-muted-foreground">
-                    Тип сущности
+                    {t("audit.colAction")}
                   </span>
-                  <p>{detailRow.entity_type}</p>
+                  <p className="text-sm font-medium">
+                    {auditActionLabel(detailRow.action)}
+                  </p>
+                  <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">
+                    {detailRow.action}
+                  </p>
                 </div>
                 <div>
-                  <span className="text-xs text-muted-foreground">ID сущности</span>
+                  <span className="text-xs text-muted-foreground">
+                    {t("audit.detailEntityType")}
+                  </span>
+                  <p className="text-sm font-medium">
+                    {auditEntityLabel(detailRow.entity_type)}
+                  </p>
+                  <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">
+                    {detailRow.entity_type}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-xs text-muted-foreground">
+                    {t("audit.detailEntityId")}
+                  </span>
                   <p className="break-all font-mono text-xs">
                     {detailRow.entity_id ?? "—"}
                   </p>
                 </div>
                 <div className="sm:col-span-2">
                   <span className="text-xs text-muted-foreground">
-                    Пользователь
+                    {t("audit.colUser")}
                   </span>
                   <p>{userLabel(userMap, detailRow.user_id)}</p>
                   {detailRow.user_id !== null &&
                   userMap.get(detailRow.user_id) !== undefined ? (
                     <p className="text-xs text-muted-foreground">
-                      Роль:{" "}
-                      {tenantRoleLabel(
-                        userMap.get(detailRow.user_id)!.role
-                      )}
+                      {t("audit.userRole", {
+                        role: tenantRoleLabel(
+                          userMap.get(detailRow.user_id)!.role
+                        ),
+                      })}
                     </p>
                   ) : null}
                 </div>
                 <div>
-                  <span className="text-xs text-muted-foreground">IP</span>
+                  <span className="text-xs text-muted-foreground">
+                    {t("audit.colIp")}
+                  </span>
                   <p className="font-mono text-xs">
                     {detailRow.ip_address ?? "—"}
                   </p>
@@ -482,9 +638,12 @@ export function AuditLogPage() {
               </div>
               <div>
                 <span className="text-xs text-muted-foreground">
-                  Новые значения (JSON)
+                  {t("audit.newValuesJson")}
                 </span>
-                <pre className="mt-1 max-h-64 overflow-auto rounded-md border bg-muted/40 p-3 font-mono text-[11px] leading-relaxed">
+                <p className="mt-1 text-sm text-foreground">
+                  {newValuesDigest(detailRow.new_values, t)}
+                </p>
+                <pre className="mt-2 max-h-64 overflow-auto rounded-md border bg-muted/40 p-3 font-mono text-[11px] leading-relaxed">
                   {prettifyJson(detailRow.new_values) !== ""
                     ? prettifyJson(detailRow.new_values)
                     : "—"}
@@ -492,7 +651,7 @@ export function AuditLogPage() {
               </div>
               <div>
                 <span className="text-xs text-muted-foreground">
-                  Предыдущие значения (JSON)
+                  {t("audit.oldValuesJson")}
                 </span>
                 <pre className="mt-1 max-h-48 overflow-auto rounded-md border bg-muted/40 p-3 font-mono text-[11px] leading-relaxed">
                   {prettifyJson(detailRow.old_values) !== ""
@@ -504,7 +663,7 @@ export function AuditLogPage() {
           ) : null}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setDetailRow(null)}>
-              Закрыть
+              {t("common.close")}
             </Button>
           </DialogFooter>
         </DialogContent>

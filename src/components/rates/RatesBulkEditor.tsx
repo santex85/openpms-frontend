@@ -1,5 +1,6 @@
 import { FormEvent } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Lock } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { DatePickerField } from "@/components/ui/date-picker-field";
@@ -53,10 +54,12 @@ export function RatesBulkEditor({
   bulkMutation,
   onSubmit,
 }: RatesBulkEditorProps) {
+  const { t } = useTranslation();
+
   if (!canWriteRates) {
     return (
       <p className="text-sm text-muted-foreground">
-        Изменение цен доступно ролям owner и manager.
+        {t("rates.readOnlyPrices")}
       </p>
     );
   }
@@ -68,9 +71,15 @@ export function RatesBulkEditor({
         onSubmit(e);
       }}
     >
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        Массовая цена за период (owner / manager)
-      </p>
+      <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-foreground">
+        <span>{t("rates.bulkTitle")}</span>
+        <span title={t("rates.bulkLockTitle")}>
+          <Lock
+            className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+            aria-hidden
+          />
+        </span>
+      </div>
       {bulkError !== null ? (
         <p className="text-sm text-destructive" role="alert">
           {bulkError}
@@ -83,10 +92,10 @@ export function RatesBulkEditor({
       ) : null}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-1 sm:col-span-2 lg:col-span-1">
-          <span className="text-xs font-medium">Категория</span>
+          <span className="text-xs font-medium">{t("rates.category")}</span>
           <Select value={bulkRoomTypeId} onValueChange={onBulkRoomTypeIdChange}>
             <SelectTrigger>
-              <SelectValue placeholder="Тип номера" />
+              <SelectValue placeholder={t("rates.roomTypePlaceholder")} />
             </SelectTrigger>
             <SelectContent>
               {roomTypes?.map((rt) => (
@@ -99,7 +108,7 @@ export function RatesBulkEditor({
         </div>
         <div className="space-y-1">
           <label htmlFor="bulk-start" className="text-xs font-medium">
-            С
+            {t("rates.dateFrom")}
           </label>
           <DatePickerField
             id="bulk-start"
@@ -109,7 +118,7 @@ export function RatesBulkEditor({
         </div>
         <div className="space-y-1">
           <label htmlFor="bulk-end" className="text-xs font-medium">
-            По
+            {t("rates.dateTo")}
           </label>
           <DatePickerField
             id="bulk-end"
@@ -120,7 +129,7 @@ export function RatesBulkEditor({
         </div>
         <div className="space-y-1">
           <label htmlFor="bulk-price" className="text-xs font-medium">
-            Цена за ночь
+            {t("rates.pricePerNight")}
           </label>
           <Input
             id="bulk-price"
@@ -138,7 +147,7 @@ export function RatesBulkEditor({
         {bulkMutation.isPending ? (
           <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
         ) : null}
-        {bulkMutation.isPending ? "Сохраняем…" : "Применить к диапазону"}
+        {bulkMutation.isPending ? t("rates.saving") : t("rates.applyBulk")}
       </Button>
     </form>
   );

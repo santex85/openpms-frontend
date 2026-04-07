@@ -1,5 +1,6 @@
 import { useDraggable } from "@dnd-kit/core";
 
+import { capitalizeGuestName } from "@/lib/capitalizeGuestName";
 import { dndBookingId, type BoardBookingDragData } from "@/lib/boardDnd";
 import { cn } from "@/lib/utils";
 import type { Booking, RoomType } from "@/types/api";
@@ -30,7 +31,7 @@ function DraggableUnassignedCard({
   });
 
   const guestLabel =
-    `${booking.guest.last_name} ${booking.guest.first_name}`.trim();
+    `${capitalizeGuestName(booking.guest.last_name)} ${capitalizeGuestName(booking.guest.first_name)}`.trim();
   const datesLabel =
     booking.check_in_date !== null && booking.check_out_date !== null
       ? `${booking.check_in_date} → ${booking.check_out_date}`

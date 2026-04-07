@@ -1,7 +1,10 @@
 import { Loader2 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { Trans, useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+
+import i18n from "@/i18n";
 
 import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { RatesBulkEditor } from "@/components/rates/RatesBulkEditor";
@@ -10,10 +13,7 @@ import {
   RatesGridPeriodToolbar,
   RatesRatePlanStrip,
 } from "@/components/rates/RatesPlanSelector";
-import {
-  DEFAULT_CANCELLATION_POLICY,
-  formatCreateRatePlan403Error,
-} from "@/components/rates/ratesPageHelpers";
+import { formatCreateRatePlan403Error } from "@/components/rates/ratesPageHelpers";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -33,6 +33,7 @@ import {
 } from "@/hooks/useRatePlanMutations";
 import { useNightlyRatesMatrix } from "@/hooks/useNightlyRatesMatrix";
 import { useRatePlans } from "@/hooks/useRatePlans";
+import { useProperties } from "@/hooks/useProperties";
 import { useRoomTypes } from "@/hooks/useRoomTypes";
 import { authQueryKeyPart } from "@/lib/authQueryKey";
 import { formatApiError } from "@/lib/formatApiError";
@@ -51,6 +52,7 @@ import {
 } from "@/utils/boardDates";
 
 export function RatesPage() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const canWriteRates = useCanManageProperties();
   const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
@@ -65,6 +67,15 @@ export function RatesPage() {
 
   const { data: roomTypes, isPending: roomTypesPending } = useRoomTypes();
   const { data: ratePlans, isPending: ratePlansPending } = useRatePlans();
+  const { data: properties } = useProperties();
+  const propertyCurrency = useMemo(() => {
+    if (selectedPropertyId === null || properties === undefined) {
+      return null;
+    }
+    return (
+      properties.find((p) => p.id === selectedPropertyId)?.currency ?? null
+    );
+  }, [properties, selectedPropertyId]);
 
   const roomTypeIds = useMemo(
     () => roomTypes?.map((r) => r.id) ?? [],
@@ -135,8 +146,8 @@ export function RatesPage() {
   const patchRatePlanMutation = usePatchRatePlan();
 
   const [newPlanName, setNewPlanName] = useState("");
-  const [newPlanPolicy, setNewPlanPolicy] = useState(
-    DEFAULT_CANCELLATION_POLICY
+  const [newPlanPolicy, setNewPlanPolicy] = useState(() =>
+    i18n.t("rates.defaultCancellationPolicy")
   );
   const [newPlanError, setNewPlanError] = useState<string | null>(null);
   const [addRatePlanDialogOpen, setAddRatePlanDialogOpen] = useState(false);
@@ -175,19 +186,19 @@ export function RatesPage() {
     setNewPlanError(null);
 
     if (selectedPropertyId === null) {
-      setNewPlanError("Выберите отель в шапке.");
+      setNewPlanError(t("rates.err.selectProperty"));
       return;
     }
 
     const nameTrim = newPlanName.trim();
     if (nameTrim === "") {
-      setNewPlanError("Введите название тарифного плана.");
+      setNewPlanError(t("rates.err.planName"));
       return;
     }
 
     const policyTrim = newPlanPolicy.trim();
     if (policyTrim === "") {
-      setNewPlanError("Укажите политику отмены.");
+      setNewPlanError(t("rates.err.planPolicy"));
       return;
     }
 
@@ -200,7 +211,7 @@ export function RatesPage() {
     try {
       const created = await createRatePlanMutation.mutateAsync(body);
       setNewPlanName("");
-      setNewPlanPolicy(DEFAULT_CANCELLATION_POLICY);
+      setNewPlanPolicy(i18n.t("rates.defaultCancellationPolicy"));
       setRatePlanId(created.id);
       if (options.fromDialog) {
         setAddRatePlanDialogOpen(false);
@@ -220,22 +231,22 @@ export function RatesPage() {
       bulkRoomTypeId === "" ||
       ratePlanId === ""
     ) {
-      setBulkError("Выберите отель, категорию номера и тарифный план.");
+      setBulkError(t("rates.err.bulkSelection"));
       return;
     }
 
     if (bulkStart === "" || bulkEnd === "") {
-      setBulkError("Укажите даты диапазона.");
+      setBulkError(t("rates.err.bulkDates"));
       return;
     }
     if (bulkEnd < bulkStart) {
-      setBulkError("Конец периода не может быть раньше начала.");
+      setBulkError(t("rates.err.bulkOrder"));
       return;
     }
 
     const trimmed = bulkPrice.trim().replace(",", ".");
     if (trimmed === "" || Number.isNaN(Number(trimmed)) || Number(trimmed) < 0) {
-      setBulkError("Цена — неотрицательное число.");
+      setBulkError(t("rates.err.priceNonNegative"));
       return;
     }
 
@@ -249,9 +260,7 @@ export function RatesPage() {
 
     try {
       const res = await bulkMutation.mutateAsync({ segments: [segment] });
-      setBulkMessage(
-        `Сохранено строк: ${String(res.rows_upserted)}.`
-      );
+      setBulkMessage(t("rates.savedBulkRows", { count: res.rows_upserted }));
     } catch (err) {
       setBulkError(formatApiError(err));
     }
@@ -261,7 +270,7 @@ export function RatesPage() {
     e.preventDefault();
     if (cellEdit === null) return;
     if (selectedPropertyId === null || ratePlanId === "") {
-      toastError("Выберите отель и тарифный план.");
+      toastError(t("rates.toast.selectForCell"));
       return;
     }
 
@@ -271,7 +280,7 @@ export function RatesPage() {
       Number.isNaN(Number(trimmed)) ||
       Number(trimmed) < 0
     ) {
-      toastError("Цена — неотрицательное число.");
+      toastError(t("rates.err.priceNonNegative"));
       return;
     }
 
@@ -285,7 +294,7 @@ export function RatesPage() {
 
     try {
       await bulkMutation.mutateAsync({ segments: [segment] });
-      toastSuccess("Цена сохранена");
+      toastSuccess(t("rates.toast.priceSaved"));
       setCellEdit(null);
     } catch (err) {
       toastError(formatApiError(err));
@@ -302,23 +311,24 @@ export function RatesPage() {
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold text-foreground">
-          Тарифы и цены
+          {t("rates.sectionTitle")}
         </h2>
         <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          <span>Календарная сетка ночных тарифов.</span>
+          <span>{t("rates.introCalendar")}</span>
           <ApiRouteHint>GET /rates</ApiRouteHint>
           <ApiRouteHint>GET /rates/batch</ApiRouteHint>
           <ApiRouteHint>PUT /rates/bulk</ApiRouteHint>
-          <span>
-            Остатки по дням см. на{" "}
-            <Link
-              to="/board"
-              className="font-medium text-primary underline-offset-4 hover:underline"
-            >
-              доске размещений
-            </Link>
-            .
-          </span>
+          <Trans
+            i18nKey="rates.introSeeBoard"
+            components={{
+              boardLink: (
+                <Link
+                  to="/board"
+                  className="font-medium text-primary underline-offset-4 hover:underline"
+                />
+              ),
+            }}
+          />
         </p>
       </div>
 
@@ -355,32 +365,36 @@ export function RatesPage() {
 
         {selectedPropertyId === null ? (
           <p className="text-sm text-muted-foreground">
-            Выберите отель в шапке, чтобы загрузить типы номеров, тарифы и цены.
+            {t("rates.selectProperty")}
           </p>
         ) : !hasRoomTypes ? (
           <p className="text-sm text-muted-foreground">
-            Сначала создайте тип номера в{" "}
-            <Link
-              to="/settings#room-types-hint"
-              className="font-medium text-primary underline-offset-4 hover:underline"
-            >
-              настройках
-            </Link>
-            .
+            <Trans
+              i18nKey="rates.needRoomTypeRich"
+              components={{
+                settingsLink: (
+                  <Link
+                    to="/settings#room-types-hint"
+                    className="font-medium text-primary underline-offset-4 hover:underline"
+                  />
+                ),
+              }}
+            />
           </p>
         ) : !hasRatePlans ? (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Для сетки цен нужен хотя бы один тарифный план (BAR, пакет и т.д.).
-              Его можно создать здесь или через{" "}
-              <code className="rounded bg-muted px-1 font-mono text-xs">
-                POST /rate-plans
-              </code>{" "}
-              в{" "}
-              <code className="rounded bg-muted px-1 font-mono text-xs">
-                /docs
-              </code>
-              .
+              <Trans
+                i18nKey="rates.needPlansRich"
+                components={{
+                  post: (
+                    <code className="rounded bg-muted px-1 font-mono text-xs" />
+                  ),
+                  docs: (
+                    <code className="rounded bg-muted px-1 font-mono text-xs" />
+                  ),
+                }}
+              />
             </p>
             {canWriteRates ? (
               <form
@@ -388,7 +402,7 @@ export function RatesPage() {
                 onSubmit={(e) => void submitNewRatePlan(e, { fromDialog: false })}
               >
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Новый тарифный план
+                  {t("rates.inlineNewPlanTitle")}
                 </p>
                 {newPlanError !== null ? (
                   <p className="text-sm text-destructive" role="alert">
@@ -397,7 +411,7 @@ export function RatesPage() {
                 ) : null}
                 <div className="space-y-2">
                   <label htmlFor="rate-plan-name" className="text-sm font-medium">
-                    Название
+                    {t("rates.planName")}
                   </label>
                   <Input
                     id="rate-plan-name"
@@ -405,7 +419,7 @@ export function RatesPage() {
                     onChange={(ev) => {
                       setNewPlanName(ev.target.value);
                     }}
-                    placeholder="Например, BAR или Стандарт"
+                    placeholder={t("rates.planNamePh")}
                     autoComplete="off"
                   />
                 </div>
@@ -414,7 +428,7 @@ export function RatesPage() {
                     htmlFor="rate-plan-policy"
                     className="text-sm font-medium"
                   >
-                    Политика отмены
+                    {t("rates.planPolicy")}
                   </label>
                   <textarea
                     id="rate-plan-policy"
@@ -433,14 +447,13 @@ export function RatesPage() {
                   disabled={createRatePlanMutation.isPending}
                 >
                   {createRatePlanMutation.isPending
-                    ? "Создаём…"
-                    : "Создать тарифный план"}
+                    ? t("rates.createPlanCreating")
+                    : t("rates.createPlan")}
                 </Button>
               </form>
             ) : (
               <p className="text-sm text-muted-foreground">
-                Создание планов доступно ролям owner и manager; при
-                необходимости обратитесь к администратору отеля.
+                {t("rates.createPlanRoles")}
               </p>
             )}
           </div>
@@ -486,6 +499,7 @@ export function RatesPage() {
               canWriteRates={canWriteRates}
               selectedPropertyId={selectedPropertyId}
               ratePlanId={ratePlanId}
+              propertyCurrency={propertyCurrency}
               onOpenCellEdit={setCellEdit}
             />
 
@@ -517,7 +531,7 @@ export function RatesPage() {
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Цена за ночь</DialogTitle>
+            <DialogTitle>{t("rates.cellPriceHint")}</DialogTitle>
             <DialogDescription>
               {cellEdit !== null
                 ? `${cellEdit.roomTypeName} · ${cellEdit.dateLabel}`
@@ -530,7 +544,7 @@ export function RatesPage() {
           >
             <div className="space-y-1">
               <label htmlFor="cell-rate-price" className="text-sm font-medium">
-                Цена
+                {t("rates.cellPriceLabel")}
               </label>
               <Input
                 id="cell-rate-price"
@@ -554,13 +568,13 @@ export function RatesPage() {
                 variant="secondary"
                 onClick={() => setCellEdit(null)}
               >
-                Отмена
+                {t("common.cancel")}
               </Button>
               <Button type="submit" disabled={bulkMutation.isPending}>
                 {bulkMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
                 ) : null}
-                {bulkMutation.isPending ? "Сохранение…" : "Сохранить"}
+                {bulkMutation.isPending ? t("rates.savingCell") : t("common.save")}
               </Button>
             </DialogFooter>
           </form>
@@ -576,7 +590,7 @@ export function RatesPage() {
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Редактировать тарифный план</DialogTitle>
+            <DialogTitle>{t("rates.editPlanTitle")}</DialogTitle>
             <DialogDescription>
               <code className="rounded bg-muted px-1 font-mono text-xs">
                 {"PATCH /rate-plans/{id}"}
@@ -593,7 +607,7 @@ export function RatesPage() {
               const nameTrim = editPlanName.trim();
               const polTrim = editPlanPolicy.trim();
               if (nameTrim === "" || polTrim === "") {
-                setEditPlanError("Заполните название и политику отмены.");
+                setEditPlanError(t("rates.editPlanError"));
                 return;
               }
               void (async () => {
@@ -616,7 +630,7 @@ export function RatesPage() {
             ) : null}
             <div className="space-y-2">
               <label htmlFor="edit-rp-name" className="text-sm font-medium">
-                Название
+                {t("rates.planName")}
               </label>
               <Input
                 id="edit-rp-name"
@@ -626,7 +640,7 @@ export function RatesPage() {
             </div>
             <div className="space-y-2">
               <label htmlFor="edit-rp-policy" className="text-sm font-medium">
-                Политика отмены
+                {t("rates.planPolicy")}
               </label>
               <textarea
                 id="edit-rp-policy"
@@ -644,10 +658,12 @@ export function RatesPage() {
                 variant="outline"
                 onClick={() => setEditRatePlanDialogOpen(false)}
               >
-                Отмена
+                {t("common.cancel")}
               </Button>
               <Button type="submit" disabled={patchRatePlanMutation.isPending}>
-                {patchRatePlanMutation.isPending ? "Сохраняем…" : "Сохранить"}
+                {patchRatePlanMutation.isPending
+                  ? t("rates.saving")
+                  : t("common.save")}
               </Button>
             </DialogFooter>
           </form>
@@ -665,11 +681,14 @@ export function RatesPage() {
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Удалить тарифный план?</DialogTitle>
+            <DialogTitle>{t("rates.deletePlanTitle")}</DialogTitle>
             <DialogDescription>
-              План «{selectedRatePlanName !== "" ? selectedRatePlanName : ratePlanId.slice(0, 8)}»
-              и связанные с ним цены на сервере будут удалены. Это действие нельзя
-              отменить.
+              {t("rates.deletePlanBody", {
+                name:
+                  selectedRatePlanName !== ""
+                    ? selectedRatePlanName
+                    : ratePlanId.slice(0, 8),
+              })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
@@ -680,7 +699,7 @@ export function RatesPage() {
                 setDeleteRatePlanDialogOpen(false);
               }}
             >
-              Отмена
+              {t("common.cancel")}
             </Button>
             <Button
               type="button"
@@ -718,7 +737,7 @@ export function RatesPage() {
                     }
                     setDeleteRatePlanDialogOpen(false);
                     deleteRatePlanMutation.reset();
-                    toastSuccess("Тарифный план удалён");
+                    toastSuccess(t("rates.deleteToast"));
                   } catch (err) {
                     deleteRatePlanMutation.reset();
                     toastError(formatApiError(err));
@@ -726,7 +745,9 @@ export function RatesPage() {
                 })();
               }}
             >
-              {deleteRatePlanMutation.isPending ? "Удаляем…" : "Удалить"}
+              {deleteRatePlanMutation.isPending
+                ? t("rates.deleteDeleting")
+                : t("rates.deleteConfirm")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -743,10 +764,8 @@ export function RatesPage() {
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Новый тарифный план</DialogTitle>
-            <DialogDescription>
-              План появится в списке и сразу будет выбран для сетки цен.
-            </DialogDescription>
+            <DialogTitle>{t("rates.newPlanTitle")}</DialogTitle>
+            <DialogDescription>{t("rates.newPlanHint")}</DialogDescription>
           </DialogHeader>
           <form
             className="space-y-3"
@@ -762,7 +781,7 @@ export function RatesPage() {
                 htmlFor="rate-plan-name-dialog"
                 className="text-sm font-medium"
               >
-                Название
+                {t("rates.planName")}
               </label>
               <Input
                 id="rate-plan-name-dialog"
@@ -770,7 +789,7 @@ export function RatesPage() {
                 onChange={(ev) => {
                   setNewPlanName(ev.target.value);
                 }}
-                placeholder="Например, BAR или низкий сезон"
+                placeholder={t("rates.planNamePhDialog")}
                 autoComplete="off"
               />
             </div>
@@ -779,7 +798,7 @@ export function RatesPage() {
                 htmlFor="rate-plan-policy-dialog"
                 className="text-sm font-medium"
               >
-                Политика отмены
+                {t("rates.planPolicy")}
               </label>
               <textarea
                 id="rate-plan-policy-dialog"
@@ -802,12 +821,12 @@ export function RatesPage() {
                   setNewPlanError(null);
                 }}
               >
-                Отмена
+                {t("common.cancel")}
               </Button>
               <Button type="submit" disabled={createRatePlanMutation.isPending}>
                 {createRatePlanMutation.isPending
-                  ? "Создаём…"
-                  : "Создать"}
+                  ? t("rates.createPlanCreating")
+                  : t("rates.createSubmit")}
               </Button>
             </DialogFooter>
           </form>

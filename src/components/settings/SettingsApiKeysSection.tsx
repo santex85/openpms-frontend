@@ -1,4 +1,5 @@
 import { FormEvent, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ function parseScopes(raw: string): string[] {
 export function SettingsApiKeysSection({
   canManage,
 }: SettingsApiKeysSectionProps) {
+  const { t } = useTranslation();
   const { data: keys, isPending, isError } = useApiKeys(canManage);
   const createMutation = useCreateApiKey();
   const deactivateMutation = useDeactivateApiKey();
@@ -54,12 +56,12 @@ export function SettingsApiKeysSection({
     setFormError(null);
     const n = name.trim();
     if (n === "") {
-      setFormError("Укажите название ключа.");
+      setFormError(t("settings.apiKeys.err.nameRequired"));
       return;
     }
     const scopes = parseScopes(scopesRaw);
     if (scopes.length === 0) {
-      setFormError("Укажите хотя бы одну область (scopes), через запятую.");
+      setFormError(t("settings.apiKeys.err.scopesRequired"));
       return;
     }
     try {
@@ -75,9 +77,11 @@ export function SettingsApiKeysSection({
   if (!canManage) {
     return (
       <section className="space-y-2 rounded-lg border border-border bg-card p-4">
-        <h3 className="text-sm font-semibold text-foreground">API-ключи</h3>
+        <h3 className="text-sm font-semibold text-foreground">
+          {t("settings.apiKeys.title")}
+        </h3>
         <p className="text-sm text-muted-foreground">
-          Управление ключами доступно ролям owner и manager.
+          {t("settings.apiKeys.noPermission")}
         </p>
       </section>
     );
@@ -86,9 +90,11 @@ export function SettingsApiKeysSection({
   return (
     <section className="space-y-4 rounded-lg border border-border bg-card p-4">
       <div>
-        <h3 className="text-sm font-semibold text-foreground">API-ключи</h3>
+        <h3 className="text-sm font-semibold text-foreground">
+          {t("settings.apiKeys.title")}
+        </h3>
         <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          <span>Программный доступ к API.</span>
+          <span>{t("settings.apiKeys.intro")}</span>
           <ApiRouteHint>GET /api-keys</ApiRouteHint>
           <ApiRouteHint>POST /api-keys</ApiRouteHint>
           <ApiRouteHint>PATCH /api-keys/{"{"}id{"}"}</ApiRouteHint>
@@ -97,7 +103,9 @@ export function SettingsApiKeysSection({
       </div>
 
       {isError ? (
-        <p className="text-sm text-destructive">Не удалось загрузить ключи.</p>
+        <p className="text-sm text-destructive">
+          {t("settings.apiKeys.loadError")}
+        </p>
       ) : isPending ? (
         <div className="h-24 animate-pulse rounded-md bg-muted" aria-hidden />
       ) : (
@@ -105,10 +113,18 @@ export function SettingsApiKeysSection({
           <table className="w-full min-w-[520px] text-left text-sm">
             <thead className="border-b bg-muted/50">
               <tr>
-                <th className="px-3 py-2 font-medium">Название</th>
-                <th className="px-3 py-2 font-medium">Scopes</th>
-                <th className="px-3 py-2 font-medium">Активен</th>
-                <th className="px-3 py-2 font-medium">Истекает</th>
+                <th className="px-3 py-2 font-medium">
+                  {t("settings.apiKeys.colName")}
+                </th>
+                <th className="px-3 py-2 font-medium">
+                  {t("settings.apiKeys.colScopes")}
+                </th>
+                <th className="px-3 py-2 font-medium">
+                  {t("settings.apiKeys.colActive")}
+                </th>
+                <th className="px-3 py-2 font-medium">
+                  {t("settings.apiKeys.colExpires")}
+                </th>
                 <th className="px-3 py-2 font-medium" />
               </tr>
             </thead>
@@ -117,11 +133,15 @@ export function SettingsApiKeysSection({
                 <tr key={k.id} className="border-b border-border/80">
                   <td className="px-3 py-2">{k.name}</td>
                   <td className="max-w-[180px] truncate px-3 py-2 text-xs text-muted-foreground">
-                    {k.scopes?.join(", ") ?? "—"}
+                    {k.scopes?.join(", ") ?? t("common.notAvailable")}
                   </td>
-                  <td className="px-3 py-2">{k.is_active ? "да" : "нет"}</td>
+                  <td className="px-3 py-2">
+                    {k.is_active ? t("common.yes") : t("common.no")}
+                  </td>
                   <td className="px-3 py-2 tabular-nums text-muted-foreground">
-                    {k.expires_at !== null ? k.expires_at.slice(0, 10) : "—"}
+                    {k.expires_at !== null
+                      ? k.expires_at.slice(0, 10)
+                      : t("common.notAvailable")}
                   </td>
                   <td className="px-3 py-2 text-right">
                     <div className="flex flex-wrap items-center justify-end gap-1">
@@ -136,7 +156,7 @@ export function SettingsApiKeysSection({
                             void deactivateMutation.mutateAsync(k.id);
                           }}
                         >
-                          Деактивировать
+                          {t("settings.apiKeys.deactivate")}
                         </Button>
                       ) : null}
                       <Button
@@ -149,7 +169,7 @@ export function SettingsApiKeysSection({
                           setDeleteTarget({ id: k.id, name: k.name });
                         }}
                       >
-                        Удалить
+                        {t("common.delete")}
                       </Button>
                     </div>
                   </td>
@@ -165,7 +185,7 @@ export function SettingsApiKeysSection({
         onSubmit={(e) => void onCreate(e)}
       >
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Новый ключ
+          {t("settings.apiKeys.newKey")}
         </p>
         {formError !== null ? (
           <p className="text-sm text-destructive" role="alert">
@@ -178,18 +198,20 @@ export function SettingsApiKeysSection({
             onChange={(e) => {
               setName(e.target.value);
             }}
-            placeholder="Название"
+            placeholder={t("settings.apiKeys.namePh")}
           />
           <Input
             value={scopesRaw}
             onChange={(e) => {
               setScopesRaw(e.target.value);
             }}
-            placeholder="scopes через запятую"
+            placeholder={t("settings.apiKeys.scopesPh")}
           />
         </div>
         <Button type="submit" disabled={createMutation.isPending}>
-          {createMutation.isPending ? "Создание…" : "Создать ключ"}
+          {createMutation.isPending
+            ? t("settings.apiKeys.creating")
+            : t("settings.apiKeys.create")}
         </Button>
       </form>
 
@@ -201,11 +223,12 @@ export function SettingsApiKeysSection({
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Удалить ключ</DialogTitle>
+            <DialogTitle>{t("settings.apiKeys.deleteTitle")}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Действие необратимо. Ключ «{deleteTarget?.name ?? ""}» будет удалён
-            навсегда.
+            {t("settings.apiKeys.deleteBody", {
+              name: deleteTarget?.name ?? "",
+            })}
           </p>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button
@@ -213,7 +236,7 @@ export function SettingsApiKeysSection({
               variant="secondary"
               onClick={() => setDeleteTarget(null)}
             >
-              Отмена
+              {t("common.cancel")}
             </Button>
             <Button
               type="button"
@@ -224,7 +247,7 @@ export function SettingsApiKeysSection({
                 void (async () => {
                   try {
                     await deleteMutation.mutateAsync(deleteTarget.id);
-                    toastSuccess("Ключ удалён");
+                    toastSuccess(t("settings.apiKeys.toastDeleted"));
                     setDeleteTarget(null);
                   } catch (err) {
                     toastError(formatApiError(err));
@@ -232,7 +255,9 @@ export function SettingsApiKeysSection({
                 })();
               }}
             >
-              {deleteMutation.isPending ? "Удаление…" : "Удалить"}
+              {deleteMutation.isPending
+                ? t("settings.apiKeys.deleteConfirmDeleting")
+                : t("common.delete")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -241,10 +266,10 @@ export function SettingsApiKeysSection({
       <Dialog open={newKeyOpen} onOpenChange={setNewKeyOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Сохраните ключ</DialogTitle>
+            <DialogTitle>{t("settings.apiKeys.saveKeyTitle")}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Полное значение показывается только сейчас.
+            {t("settings.apiKeys.saveKeyHint")}
           </p>
           {createdKey !== null ? (
             <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
@@ -260,17 +285,17 @@ export function SettingsApiKeysSection({
                 void (async () => {
                   try {
                     await copyToClipboard(createdKey);
-                    toastSuccess("Ключ скопирован");
+                    toastSuccess(t("settings.apiKeys.toastCopied"));
                   } catch {
-                    toastError("Не удалось скопировать");
+                    toastError(t("common.copyFailed"));
                   }
                 })();
               }}
             >
-              Копировать
+              {t("common.copy")}
             </Button>
             <Button type="button" onClick={() => setNewKeyOpen(false)}>
-              Закрыть
+              {t("common.close")}
             </Button>
           </DialogFooter>
         </DialogContent>

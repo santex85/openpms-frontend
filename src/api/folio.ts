@@ -57,3 +57,13 @@ export async function deleteFolioTransaction(
 ): Promise<void> {
   await apiClient.delete(`/bookings/${bookingId}/folio/${transactionId}`);
 }
+
+/** POST /bookings/{id}/folio/{tx_id}/reverse — preferred reversal (TZ-10). */
+export async function reverseFolioTransaction(
+  bookingId: string,
+  transactionId: string
+): Promise<void> {
+  await apiClient.post(
+    `/bookings/${bookingId}/folio/${encodeURIComponent(transactionId)}/reverse`
+  );
+}

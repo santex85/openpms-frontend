@@ -2,10 +2,15 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import { Loader2 } from "lucide-react";
+import { Trans, useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 
+import { TaxBreakdown } from "@/components/bookings/TaxBreakdown";
 import { useBookings } from "@/hooks/useBookings";
+import { useCountryPackDetail } from "@/hooks/useCountryPacks";
 import { useCreateBooking } from "@/hooks/useCreateBooking";
+import { useNightlyRates } from "@/hooks/useNightlyRates";
+import { useProperties } from "@/hooks/useProperties";
 import { useRatePlans } from "@/hooks/useRatePlans";
 import { useRoomTypes } from "@/hooks/useRoomTypes";
 import { Button } from "@/components/ui/button";
@@ -29,12 +34,21 @@ import {
 } from "@/components/ui/select";
 import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { PageTableSkeleton } from "@/components/ui/page-table-skeleton";
-import { bookingStatusFilterItems, bookingStatusLabel } from "@/lib/i18n/domainLabels";
+import { bookingDisplayHash } from "@/lib/bookingDisplay";
+import { capitalizeGuestName } from "@/lib/capitalizeGuestName";
+import {
+  bookingStatusFilterItems,
+  bookingSummaryBadgeLabel,
+  bookingSummaryStatusBadgeClass,
+} from "@/lib/i18n/domainLabels";
 import { formatApiError } from "@/lib/formatApiError";
+import { toastInfo } from "@/lib/toast";
 import { useCanWriteBookings } from "@/hooks/useAuthz";
 import { usePropertyStore } from "@/stores/property-store";
 import type { Booking, BookingCreateRequest } from "@/types/api";
 import { formatIsoDateLocal } from "@/utils/boardDates";
+import { formatShortLocaleDate } from "@/utils/formatLocaleDate";
+import { cn } from "@/lib/utils";
 
 function addDays(d: Date, n: number): Date {
   const x = new Date(d);
@@ -42,18 +56,23 @@ function addDays(d: Date, n: number): Date {
   return x;
 }
 
-function formatCreateBookingError(err: unknown): string {
+function formatCreateBookingError(
+  err: unknown,
+  t: (k: string, o?: Record<string, string | number>) => string
+): string {
   if (axios.isAxiosError(err) && err.response?.data !== undefined) {
     const data = err.response.data as { detail?: unknown };
     const detail = data.detail;
     if (typeof detail === "object" && detail !== null && "missing_dates" in detail) {
       const md = (detail as { missing_dates: unknown }).missing_dates;
       if (Array.isArray(md)) {
-        return `Нет ночных тарифов на даты: ${md.map(String).join(", ")}. Задайте цены в разделе «Тарифы».`;
+        return t("bookings.err.ratesMissing", {
+          dates: md.map(String).join(", "),
+        });
       }
     }
     if (err.response.status === 409) {
-      return "Недостаточно свободных номеров на выбранные даты (409).";
+      return t("bookings.err.conflictRooms");
     }
   }
   return formatApiError(err);
@@ -61,13 +80,32 @@ function formatCreateBookingError(err: unknown): string {
 
 const BOOKINGS_PAGE_SIZE = 25;
 
+function sumStayRates(
+  rates: { date: string; price: string }[],
+  checkIn: string,
+  checkOut: string
+): number {
+  let sum = 0;
+  for (const r of rates) {
+    if (r.date >= checkIn && r.date < checkOut) {
+      const p = Number.parseFloat(r.price);
+      if (Number.isFinite(p)) {
+        sum += p;
+      }
+    }
+  }
+  return sum;
+}
+
 /** Absolute virtual rows break sync with table-fixed headers; shared grid keeps columns aligned. */
 const BOOKINGS_LIST_ROW_GRID =
-  "grid w-full grid-cols-[minmax(0,1fr)_9rem_7rem_7rem_6rem]";
+  "grid w-full grid-cols-[minmax(0,1fr)_9rem_8rem_8rem_6rem]";
 
 export function BookingsListPage() {
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
+  const countryPackCode = usePropertyStore((s) => s.countryPackCode);
   const canCreateBooking = useCanWriteBookings();
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [page, setPage] = useState(0);
@@ -96,6 +134,15 @@ export function BookingsListPage() {
 
   const { data: roomTypes, isPending: roomTypesPending } = useRoomTypes();
   const { data: ratePlans, isPending: ratePlansPending } = useRatePlans();
+  const { data: properties } = useProperties();
+  const propertyRow = useMemo(() => {
+    if (selectedPropertyId === null || properties === undefined) {
+      return undefined;
+    }
+    return properties.find((p) => p.id === selectedPropertyId);
+  }, [selectedPropertyId, properties]);
+  const { data: packDetail } = useCountryPackDetail(countryPackCode);
+
   const createBookingMutation = useCreateBooking();
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -114,7 +161,22 @@ export function BookingsListPage() {
   const [createBanner, setCreateBanner] = useState<{
     id: string;
     total: string;
+    guestMerged?: boolean;
   } | null>(null);
+
+  const { data: nightlyRates } = useNightlyRates(
+    roomTypeId !== "" ? roomTypeId : null,
+    ratePlanId !== "" ? ratePlanId : null,
+    checkIn,
+    checkOut
+  );
+  const priceSubtotal = useMemo(() => {
+    if (nightlyRates === undefined || checkOut <= checkIn) {
+      return null;
+    }
+    const n = sumStayRates(nightlyRates, checkIn, checkOut);
+    return n > 0 ? n : null;
+  }, [nightlyRates, checkIn, checkOut]);
 
   useEffect(() => {
     if (
@@ -150,7 +212,9 @@ export function BookingsListPage() {
       return (
         guestBlob.includes(q) ||
         b.id.toLowerCase().includes(q) ||
-        bookingStatusLabel(b.status).toLowerCase().includes(q) ||
+        bookingDisplayHash(b.id).toLowerCase().includes(q) ||
+        b.status.toLowerCase().includes(q) ||
+        bookingSummaryBadgeLabel(b.status).toLowerCase().includes(q) ||
         (b.check_in_date ?? "").includes(q) ||
         (b.check_out_date ?? "").includes(q)
       );
@@ -161,7 +225,7 @@ export function BookingsListPage() {
   const bookingsVirtual = useVirtualizer({
     count: filteredRows.length,
     getScrollElement: () => bookingsScrollRef.current,
-    estimateSize: () => 52,
+    estimateSize: () => 58,
     overscan: 10,
   });
 
@@ -185,15 +249,15 @@ export function BookingsListPage() {
     setCreateError(null);
 
     if (selectedPropertyId === null) {
-      setCreateError("Выберите отель в шапке.");
+      setCreateError(t("bookings.err.selectProperty"));
       return;
     }
     if (roomTypeId === "" || ratePlanId === "") {
-      setCreateError("Выберите тип номера и тарифный план.");
+      setCreateError(t("bookings.err.roomAndRate"));
       return;
     }
     if (checkOut <= checkIn) {
-      setCreateError("Дата выезда должна быть позже заезда.");
+      setCreateError(t("bookings.err.dates"));
       return;
     }
 
@@ -202,11 +266,11 @@ export function BookingsListPage() {
     const em = guestEmail.trim();
     const ph = guestPhone.trim();
     if (fn === "" || ln === "") {
-      setCreateError("Укажите имя и фамилию гостя.");
+      setCreateError(t("bookings.err.names"));
       return;
     }
     if (em === "" || ph === "") {
-      setCreateError("Укажите email и телефон гостя.");
+      setCreateError(t("bookings.err.contact"));
       return;
     }
 
@@ -233,19 +297,21 @@ export function BookingsListPage() {
       setCreateBanner({
         id: res.booking_id,
         total: res.total_amount,
+        guestMerged: res.guest_merged === true,
       });
+      if (res.guest_merged === true) {
+        toastInfo(t("bookings.toastGuestMerged"));
+      }
       setCreateOpen(false);
       resetCreateFormDefaults();
     } catch (err) {
-      setCreateError(formatCreateBookingError(err));
+      setCreateError(formatCreateBookingError(err, t));
     }
   }
 
   if (selectedPropertyId === null) {
     return (
-      <p className="text-sm text-muted-foreground">
-        Выберите отель в шапке.
-      </p>
+      <p className="text-sm text-muted-foreground">{t("bookings.pickProperty")}</p>
     );
   }
 
@@ -258,12 +324,10 @@ export function BookingsListPage() {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Бронирования</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Последние 90 дней по выбранному отелю. Фильтр статуса и страницы — на
-            стороне API. Поиск ниже действует только на текущую страницу (
-            временная мера, пока нет поиска на бэке).
-          </p>
+          <h2 className="text-lg font-semibold text-foreground">
+            {t("bookings.title")}
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">{t("bookings.hint")}</p>
         </div>
         {canCreateBooking ? (
           <Button
@@ -275,19 +339,24 @@ export function BookingsListPage() {
               setCreateOpen(true);
             }}
           >
-            Новое бронирование
+            {t("bookings.new")}
           </Button>
         ) : null}
       </div>
 
       {createBanner !== null ? (
         <p className="text-sm text-emerald-600 dark:text-emerald-400">
-          Бронь создана. Сумма: {createBanner.total}.{" "}
+          {t("bookings.createdBanner", { total: createBanner.total })}{" "}
+          {createBanner.guestMerged === true ? (
+            <span className="ml-2 inline-flex rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-foreground">
+              {t("bookings.badgeLinked")}
+            </span>
+          ) : null}{" "}
           <Link
             to={`/bookings/${createBanner.id}`}
             className="font-medium text-primary underline-offset-4 hover:underline"
           >
-            Открыть карточку
+            {t("bookings.openCard")}
           </Link>
         </p>
       ) : null}
@@ -295,7 +364,7 @@ export function BookingsListPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
         <div className="space-y-1">
           <span className="text-xs font-medium text-muted-foreground">
-            Статус
+            {t("bookings.statusFilter")}
           </span>
           <Select
             value={statusFilter === "" ? "__all__" : statusFilter}
@@ -303,11 +372,14 @@ export function BookingsListPage() {
               setStatusFilter(v === "__all__" ? "" : v);
             }}
           >
-            <SelectTrigger className="w-[220px]" aria-label="Фильтр статуса">
+            <SelectTrigger
+              className="w-[220px]"
+              aria-label={t("bookings.statusAria")}
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__all__">Все</SelectItem>
+              <SelectItem value="__all__">{t("common.all")}</SelectItem>
               {bookingStatusFilterItems().map(({ value, label }) => (
                 <SelectItem key={value} value={value}>
                   {label}
@@ -321,7 +393,7 @@ export function BookingsListPage() {
             htmlFor="bookings-local-search"
             className="text-xs font-medium text-muted-foreground"
           >
-            Поиск по текущей странице
+            {t("bookings.localSearchLabel")}
           </label>
           <Input
             id="bookings-local-search"
@@ -329,7 +401,7 @@ export function BookingsListPage() {
             onChange={(e) => {
               setLocalSearch(e.target.value);
             }}
-            placeholder="Гость, даты, фрагмент id…"
+            placeholder={t("bookings.searchPlaceholder")}
             autoComplete="off"
           />
         </div>
@@ -348,7 +420,7 @@ export function BookingsListPage() {
       ) : null}
       {isError ? (
         <p className="text-sm text-destructive" role="alert">
-          Не удалось загрузить брони.
+          {t("bookings.loadError")}
           {bookingsError !== null ? ` ${formatApiError(bookingsError)}` : ""}
         </p>
       ) : isPending ? (
@@ -362,10 +434,10 @@ export function BookingsListPage() {
             <div
               className={`${BOOKINGS_LIST_ROW_GRID} sticky top-0 z-10 border-b border-border bg-muted/50`}
             >
-              <div className="px-3 py-2 font-medium">Гость</div>
-              <div className="px-3 py-2 font-medium">Статус</div>
-              <div className="px-3 py-2 font-medium">Заезд</div>
-              <div className="px-3 py-2 font-medium">Выезд</div>
+              <div className="px-3 py-2 font-medium">{t("bookings.colGuest")}</div>
+              <div className="px-3 py-2 font-medium">{t("bookings.colStatus")}</div>
+              <div className="px-3 py-2 font-medium">{t("bookings.colCheckIn")}</div>
+              <div className="px-3 py-2 font-medium">{t("bookings.colCheckOut")}</div>
               <div className="px-3 py-2 font-medium" aria-hidden />
             </div>
             <div
@@ -403,17 +475,34 @@ export function BookingsListPage() {
                       >
                         <div className="min-w-0 px-3 py-2 align-middle">
                           <span className="block truncate">
-                            {b.guest.last_name} {b.guest.first_name}
+                            {capitalizeGuestName(b.guest.last_name)}{" "}
+                            {capitalizeGuestName(b.guest.first_name)}
+                          </span>
+                          <span className="mt-0.5 block font-mono text-[11px] text-muted-foreground">
+                            #{bookingDisplayHash(b.id)}
                           </span>
                         </div>
-                        <div className="px-3 py-2 align-middle tabular-nums text-muted-foreground">
-                          {bookingStatusLabel(b.status)}
+                        <div className="px-3 py-2 align-middle">
+                          <span
+                            className={cn(
+                              "inline-flex rounded-full px-2 py-0.5 text-xs font-medium tabular-nums",
+                              bookingSummaryStatusBadgeClass(b.status)
+                            )}
+                          >
+                            {bookingSummaryBadgeLabel(b.status)}
+                          </span>
                         </div>
                         <div className="px-3 py-2 align-middle tabular-nums">
-                          {b.check_in_date ?? "—"}
+                          {formatShortLocaleDate(
+                            b.check_in_date,
+                            i18n.language
+                          )}
                         </div>
                         <div className="px-3 py-2 align-middle tabular-nums">
-                          {b.check_out_date ?? "—"}
+                          {formatShortLocaleDate(
+                            b.check_out_date,
+                            i18n.language
+                          )}
                         </div>
                         <div
                           className="px-3 py-2 text-right align-middle"
@@ -422,7 +511,7 @@ export function BookingsListPage() {
                           }}
                         >
                           <Button variant="outline" size="sm" asChild>
-                            <Link to={`/bookings/${b.id}`}>Открыть</Link>
+                            <Link to={`/bookings/${b.id}`}>{t("common.open")}</Link>
                           </Button>
                         </div>
                       </div>
@@ -431,11 +520,10 @@ export function BookingsListPage() {
             </div>
           </div>
           {rows.length === 0 ? (
-            <p className="p-4 text-sm text-muted-foreground">Нет записей.</p>
+            <p className="p-4 text-sm text-muted-foreground">{t("bookings.empty")}</p>
           ) : filteredRows.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground">
-              Нет совпадений на этой странице — сбросьте поиск или смените
-              страницу.
+              {t("bookings.filterEmpty")}
             </p>
           ) : null}
         </div>
@@ -452,11 +540,9 @@ export function BookingsListPage() {
       >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Новое бронирование</DialogTitle>
+            <DialogTitle>{t("bookings.dialogTitle")}</DialogTitle>
             <DialogDescription className="flex flex-wrap items-center gap-2">
-              <span>
-                Нужны тип номера, тариф и цены на все ночи по выбранным датам.
-              </span>
+              <span>{t("bookings.dialogHint")}</span>
               <ApiRouteHint>POST /bookings</ApiRouteHint>
             </DialogDescription>
           </DialogHeader>
@@ -471,38 +557,46 @@ export function BookingsListPage() {
             ) : null}
             {!hasRoomTypes ? (
               <p className="text-sm text-muted-foreground">
-                Нет категорий номеров. Создайте тип в{" "}
-                <Link
-                  to="/settings#room-types-hint"
-                  className="font-medium text-primary underline-offset-4 hover:underline"
-                >
-                  настройках
-                </Link>
-                .
+                <Trans
+                  i18nKey="bookings.noRoomTypes"
+                  components={{
+                    l: (
+                      <Link
+                        to="/settings#room-types-hint"
+                        className="font-medium text-primary underline-offset-4 hover:underline"
+                      />
+                    ),
+                  }}
+                />
               </p>
             ) : null}
             {!hasRatePlans ? (
               <p className="text-sm text-muted-foreground">
-                Нет тарифных планов. Добавьте в{" "}
-                <Link
-                  to="/rates"
-                  className="font-medium text-primary underline-offset-4 hover:underline"
-                >
-                  разделе «Тарифы»
-                </Link>
-                .
+                <Trans
+                  i18nKey="bookings.noRatePlans"
+                  components={{
+                    r: (
+                      <Link
+                        to="/rates"
+                        className="font-medium text-primary underline-offset-4 hover:underline"
+                      />
+                    ),
+                  }}
+                />
               </p>
             ) : null}
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2 sm:col-span-2">
-                <span className="text-sm font-medium">Тип номера</span>
+                <span className="text-sm font-medium">
+                  {t("bookings.form.roomType")}
+                </span>
                 <Select
                   value={roomTypeId}
                   onValueChange={setRoomTypeId}
                   disabled={!hasRoomTypes}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Категория" />
+                    <SelectValue placeholder={t("bookings.form.roomTypePh")} />
                   </SelectTrigger>
                   <SelectContent>
                     {roomTypes?.map((rt) => (
@@ -514,14 +608,16 @@ export function BookingsListPage() {
                 </Select>
               </div>
               <div className="space-y-2 sm:col-span-2">
-                <span className="text-sm font-medium">Тарифный план</span>
+                <span className="text-sm font-medium">
+                  {t("bookings.form.ratePlan")}
+                </span>
                 <Select
                   value={ratePlanId}
                   onValueChange={setRatePlanId}
                   disabled={!hasRatePlans}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="План" />
+                    <SelectValue placeholder={t("bookings.form.ratePlanPh")} />
                   </SelectTrigger>
                   <SelectContent>
                     {ratePlans?.map((rp) => (
@@ -534,7 +630,7 @@ export function BookingsListPage() {
               </div>
               <div className="space-y-2">
                 <label htmlFor="bk-check-in" className="text-sm font-medium">
-                  Заезд
+                  {t("bookings.form.checkIn")}
                 </label>
                 <DatePickerField
                   id="bk-check-in"
@@ -544,7 +640,7 @@ export function BookingsListPage() {
               </div>
               <div className="space-y-2">
                 <label htmlFor="bk-check-out" className="text-sm font-medium">
-                  Выезд
+                  {t("bookings.form.checkOut")}
                 </label>
                 <DatePickerField
                   id="bk-check-out"
@@ -555,7 +651,7 @@ export function BookingsListPage() {
               </div>
               <div className="space-y-2">
                 <label htmlFor="bk-guest-first" className="text-sm font-medium">
-                  Имя
+                  {t("bookings.form.firstName")}
                 </label>
                 <Input
                   id="bk-guest-first"
@@ -568,7 +664,7 @@ export function BookingsListPage() {
               </div>
               <div className="space-y-2">
                 <label htmlFor="bk-guest-last" className="text-sm font-medium">
-                  Фамилия
+                  {t("bookings.form.lastName")}
                 </label>
                 <Input
                   id="bk-guest-last"
@@ -581,7 +677,7 @@ export function BookingsListPage() {
               </div>
               <div className="space-y-2 sm:col-span-2">
                 <label htmlFor="bk-guest-email" className="text-sm font-medium">
-                  Email
+                  {t("bookings.form.email")}
                 </label>
                 <Input
                   id="bk-guest-email"
@@ -595,7 +691,7 @@ export function BookingsListPage() {
               </div>
               <div className="space-y-2 sm:col-span-2">
                 <label htmlFor="bk-guest-phone" className="text-sm font-medium">
-                  Телефон
+                  {t("bookings.form.phone")}
                 </label>
                 <Input
                   id="bk-guest-phone"
@@ -612,7 +708,7 @@ export function BookingsListPage() {
                   htmlFor="bk-guest-passport"
                   className="text-sm font-medium"
                 >
-                  Паспорт / ID (необязательно)
+                  {t("bookings.form.passport")}
                 </label>
                 <Input
                   id="bk-guest-passport"
@@ -623,6 +719,31 @@ export function BookingsListPage() {
                 />
               </div>
             </div>
+            {countryPackCode !== null &&
+            countryPackCode.trim() !== "" &&
+            packDetail !== undefined ? (
+              <div className="rounded-md border border-border bg-card/50 p-3">
+                <p className="text-sm font-medium text-foreground">
+                  {t("bookings.priceBreakdown")}
+                </p>
+                {priceSubtotal !== null ? (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {t("bookings.roomSubtotal")}:{" "}
+                    {priceSubtotal.toFixed(2)}{" "}
+                    {(propertyRow?.currency ?? "").toUpperCase()}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {t("bookings.selectRatesForTaxPreview")}
+                  </p>
+                )}
+                <TaxBreakdown
+                  baseAmount={priceSubtotal}
+                  taxLines={packDetail.tax_lines}
+                  currencyCode={propertyRow?.currency ?? "USD"}
+                />
+              </div>
+            ) : null}
             <DialogFooter className="gap-2 sm:gap-0">
               <Button
                 type="button"
@@ -631,7 +752,7 @@ export function BookingsListPage() {
                   setCreateOpen(false);
                 }}
               >
-                Отмена
+                {t("common.cancel")}
               </Button>
               <Button
                 type="submit"
@@ -645,8 +766,8 @@ export function BookingsListPage() {
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
                 ) : null}
                 {createBookingMutation.isPending
-                  ? "Создаём…"
-                  : "Создать бронь"}
+                  ? t("bookings.form.creating")
+                  : t("bookings.form.submit")}
               </Button>
             </DialogFooter>
           </form>

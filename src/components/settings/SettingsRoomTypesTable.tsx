@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +28,7 @@ export function SettingsRoomTypesTable({
   isPending,
   isError,
 }: SettingsRoomTypesTableProps) {
+  const { t } = useTranslation();
   const patchMut = usePatchRoomType();
   const deleteMut = useDeleteRoomType();
   const [editRow, setEditRow] = useState<RoomType | null>(null);
@@ -64,7 +66,7 @@ export function SettingsRoomTypesTable({
   if (isError) {
     return (
       <p className="text-sm text-destructive">
-        Не удалось загрузить типы номеров.
+        {t("settings.roomTypesTable.loadError")}
       </p>
     );
   }
@@ -76,7 +78,7 @@ export function SettingsRoomTypesTable({
   if ((roomTypes ?? []).length === 0) {
     return (
       <p className="rounded-md border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
-        Пока нет категорий. Добавьте первую формой выше.
+        {t("settings.roomTypesTable.empty")}
       </p>
     );
   }
@@ -87,9 +89,15 @@ export function SettingsRoomTypesTable({
         <table className="w-full min-w-[520px] text-left text-sm">
           <thead className="border-b bg-muted/50">
             <tr>
-              <th className="px-3 py-2 font-medium">Название</th>
-              <th className="px-3 py-2 font-medium">База / Макс.</th>
-              <th className="px-3 py-2 font-medium text-right">Действия</th>
+              <th className="px-3 py-2 font-medium">
+                {t("settings.roomTypesTable.colName")}
+              </th>
+              <th className="px-3 py-2 font-medium">
+                {t("settings.roomTypesTable.colBaseMax")}
+              </th>
+              <th className="px-3 py-2 text-right font-medium">
+                {t("settings.roomTypesTable.colActions")}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -109,7 +117,7 @@ export function SettingsRoomTypesTable({
                         openEdit(rt);
                       }}
                     >
-                      Изменить
+                      {t("settings.roomTypesTable.edit")}
                     </Button>
                     <Button
                       type="button"
@@ -120,7 +128,7 @@ export function SettingsRoomTypesTable({
                         setDeleteRow(rt);
                       }}
                     >
-                      Удалить
+                      {t("settings.roomTypesTable.delete")}
                     </Button>
                   </div>
                 </td>
@@ -138,12 +146,12 @@ export function SettingsRoomTypesTable({
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Редактировать тип номера</DialogTitle>
+            <DialogTitle>{t("settings.roomTypesTable.editTitle")}</DialogTitle>
           </DialogHeader>
           <form className="space-y-3" onSubmit={(e) => void submitEdit(e)}>
             <div className="space-y-2">
               <label htmlFor="rt-edit-name" className="text-sm font-medium">
-                Название
+                {t("settings.roomTypesTable.name")}
               </label>
               <Input
                 id="rt-edit-name"
@@ -156,7 +164,7 @@ export function SettingsRoomTypesTable({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <label htmlFor="rt-edit-base" className="text-sm font-medium">
-                  База
+                  {t("settings.roomTypesTable.base")}
                 </label>
                 <Input
                   id="rt-edit-base"
@@ -170,7 +178,7 @@ export function SettingsRoomTypesTable({
               </div>
               <div className="space-y-2">
                 <label htmlFor="rt-edit-max" className="text-sm font-medium">
-                  Макс.
+                  {t("settings.roomTypesTable.max")}
                 </label>
                 <Input
                   id="rt-edit-max"
@@ -184,14 +192,20 @@ export function SettingsRoomTypesTable({
               </div>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setEditRow(null)}>
-                Отмена
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditRow(null)}
+              >
+                {t("common.cancel")}
               </Button>
               <Button type="submit" disabled={patchMut.isPending}>
                 {patchMut.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
                 ) : null}
-                Сохранить
+                {patchMut.isPending
+                  ? t("settings.roomTypesTable.saving")
+                  : t("settings.roomTypesTable.save")}
               </Button>
             </DialogFooter>
           </form>
@@ -206,14 +220,22 @@ export function SettingsRoomTypesTable({
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Удалить тип номера?</DialogTitle>
+            <DialogTitle>
+              {t("settings.roomTypesTable.deleteTitle")}
+            </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Категория «{deleteRow?.name ?? ""}» будет помечена удалённой на сервере.
+            {t("settings.roomTypesTable.deleteBody", {
+              name: deleteRow?.name ?? "",
+            })}
           </p>
           <DialogFooter className="gap-2">
-            <Button type="button" variant="outline" onClick={() => setDeleteRow(null)}>
-              Отмена
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteRow(null)}
+            >
+              {t("common.cancel")}
             </Button>
             <Button
               type="button"
@@ -229,7 +251,7 @@ export function SettingsRoomTypesTable({
               {deleteMut.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
               ) : null}
-              Удалить
+              {t("settings.roomTypesTable.delete")}
             </Button>
           </DialogFooter>
         </DialogContent>

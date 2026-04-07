@@ -1,4 +1,5 @@
 import { FormEvent, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { WEBHOOK_EVENT_OPTIONS } from "@/constants/webhookEvents";
+import { FernetKeyRotationPanel } from "@/components/settings/FernetKeyRotationPanel";
+import { useAuthRole } from "@/hooks/useAuthz";
 import {
   useCreateWebhookSubscription,
   useDeleteWebhookSubscription,
@@ -22,6 +25,7 @@ import {
 } from "@/hooks/useWebhooks";
 import { copyToClipboard } from "@/lib/copyToClipboard";
 import { formatApiError } from "@/lib/formatApiError";
+import { webhookEventLabel } from "@/lib/i18n/domainLabels";
 import { toastError, toastSuccess } from "@/lib/toast";
 
 interface SettingsWebhooksSectionProps {
@@ -31,8 +35,13 @@ interface SettingsWebhooksSectionProps {
 export function SettingsWebhooksSection({
   canManage,
 }: SettingsWebhooksSectionProps) {
-  const { data: subs, isPending: subsPending, isError: subsError } =
-    useWebhookSubscriptions(canManage);
+  const { t } = useTranslation();
+  const authRole = useAuthRole();
+  const {
+    data: subs,
+    isPending: subsPending,
+    isError: subsError,
+  } = useWebhookSubscriptions(canManage);
   const {
     data: logs,
     isPending: logsPending,
@@ -67,12 +76,12 @@ export function SettingsWebhooksSection({
     setFormError(null);
     const u = url.trim();
     if (u === "") {
-      setFormError("Укажите URL.");
+      setFormError(t("settings.webhooks.err.urlRequired"));
       return;
     }
     const events = Array.from(selectedEvents);
     if (events.length === 0) {
-      setFormError("Выберите хотя бы одно событие.");
+      setFormError(t("settings.webhooks.err.eventRequired"));
       return;
     }
     try {
@@ -88,9 +97,11 @@ export function SettingsWebhooksSection({
   if (!canManage) {
     return (
       <section className="space-y-2 rounded-lg border border-border bg-card p-4">
-        <h3 className="text-sm font-semibold text-foreground">Вебхуки</h3>
+        <h3 className="text-sm font-semibold text-foreground">
+          {t("settings.webhooks.title")}
+        </h3>
         <p className="text-sm text-muted-foreground">
-          Подписки настраивают owner и manager.
+          {t("settings.webhooks.noPermission")}
         </p>
       </section>
     );
@@ -99,9 +110,11 @@ export function SettingsWebhooksSection({
   return (
     <section className="space-y-6 rounded-lg border border-border bg-card p-4">
       <div>
-        <h3 className="text-sm font-semibold text-foreground">Вебхуки</h3>
+        <h3 className="text-sm font-semibold text-foreground">
+          {t("settings.webhooks.title")}
+        </h3>
         <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          <span>Исходящие уведомления.</span>
+          <span>{t("settings.webhooks.intro")}</span>
           <ApiRouteHint>GET /webhooks/subscriptions</ApiRouteHint>
           <ApiRouteHint>GET /webhooks/delivery-logs</ApiRouteHint>
           <ApiRouteHint>PATCH /webhooks/subscriptions/{"{"}id{"}"}</ApiRouteHint>
@@ -109,7 +122,9 @@ export function SettingsWebhooksSection({
       </div>
 
       {subsError ? (
-        <p className="text-sm text-destructive">Не удалось загрузить подписки.</p>
+        <p className="text-sm text-destructive">
+          {t("settings.webhooks.loadSubsError")}
+        </p>
       ) : subsPending ? (
         <div className="h-24 animate-pulse rounded-md bg-muted" aria-hidden />
       ) : (
@@ -117,9 +132,15 @@ export function SettingsWebhooksSection({
           <table className="w-full min-w-[480px] text-left text-sm">
             <thead className="border-b bg-muted/50">
               <tr>
-                <th className="px-3 py-2 font-medium">URL</th>
-                <th className="px-3 py-2 font-medium">События</th>
-                <th className="px-3 py-2 font-medium">Активна</th>
+                <th className="px-3 py-2 font-medium">
+                  {t("settings.webhooks.colUrl")}
+                </th>
+                <th className="px-3 py-2 font-medium">
+                  {t("settings.webhooks.colEvents")}
+                </th>
+                <th className="px-3 py-2 font-medium">
+                  {t("settings.webhooks.colActive")}
+                </th>
                 <th className="px-3 py-2 font-medium" />
               </tr>
             </thead>
@@ -128,7 +149,7 @@ export function SettingsWebhooksSection({
                 <tr key={h.id} className="border-b border-border/80">
                   <td className="max-w-[200px] truncate px-3 py-2">{h.url}</td>
                   <td className="px-3 py-2 text-xs text-muted-foreground">
-                    {h.events.join(", ")}
+                    {h.events.map((ev) => webhookEventLabel(ev)).join(", ")}
                   </td>
                   <td className="px-3 py-2">
                     <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
@@ -149,8 +170,8 @@ export function SettingsWebhooksSection({
                               });
                               toastSuccess(
                                 e.target.checked
-                                  ? "Подписка включена"
-                                  : "Подписка выключена"
+                                  ? t("settings.webhooks.toastEnabled")
+                                  : t("settings.webhooks.toastDisabled")
                               );
                             } catch (err) {
                               toastError(formatApiError(err));
@@ -158,7 +179,9 @@ export function SettingsWebhooksSection({
                           })();
                         }}
                       />
-                      <span>{h.is_active ? "да" : "нет"}</span>
+                      <span>
+                        {h.is_active ? t("common.yes") : t("common.no")}
+                      </span>
                     </label>
                   </td>
                   <td className="px-3 py-2 text-right">
@@ -172,7 +195,7 @@ export function SettingsWebhooksSection({
                         void deleteMutation.mutateAsync(h.id);
                       }}
                     >
-                      Удалить
+                      {t("common.delete")}
                     </Button>
                   </td>
                 </tr>
@@ -187,7 +210,7 @@ export function SettingsWebhooksSection({
         onSubmit={(e) => void onCreate(e)}
       >
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Новая подписка
+          {t("settings.webhooks.newSubscription")}
         </p>
         {formError !== null ? (
           <p className="text-sm text-destructive" role="alert">
@@ -196,7 +219,7 @@ export function SettingsWebhooksSection({
         ) : null}
         <div className="space-y-1">
           <label htmlFor="wh-url" className="text-sm font-medium">
-            URL
+            {t("settings.webhooks.colUrl")}
           </label>
           <Input
             id="wh-url"
@@ -209,7 +232,9 @@ export function SettingsWebhooksSection({
           />
         </div>
         <fieldset className="space-y-2">
-          <legend className="text-sm font-medium">События</legend>
+          <legend className="text-sm font-medium">
+            {t("settings.webhooks.colEvents")}
+          </legend>
           <ul className="grid gap-2 sm:grid-cols-2">
             {WEBHOOK_EVENT_OPTIONS.map((ev) => (
               <li key={ev}>
@@ -222,23 +247,32 @@ export function SettingsWebhooksSection({
                       toggleEvent(ev);
                     }}
                   />
-                  <span className="font-mono text-xs">{ev}</span>
+                  <span className="text-sm">
+                    {webhookEventLabel(ev)}
+                    <span className="ml-1 font-mono text-[10px] text-muted-foreground">
+                      ({ev})
+                    </span>
+                  </span>
                 </label>
               </li>
             ))}
           </ul>
         </fieldset>
         <Button type="submit" disabled={createMutation.isPending}>
-          {createMutation.isPending ? "Сохранение…" : "Добавить подписку"}
+          {createMutation.isPending
+            ? t("settings.webhooks.saving")
+            : t("settings.webhooks.addSubscription")}
         </Button>
       </form>
 
       <div className="border-t border-border pt-4">
         <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Лог доставки
+          {t("settings.webhooks.deliveryLog")}
         </h4>
         {logsError ? (
-          <p className="text-sm text-destructive">Не удалось загрузить лог.</p>
+          <p className="text-sm text-destructive">
+            {t("settings.webhooks.loadLogError")}
+          </p>
         ) : logsPending ? (
           <div className="h-20 animate-pulse rounded-md bg-muted" aria-hidden />
         ) : (
@@ -246,11 +280,21 @@ export function SettingsWebhooksSection({
             <table className="w-full min-w-[560px] text-left text-sm">
               <thead className="border-b bg-muted/50">
                 <tr>
-                  <th className="px-3 py-2 font-medium">Время</th>
-                  <th className="px-3 py-2 font-medium">Подписка</th>
-                  <th className="px-3 py-2 font-medium">HTTP</th>
-                  <th className="px-3 py-2 font-medium">Попытка</th>
-                  <th className="px-3 py-2 font-medium">Ошибка</th>
+                  <th className="px-3 py-2 font-medium">
+                    {t("settings.webhooks.colTime")}
+                  </th>
+                  <th className="px-3 py-2 font-medium">
+                    {t("settings.webhooks.colSubscription")}
+                  </th>
+                  <th className="px-3 py-2 font-medium">
+                    {t("settings.webhooks.colHttp")}
+                  </th>
+                  <th className="px-3 py-2 font-medium">
+                    {t("settings.webhooks.colAttempt")}
+                  </th>
+                  <th className="px-3 py-2 font-medium">
+                    {t("settings.webhooks.colError")}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -260,7 +304,7 @@ export function SettingsWebhooksSection({
                       colSpan={5}
                       className="px-3 py-4 text-center text-muted-foreground"
                     >
-                      Записей нет
+                      {t("settings.webhooks.logEmpty")}
                     </td>
                   </tr>
                 ) : (
@@ -273,13 +317,13 @@ export function SettingsWebhooksSection({
                         {row.subscription_id.slice(0, 8)}…
                       </td>
                       <td className="px-3 py-2 tabular-nums">
-                        {row.http_status ?? "—"}
+                        {row.http_status ?? t("common.notAvailable")}
                       </td>
                       <td className="px-3 py-2 tabular-nums">
                         {row.attempt_number}
                       </td>
                       <td className="max-w-[200px] truncate px-3 py-2 text-xs text-muted-foreground">
-                        {row.error_message ?? "—"}
+                        {row.error_message ?? t("common.notAvailable")}
                       </td>
                     </tr>
                   ))
@@ -293,10 +337,10 @@ export function SettingsWebhooksSection({
       <Dialog open={secretModalOpen} onOpenChange={setSecretModalOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Секрет подписи</DialogTitle>
+            <DialogTitle>{t("settings.webhooks.secretTitle")}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Используйте для проверки HMAC. Сохраните — больше не покажем.
+            {t("settings.webhooks.secretHint")}
           </p>
           {createdSecret !== null ? (
             <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
@@ -312,21 +356,23 @@ export function SettingsWebhooksSection({
                 void (async () => {
                   try {
                     await copyToClipboard(createdSecret);
-                    toastSuccess("Секрет скопирован");
+                    toastSuccess(t("settings.webhooks.toastSecretCopied"));
                   } catch {
-                    toastError("Не удалось скопировать");
+                    toastError(t("common.copyFailed"));
                   }
                 })();
               }}
             >
-              Копировать
+              {t("common.copy")}
             </Button>
             <Button type="button" onClick={() => setSecretModalOpen(false)}>
-              Закрыть
+              {t("common.close")}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {canManage && authRole === "owner" ? <FernetKeyRotationPanel /> : null}
     </section>
   );
 }

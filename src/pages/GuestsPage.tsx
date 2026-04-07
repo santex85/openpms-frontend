@@ -1,6 +1,7 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
@@ -18,9 +19,10 @@ import { Input } from "@/components/ui/input";
 import { useCanWriteBookings } from "@/hooks/useAuthz";
 import { useCreateGuest } from "@/hooks/useGuestMutations";
 import { useGuests } from "@/hooks/useGuests";
+import { capitalizeGuestName } from "@/lib/capitalizeGuestName";
 import { formatApiError } from "@/lib/formatApiError";
 import { PageTableSkeleton } from "@/components/ui/page-table-skeleton";
-import { formatIsoDateLocal } from "@/utils/boardDates";
+import { boardLocaleFromI18n, formatIsoDateLocal } from "@/utils/boardDates";
 
 const GUESTS_PAGE_SIZE = 25;
 
@@ -35,9 +37,9 @@ function guestInitials(first: string, last: string): string {
   return s !== "" ? s : "?";
 }
 
-function formatGuestDate(iso: string): string {
+function formatGuestDateTime(iso: string, localeTag: string): string {
   try {
-    return new Date(iso).toLocaleString("ru-RU", {
+    return new Date(iso).toLocaleString(localeTag, {
       dateStyle: "short",
       timeStyle: "short",
     });
@@ -47,6 +49,7 @@ function formatGuestDate(iso: string): string {
 }
 
 export function GuestsPage() {
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const canCreateGuest = useCanWriteBookings();
   const createGuestMut = useCreateGuest();
@@ -109,11 +112,11 @@ export function GuestsPage() {
     const em = cgEmail.trim();
     const ph = cgPhone.trim();
     if (fn === "" || ln === "") {
-      setCgError("Укажите имя и фамилию.");
+      setCgError(t("bookings.err.names"));
       return;
     }
     if (em === "" || ph === "") {
-      setCgError("Укажите email и телефон.");
+      setCgError(t("bookings.err.contact"));
       return;
     }
     const nat = cgNat.trim().toUpperCase();
@@ -140,10 +143,11 @@ export function GuestsPage() {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Гости</h2>
+          <h2 className="text-lg font-semibold text-foreground">
+            {t("guests.title")}
+          </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Профили по вашей организации. Поиск на стороне API с задержкой
-            (debounce) после ввода.{" "}
+            {t("guests.hint")}{" "}
             <ApiRouteHint className="text-xs">GET /guests?q=</ApiRouteHint>
           </p>
         </div>
@@ -155,17 +159,14 @@ export function GuestsPage() {
               setCreateOpen(true);
             }}
           >
-            Новый гость
+            {t("guests.new")}
           </Button>
         ) : null}
       </div>
 
       <div className="max-w-md space-y-2">
         <label htmlFor="guests-search" className="text-sm font-medium">
-          Имя, фамилия, email или телефон
-          <span className="ml-1 font-normal text-muted-foreground">
-            (запрос с задержкой)
-          </span>
+          {t("guests.searchLabel")}
         </label>
         <Input
           id="guests-search"
@@ -173,7 +174,7 @@ export function GuestsPage() {
           onChange={(e) => {
             setSearchInput(e.target.value);
           }}
-          placeholder="Начните ввод…"
+          placeholder={t("guests.searchPlaceholder")}
           autoComplete="off"
         />
       </div>
@@ -206,12 +207,18 @@ export function GuestsPage() {
               className={`${GUESTS_LIST_ROW_GRID} sticky top-0 z-10 border-b border-border bg-muted/50`}
             >
               <div className="px-2 py-2" aria-hidden />
-              <div className="px-3 py-2 font-medium">Фамилия</div>
-              <div className="px-3 py-2 font-medium">Имя</div>
-              <div className="px-3 py-2 font-medium">Email</div>
-              <div className="px-3 py-2 font-medium">Телефон</div>
-              <div className="px-3 py-2 font-medium">VIP</div>
-              <div className="px-3 py-2 font-medium">Создан</div>
+              <div className="px-3 py-2 font-medium">
+                {t("guests.form.lastName")}
+              </div>
+              <div className="px-3 py-2 font-medium">
+                {t("guests.form.firstName")}
+              </div>
+              <div className="px-3 py-2 font-medium">{t("guests.colEmail")}</div>
+              <div className="px-3 py-2 font-medium">
+                {t("guests.form.phone")}
+              </div>
+              <div className="px-3 py-2 font-medium">{t("guests.colVip")}</div>
+              <div className="px-3 py-2 font-medium">{t("guests.colCreated")}</div>
             </div>
             <div
               className="relative"
@@ -255,10 +262,14 @@ export function GuestsPage() {
                           </span>
                         </div>
                         <div className="min-w-0 px-3 py-2 align-middle font-medium text-foreground">
-                          <span className="block truncate">{g.last_name}</span>
+                          <span className="block truncate">
+                            {capitalizeGuestName(g.last_name)}
+                          </span>
                         </div>
                         <div className="min-w-0 px-3 py-2 align-middle text-foreground">
-                          <span className="block truncate">{g.first_name}</span>
+                          <span className="block truncate">
+                            {capitalizeGuestName(g.first_name)}
+                          </span>
                         </div>
                         <div className="min-w-0 px-3 py-2 align-middle text-muted-foreground">
                           <span className="block truncate">{g.email}</span>
@@ -277,7 +288,10 @@ export function GuestsPage() {
                         </div>
                         <div className="min-w-0 px-3 py-2 align-middle text-xs tabular-nums text-muted-foreground">
                           <span className="block truncate">
-                            {formatGuestDate(g.created_at)}
+                            {formatGuestDateTime(
+                              g.created_at,
+                              boardLocaleFromI18n(i18n.language)
+                            )}
                           </span>
                         </div>
                       </div>
@@ -287,7 +301,7 @@ export function GuestsPage() {
           </div>
           {guests.length === 0 ? (
             <p className="px-3 py-8 text-center text-sm text-muted-foreground">
-              Нет гостей по текущему запросу.
+              {t("guests.empty")}
             </p>
           ) : null}
         </div>
@@ -302,11 +316,11 @@ export function GuestsPage() {
       >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Новый гость</DialogTitle>
+            <DialogTitle>{t("guests.new")}</DialogTitle>
           </DialogHeader>
           <form className="space-y-3" onSubmit={(e) => void onCreateGuest(e)}>
             <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <span>Создание профиля гостя.</span>
+              <span>{t("guests.createHint")}</span>
               <ApiRouteHint>POST /guests</ApiRouteHint>
             </p>
             {cgError !== null ? (
@@ -317,7 +331,7 @@ export function GuestsPage() {
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <label htmlFor="cg-first" className="text-sm font-medium">
-                  Имя
+                  {t("guests.form.firstName")}
                 </label>
                 <Input
                   id="cg-first"
@@ -327,7 +341,7 @@ export function GuestsPage() {
               </div>
               <div className="space-y-2">
                 <label htmlFor="cg-last" className="text-sm font-medium">
-                  Фамилия
+                  {t("guests.form.lastName")}
                 </label>
                 <Input
                   id="cg-last"
@@ -337,7 +351,7 @@ export function GuestsPage() {
               </div>
               <div className="space-y-2 sm:col-span-2">
                 <label htmlFor="cg-email" className="text-sm font-medium">
-                  Email
+                  {t("guests.colEmail")}
                 </label>
                 <Input
                   id="cg-email"
@@ -348,7 +362,7 @@ export function GuestsPage() {
               </div>
               <div className="space-y-2 sm:col-span-2">
                 <label htmlFor="cg-phone" className="text-sm font-medium">
-                  Телефон
+                  {t("guests.form.phone")}
                 </label>
                 <Input
                   id="cg-phone"
@@ -359,7 +373,7 @@ export function GuestsPage() {
               </div>
               <div className="space-y-2 sm:col-span-2">
                 <label htmlFor="cg-passport" className="text-sm font-medium">
-                  Паспорт / ID
+                  {t("guests.form.passport")}
                 </label>
                 <Input
                   id="cg-passport"
@@ -369,7 +383,7 @@ export function GuestsPage() {
               </div>
               <div className="space-y-2">
                 <label htmlFor="cg-nat" className="text-sm font-medium">
-                  Гражданство (ISO2)
+                  {t("guests.form.nationality")}
                 </label>
                 <Input
                   id="cg-nat"
@@ -380,7 +394,7 @@ export function GuestsPage() {
               </div>
               <div className="space-y-2">
                 <label htmlFor="cg-dob" className="text-sm font-medium">
-                  Дата рождения
+                  {t("guests.form.dob")}
                 </label>
                 <DatePickerField
                   id="cg-dob"
@@ -391,7 +405,7 @@ export function GuestsPage() {
               </div>
               <div className="space-y-2 sm:col-span-2">
                 <label htmlFor="cg-notes" className="text-sm font-medium">
-                  Заметки
+                  {t("guests.form.notes")}
                 </label>
                 <Input
                   id="cg-notes"
@@ -408,19 +422,21 @@ export function GuestsPage() {
                   onChange={(e) => setCgVip(e.target.checked)}
                 />
                 <label htmlFor="cg-vip" className="text-sm font-medium">
-                  VIP
+                  {t("guests.colVip")}
                 </label>
               </div>
             </div>
             <DialogFooter className="gap-2">
               <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
-                Отмена
+                {t("common.cancel")}
               </Button>
               <Button type="submit" disabled={createGuestMut.isPending}>
                 {createGuestMut.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
                 ) : null}
-                {createGuestMut.isPending ? "Создаём…" : "Создать"}
+                {createGuestMut.isPending
+                  ? t("guests.createSubmitting")
+                  : t("guests.createSubmit")}
               </Button>
             </DialogFooter>
           </form>

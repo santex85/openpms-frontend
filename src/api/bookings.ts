@@ -163,6 +163,14 @@ export interface BookingPatchBody {
   notes?: string | null;
 }
 
+/** True when PATCH includes stay dates — backend may recalculate folio / taxes (TZ-10 AC-12). */
+export function bookingPatchTouchesStayDates(body: BookingPatchBody): boolean {
+  return (
+    Object.prototype.hasOwnProperty.call(body, "check_in") ||
+    Object.prototype.hasOwnProperty.call(body, "check_out")
+  );
+}
+
 export async function patchBooking(
   bookingId: string,
   body: BookingPatchBody

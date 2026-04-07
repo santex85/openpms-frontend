@@ -1,5 +1,7 @@
 import { FormEvent, useState } from "react";
 import axios from "axios";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 
 import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { Button } from "@/components/ui/button";
@@ -8,17 +10,18 @@ import { useChangePassword } from "@/hooks/useChangePassword";
 
 const MIN_LEN = 8;
 
-function formatChangePasswordError(err: unknown): string {
+function formatChangePasswordError(err: unknown, t: TFunction): string {
   if (axios.isAxiosError(err) && err.response?.data !== undefined) {
     const data = err.response.data as { detail?: unknown };
     if (typeof data.detail === "string") {
       return data.detail;
     }
   }
-  return "Проверьте текущий пароль и повторите попытку.";
+  return t("settings.password.err.generic");
 }
 
 export function SettingsChangePasswordSection() {
+  const { t } = useTranslation();
   const mutation = useChangePassword();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -30,15 +33,15 @@ export function SettingsChangePasswordSection() {
     setError(null);
 
     if (current === "" || next === "" || confirm === "") {
-      setError("Заполните все поля.");
+      setError(t("settings.password.err.fillAll"));
       return;
     }
     if (next.length < MIN_LEN) {
-      setError(`Новый пароль: минимум ${MIN_LEN} символов.`);
+      setError(t("settings.password.err.minLen", { min: MIN_LEN }));
       return;
     }
     if (next !== confirm) {
-      setError("Новый пароль и подтверждение не совпадают.");
+      setError(t("settings.password.err.mismatch"));
       return;
     }
 
@@ -51,7 +54,7 @@ export function SettingsChangePasswordSection() {
       setNext("");
       setConfirm("");
     } catch (err) {
-      setError(formatChangePasswordError(err));
+      setError(formatChangePasswordError(err, t));
     }
   }
 
@@ -62,10 +65,10 @@ export function SettingsChangePasswordSection() {
     >
       <div>
         <h3 className="text-sm font-semibold text-foreground">
-          Пароль аккаунта
+          {t("settings.password.title")}
         </h3>
         <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          <span>Смена текущего пароля.</span>
+          <span>{t("settings.password.hint")}</span>
           <ApiRouteHint>POST /auth/change-password</ApiRouteHint>
         </p>
       </div>
@@ -77,7 +80,7 @@ export function SettingsChangePasswordSection() {
         ) : null}
         <div className="space-y-2">
           <label htmlFor="pw-current" className="text-sm font-medium">
-            Текущий пароль
+            {t("settings.password.current")}
           </label>
           <Input
             id="pw-current"
@@ -91,7 +94,7 @@ export function SettingsChangePasswordSection() {
         </div>
         <div className="space-y-2">
           <label htmlFor="pw-new" className="text-sm font-medium">
-            Новый пароль
+            {t("settings.password.new")}
           </label>
           <Input
             id="pw-new"
@@ -105,7 +108,7 @@ export function SettingsChangePasswordSection() {
         </div>
         <div className="space-y-2">
           <label htmlFor="pw-confirm" className="text-sm font-medium">
-            Подтверждение
+            {t("settings.password.confirm")}
           </label>
           <Input
             id="pw-confirm"
@@ -118,7 +121,9 @@ export function SettingsChangePasswordSection() {
           />
         </div>
         <Button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending ? "Сохраняем…" : "Сменить пароль"}
+          {mutation.isPending
+            ? t("settings.password.submitting")
+            : t("settings.password.submit")}
         </Button>
       </form>
     </section>

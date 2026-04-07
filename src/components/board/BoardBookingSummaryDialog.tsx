@@ -1,6 +1,9 @@
 import { Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+
+import { capitalizeGuestName } from "@/lib/capitalizeGuestName";
 
 import type { BookingPatchBody } from "@/api/bookings";
 import type { FolioTransactionRead } from "@/api/folio";
@@ -27,9 +30,9 @@ import {
 import { cn } from "@/lib/utils";
 import type { Booking, Guest } from "@/types/api";
 import {
+  boardLocaleFromI18n,
   countBookingNights,
-  formatBookingNightsRu,
-  formatBookingStayRu,
+  formatBookingStayLocale,
   formatIsoDateLocal,
 } from "@/utils/boardDates";
 
@@ -93,6 +96,7 @@ export function BoardBookingSummaryDialog({
   onReschedule,
   onGoToBooking,
 }: BoardBookingSummaryDialogProps) {
+  const { t, i18n } = useTranslation();
   const { data: properties } = useProperties();
   const bookingId = booking?.id;
   const {
@@ -118,8 +122,13 @@ export function BoardBookingSummaryDialog({
     if (booking === null) {
       return null;
     }
-    return formatBookingStayRu(booking.check_in_date, booking.check_out_date);
-  }, [booking]);
+    const loc = boardLocaleFromI18n(i18n.language);
+    return formatBookingStayLocale(
+      booking.check_in_date,
+      booking.check_out_date,
+      loc
+    );
+  }, [booking, i18n.language]);
 
   const nights = useMemo(() => {
     if (booking === null) {
@@ -211,7 +220,7 @@ export function BoardBookingSummaryDialog({
                   </span>
                 </div>
                 <p className="text-sm font-medium leading-snug text-foreground">
-                  {`${booking.guest.last_name} ${booking.guest.first_name}`.trim()}
+                  {`${capitalizeGuestName(booking.guest.last_name)} ${capitalizeGuestName(booking.guest.first_name)}`.trim()}
                 </p>
                 <DialogDescription className="text-xs text-muted-foreground">
                   ID:{" "}
@@ -229,7 +238,7 @@ export function BoardBookingSummaryDialog({
                     {nights !== null ? (
                       <span className="text-muted-foreground">
                         {" "}
-                        ({formatBookingNightsRu(nights)})
+                        ({t("board.stayNights", { count: nights })})
                       </span>
                     ) : null}
                   </p>
@@ -269,7 +278,7 @@ export function BoardBookingSummaryDialog({
                             onOpenChange(false);
                           }}
                         >
-                          {`${g.last_name} ${g.first_name}`.trim()}
+                          {`${capitalizeGuestName(g.last_name)} ${capitalizeGuestName(g.first_name)}`.trim()}
                         </Link>
                       </li>
                     ))}

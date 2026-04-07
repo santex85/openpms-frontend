@@ -153,6 +153,45 @@ export function countBookingNights(
   return days >= 0 ? days : null;
 }
 
+/** Map i18next language code (e.g. en, en-US) to BCP 47 for Intl. */
+export function boardLocaleFromI18n(lang: string | undefined): string {
+  if (lang === undefined || lang === "") {
+    return "ru-RU";
+  }
+  const base = lang.split("-")[0] ?? "ru";
+  if (base === "en") {
+    return "en-GB";
+  }
+  if (base === "th") {
+    return "th-TH";
+  }
+  if (base === "vi") {
+    return "vi-VN";
+  }
+  if (base === "id") {
+    return "id-ID";
+  }
+  if (base === "ms") {
+    return "ms-MY";
+  }
+  if (base === "km") {
+    return "km-KH";
+  }
+  return "ru-RU";
+}
+
+/** Month + year label for rate grid / calendars (locale-specific). */
+export function monthTitleLocale(anchor: Date, localeTag: string): string {
+  const raw = anchor.toLocaleDateString(localeTag, {
+    month: "long",
+    year: "numeric",
+  });
+  if (localeTag.startsWith("ru")) {
+    return raw.replace(/\sГ\.\s*$/u, " г.");
+  }
+  return raw;
+}
+
 /** Russian label: 1 ночь / 2 ночи / 5 ночей. */
 export function formatBookingNightsRu(n: number): string {
   const mod10 = n % 10;
@@ -169,21 +208,22 @@ export function formatBookingNightsRu(n: number): string {
   return `${n} ночей`;
 }
 
-/** e.g. «2 апр – 18 апр 2026» in ru-RU. */
-export function formatBookingStayRu(
+/** e.g. «2 апр – 18 апр 2026» (locale-specific). */
+export function formatBookingStayLocale(
   checkInIso: string | null,
-  checkOutIso: string | null
+  checkOutIso: string | null,
+  localeTag: string
 ): string | null {
   if (checkInIso === null || checkOutIso === null) {
     return null;
   }
   const ci = parseIsoDateLocal(checkInIso);
   const co = parseIsoDateLocal(checkOutIso);
-  const dayMonth = new Intl.DateTimeFormat("ru-RU", {
+  const dayMonth = new Intl.DateTimeFormat(localeTag, {
     day: "numeric",
     month: "short",
   });
-  const yearFmt = new Intl.DateTimeFormat("ru-RU", { year: "numeric" });
+  const yearFmt = new Intl.DateTimeFormat(localeTag, { year: "numeric" });
   const y1 = yearFmt.format(ci);
   const y2 = yearFmt.format(co);
   const left = dayMonth.format(ci);
@@ -192,6 +232,14 @@ export function formatBookingStayRu(
     return `${left} – ${right} ${y2}`;
   }
   return `${left} ${y1} – ${right} ${y2}`;
+}
+
+/** @deprecated Prefer formatBookingStayLocale(..., boardLocaleFromI18n(lang)). */
+export function formatBookingStayRu(
+  checkInIso: string | null,
+  checkOutIso: string | null
+): string | null {
+  return formatBookingStayLocale(checkInIso, checkOutIso, "ru-RU");
 }
 
 /** Property time like "14:00:00" → "14:00" for display. */

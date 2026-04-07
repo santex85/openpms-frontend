@@ -8,12 +8,39 @@ export interface AuditLogFetchResult {
   hasMore: boolean;
 }
 
+function auditLogQueryString(params: {
+  limit: number;
+  offset: number;
+  action?: string[];
+  entity_type?: string[];
+}): string {
+  const u = new URLSearchParams();
+  u.set("limit", String(params.limit));
+  u.set("offset", String(params.offset));
+  for (const a of params.action ?? []) {
+    u.append("action", a);
+  }
+  for (const e of params.entity_type ?? []) {
+    u.append("entity_type", e);
+  }
+  const qs = u.toString();
+  return qs === "" ? "" : `?${qs}`;
+}
+
 export async function fetchAuditLog(params: {
   limit?: number;
   offset?: number;
+  action?: string[];
+  entity_type?: string[];
 }): Promise<AuditLogFetchResult> {
   const limit = params.limit ?? 50;
   const offset = params.offset ?? 0;
+  const qs = auditLogQueryString({
+    limit,
+    offset,
+    action: params.action,
+    entity_type: params.entity_type,
+  });
   const { data } = await apiClient.get<
     | AuditLogEntry[]
     | {
@@ -22,9 +49,7 @@ export async function fetchAuditLog(params: {
         limit?: number;
         offset?: number;
       }
-  >("/audit-log", {
-    params: { limit, offset },
-  });
+  >(`/audit-log${qs}`);
 
   if (Array.isArray(data)) {
     const hasMore = data.length >= limit;

@@ -1,43 +1,33 @@
 import { BOOKING_STATUS_OPTIONS, type BookingStatusValue } from "@/lib/constants";
+import i18n from "@/i18n";
 
-const BOOKING_STATUS_RU: Record<string, string> = {
-  pending: "Ожидает",
-  confirmed: "Подтверждена",
-  checked_in: "Заезд",
-  checked_out: "Выезд",
-  cancelled: "Отменена",
-  no_show: "Не заезд",
-};
+function normToken(s: string): string {
+  return s.trim().toLowerCase().replace(/-/g, "_");
+}
 
 export function bookingStatusLabel(status: string): string {
-  const k = status.trim().toLowerCase();
-  return BOOKING_STATUS_RU[k] ?? status;
+  const k = normToken(status);
+  return i18n.t(`booking.status.${k}`, { defaultValue: status });
 }
 
 /** Label inside compact summary badges (pending → «Ожидание» per UI spec). */
 export function bookingSummaryBadgeLabel(status: string): string {
-  const k = status.trim().toLowerCase();
+  const k = normToken(status);
   if (k === "pending") {
-    return "Ожидание";
+    return i18n.t("booking.badge.pending");
   }
   return bookingStatusLabel(status);
 }
 
-export function bookingStatusFilterItems(): { value: BookingStatusValue; label: string }[] {
+export function bookingStatusFilterItems(): {
+  value: BookingStatusValue;
+  label: string;
+}[] {
   return BOOKING_STATUS_OPTIONS.map((v) => ({
     value: v,
     label: bookingStatusLabel(v),
   }));
 }
-
-const BOOKING_SOURCE_RU: Record<string, string> = {
-  direct: "Прямое бронирование",
-  ota: "ОТА",
-  phone: "Телефон",
-  walk_in: "Walk-in",
-  website: "Сайт",
-  email: "E-mail",
-};
 
 export function bookingSourceLabel(source: string | null | undefined): string {
   if (source === null || source === undefined) {
@@ -47,8 +37,8 @@ export function bookingSourceLabel(source: string | null | undefined): string {
   if (s === "") {
     return "—";
   }
-  const k = s.toLowerCase();
-  return BOOKING_SOURCE_RU[k] ?? s;
+  const k = normToken(s);
+  return i18n.t(`booking.source.${k}`, { defaultValue: s });
 }
 
 /** Tailwind classes for booking tiles (board / legend). */
@@ -59,10 +49,10 @@ export function bookingSummaryStatusBadgeClass(status: string): string {
     return "border border-border bg-muted text-foreground";
   }
   if (s === "confirmed") {
-    return "border border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-100";
+    return "border border-blue-300 bg-blue-100 text-blue-950 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-100";
   }
   if (s === "checked_in" || s === "checked-in") {
-    return "border border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-100";
+    return "border border-emerald-300 bg-emerald-100 text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-100";
   }
   if (
     s === "checked_out" ||
@@ -72,10 +62,10 @@ export function bookingSummaryStatusBadgeClass(status: string): string {
     return "border border-border bg-muted/90 text-muted-foreground";
   }
   if (s === "cancelled" || s === "canceled") {
-    return "border border-red-200 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950/50 dark:text-red-100";
+    return "border border-red-300 bg-red-100 text-red-950 dark:border-red-900 dark:bg-red-950/50 dark:text-red-100";
   }
   if (s === "no_show" || s === "no-show") {
-    return "border border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-100";
+    return "border border-amber-300 bg-amber-100 text-amber-950 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-100";
   }
   return "border border-border bg-muted text-foreground";
 }
@@ -138,51 +128,64 @@ export const BOARD_LEGEND_STATUSES: readonly string[] = [
   "no_show",
 ];
 
-const HK_STATUS_RU: Record<string, string> = {
-  dirty: "Грязный",
-  clean: "Чистый",
-  inspected: "Проверен",
-  out_of_service: "Не в работе",
-  cleaning: "Уборка",
-};
-
 export function housekeepingStatusLabel(raw: string): string {
-  const k = raw.trim().toLowerCase();
-  return HK_STATUS_RU[k] ?? raw;
+  const k = normToken(raw);
+  return i18n.t(`hk.status.${k}`, { defaultValue: raw });
 }
 
-const ROOM_STATUS_RU: Record<string, string> = {
-  available: "Доступен",
-  maintenance: "Обслуживание",
-  out_of_order: "Не продаётся",
-};
+export function housekeepingPriorityLabel(raw: string): string {
+  const k = normToken(raw);
+  return i18n.t(`hk.priority.${k}`, { defaultValue: raw });
+}
 
 export function roomStatusLabel(status: string): string {
-  const k = status.trim().toLowerCase();
-  return ROOM_STATUS_RU[k] ?? status;
+  const k = normToken(status);
+  return i18n.t(`room.status.${k}`, { defaultValue: status });
 }
 
-const FOLIO_TX_RU: Record<string, string> = {
-  charge: "Начисление",
-  payment: "Оплата",
-  refund: "Возврат",
-  adjustment: "Корректировка",
-};
-
-export function folioTransactionTypeLabel(t: string): string {
-  const k = t.trim().toLowerCase();
-  return FOLIO_TX_RU[k] ?? t;
+export function folioTransactionTypeLabel(tx: string): string {
+  const k = normToken(tx);
+  return i18n.t(`folio.tx.${k}`, { defaultValue: tx });
 }
-
-const ROLE_RU: Record<string, string> = {
-  owner: "Владелец",
-  manager: "Менеджер",
-  receptionist: "Рецепция",
-  housekeeping: "Горничные",
-  viewer: "Наблюдатель",
-};
 
 export function tenantRoleLabel(role: string): string {
-  const k = role.trim().toLowerCase();
-  return ROLE_RU[k] ?? role;
+  const k = normToken(role);
+  return i18n.t(`role.${k}`, { defaultValue: role });
+}
+
+/** Localized display name for room type; falls back to API `name`. */
+export function roomTypeDisplayName(name: string | null | undefined): string {
+  if (name === null || name === undefined) {
+    return "";
+  }
+  const t = name.trim();
+  if (t === "") {
+    return "";
+  }
+  const k = normToken(name.replace(/\s+/gu, "_"));
+  return i18n.t(`roomType.${k}`, { defaultValue: name });
+}
+
+function auditNormKey(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/\./gu, "_")
+    .replace(/[^a-z0-9_]+/gu, "_")
+    .replace(/^_+|_+$/gu, "");
+}
+
+export function auditActionLabel(action: string): string {
+  const k = auditNormKey(action);
+  return i18n.t(`audit.action.${k}`, { defaultValue: action });
+}
+
+export function auditEntityLabel(entity: string): string {
+  const k = auditNormKey(entity);
+  return i18n.t(`audit.entity.${k}`, { defaultValue: entity });
+}
+
+export function webhookEventLabel(eventId: string): string {
+  const k = eventId.trim().toLowerCase().replace(/\./gu, "_");
+  return i18n.t(`webhook.event.${k}`, { defaultValue: eventId });
 }

@@ -1,5 +1,6 @@
 import { ChevronDown, KeyRound, LogOut } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import { logoutSession } from "@/api/auth";
@@ -8,6 +9,7 @@ import { useCurrentUserQueryContext } from "@/hooks/useCurrentUserQueryContext";
 import { cn } from "@/lib/utils";
 
 export function UserMenu() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { data: user, isPending, isError } = useCurrentUserQueryContext();
   const [open, setOpen] = useState(false);
@@ -91,7 +93,7 @@ export function UserMenu() {
             }}
           >
             <KeyRound className="h-4 w-4 shrink-0 opacity-70" />
-            Сменить пароль
+            {t("user.changePassword")}
           </button>
           <button
             type="button"
@@ -100,7 +102,7 @@ export function UserMenu() {
             onClick={handleLogout}
           >
             <LogOut className="h-4 w-4 shrink-0 opacity-70" />
-            Выйти
+            {t("user.logout")}
           </button>
         </div>
       ) : null}

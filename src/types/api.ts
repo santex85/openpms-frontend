@@ -16,6 +16,8 @@ export interface PropertyCreate {
   /** ISO-like time string e.g. "14:00:00" */
   checkin_time: string;
   checkout_time: string;
+  /** Optional; prefer POST /country-packs/{code}/apply for pack changes. */
+  country_pack_code?: string | null;
 }
 
 /** Property as returned by GET/POST /properties. */
@@ -27,6 +29,8 @@ export interface PropertyRead {
   currency: string;
   checkin_time: string;
   checkout_time: string;
+  /** Country pack code from TZ-9; null if not configured. */
+  country_pack_code?: string | null;
 }
 
 import type { Guest } from "./guests";
@@ -102,6 +106,8 @@ export interface BookingCreateRequest {
   guest: BookingGuestPayload;
   status?: string;
   source?: string;
+  /** When true, backend skips merging with existing guest profile (TZ-10). */
+  force_new_guest?: boolean;
 }
 
 export interface NightlyPriceLine {
@@ -115,6 +121,8 @@ export interface BookingCreateResponse {
   guest_id: string;
   total_amount: string;
   nights: NightlyPriceLine[];
+  /** True when an existing guest profile was linked (TZ-10). */
+  guest_merged?: boolean;
 }
 
 /** GET /dashboard/summary */

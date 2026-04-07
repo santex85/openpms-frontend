@@ -21,9 +21,14 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
-import { type BookingPatchBody, patchBooking } from "@/api/bookings";
+import {
+  bookingPatchTouchesStayDates,
+  type BookingPatchBody,
+  patchBooking,
+} from "@/api/bookings";
 import { putAvailabilityOverride } from "@/api/inventory";
 import { BoardBookingSummaryDialog } from "@/components/board/BoardBookingSummaryDialog";
 import { BoardGrid } from "@/components/board/BoardGrid";
@@ -47,10 +52,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { capitalizeGuestName } from "@/lib/capitalizeGuestName";
 import { useAssignableRooms } from "@/hooks/useAssignableRooms";
 import { useAvailabilityGrid } from "@/hooks/useAvailabilityGrid";
 import { useAssignBookingRoom } from "@/hooks/useAssignBookingRoom";
 import { useBookings } from "@/hooks/useBookings";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useCreateBooking } from "@/hooks/useCreateBooking";
 import { useRatePlans } from "@/hooks/useRatePlans";
 import { useRoomTypes } from "@/hooks/useRoomTypes";
@@ -60,6 +67,7 @@ import {
   parseRoomIdFromDndOver,
 } from "@/lib/boardDnd";
 import { formatApiError } from "@/lib/formatApiError";
+import { toastInfo } from "@/lib/toast";
 import { duplicateRoomNameKeys } from "@/lib/roomDuplicateNames";
 import { useCanWriteBookings, useCanWriteInventory } from "@/hooks/useAuthz";
 import { usePropertyStore } from "@/stores/property-store";
@@ -67,8 +75,11 @@ import type { AvailabilityCell } from "@/types/inventory";
 import type { Booking, BookingCreateRequest, RoomRow } from "@/types/api";
 import {
   type BoardRangeMode,
+  boardLocaleFromI18n,
+  formatBookingStayLocale,
   formatIsoDateLocal,
   getBoardRange,
+  getWeekRange,
 } from "@/utils/boardDates";
 import { sumAvailableByDate } from "@/utils/inventoryAggregate";
 
@@ -122,7 +133,7 @@ function formatBoardCreateBookingError(err: unknown): string {
 
 function DragOverlayCard({ booking }: { booking: Booking }) {
   const guestLabel =
-    `${booking.guest.last_name} ${booking.guest.first_name}`.trim();
+    `${capitalizeGuestName(booking.guest.last_name)} ${capitalizeGuestName(booking.guest.first_name)}`.trim();
   const datesLabel =
     booking.check_in_date !== null && booking.check_out_date !== null
       ? `${booking.check_in_date} → ${booking.check_out_date}`
@@ -138,6 +149,7 @@ function DragOverlayCard({ booking }: { booking: Booking }) {
 }
 
 export function BoardPage() {
+  const { i18n, t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
@@ -153,27 +165,63 @@ export function BoardPage() {
     [boardRangeMode, monthAnchor, customFromIso, customToIso]
   );
 
+  const narrowBoardStrip = useMediaQuery("(max-width: 479px)");
+  const useWeekStepNav = narrowBoardStrip && boardRangeMode === "month";
+  const dataRange = useMemo(() => {
+    if (useWeekStepNav) {
+      return getWeekRange(monthAnchor);
+    }
+    return range;
+  }, [useWeekStepNav, monthAnchor, range]);
+
   const rangeTitle = useMemo(() => {
+    const localeTag = boardLocaleFromI18n(i18n.language);
     if (boardRangeMode === "month") {
-      return new Intl.DateTimeFormat("ru-RU", {
+      if (useWeekStepNav) {
+        return (
+          formatBookingStayLocale(
+            dataRange.startIso,
+            dataRange.endIso,
+            localeTag
+          ) ?? `${dataRange.startIso} — ${dataRange.endIso}`
+        );
+      }
+      const raw = new Intl.DateTimeFormat(localeTag, {
         month: "long",
         year: "numeric",
       }).format(monthAnchor);
+      if (localeTag.startsWith("ru")) {
+        return raw.replace(/\sГ\.\s*$/u, " г.");
+      }
+      return raw;
     }
-    return `${range.startIso} — ${range.endIso}`;
-  }, [boardRangeMode, monthAnchor, range.startIso, range.endIso]);
+    return (
+      formatBookingStayLocale(
+        dataRange.startIso,
+        dataRange.endIso,
+        localeTag
+      ) ?? `${dataRange.startIso} — ${dataRange.endIso}`
+    );
+  }, [
+    boardRangeMode,
+    monthAnchor,
+    dataRange.startIso,
+    dataRange.endIso,
+    useWeekStepNav,
+    i18n.language,
+  ]);
 
   const { data: roomTypes, isPending: roomTypesPending } = useRoomTypes();
   const { data: rooms, isPending: roomsPending } = useRooms();
   const {
     data: bookingsRaw,
     isPending: bookingsPending,
-  } = useBookings(range.startIso, range.endIso);
+  } = useBookings(dataRange.startIso, dataRange.endIso);
   const {
     data: availabilityGrid,
     isPending: availabilityPending,
     isError: availabilityError,
-  } = useAvailabilityGrid(range.startIso, range.endIso);
+  } = useAvailabilityGrid(dataRange.startIso, dataRange.endIso);
   const { data: ratePlans, isPending: ratePlansPending } = useRatePlans();
   const createBookingMut = useCreateBooking();
 
@@ -190,7 +238,7 @@ export function BoardPage() {
       bookingId: string;
       body: BookingPatchBody;
     }) => patchBooking(bookingId, body),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["bookings"] });
       void queryClient.invalidateQueries({
         queryKey: ["bookings", "folio"],
@@ -199,6 +247,9 @@ export function BoardPage() {
         queryKey: ["inventory", "availability"],
       });
       void queryClient.invalidateQueries({ queryKey: ["rooms", "assignable"] });
+      if (bookingPatchTouchesStayDates(variables.body)) {
+        toastInfo(t("bookings.toastFolioAfterDateChange"));
+      }
     },
   });
 
@@ -339,8 +390,8 @@ export function BoardPage() {
   );
 
   const dayIsoSet = useMemo(
-    () => new Set(range.days.map((d) => d.iso)),
-    [range.days]
+    () => new Set(dataRange.days.map((d) => d.iso)),
+    [dataRange.days]
   );
 
   const sumsByDate = useMemo(
@@ -367,9 +418,9 @@ export function BoardPage() {
         b.check_in_date !== null &&
         b.check_out_date !== null &&
         b.property_id === selectedPropertyId &&
-        bookingOverlapsMonth(b, range.startIso, range.endIso)
+        bookingOverlapsMonth(b, dataRange.startIso, dataRange.endIso)
     );
-  }, [bookingsRaw, selectedPropertyId, range.startIso, range.endIso]);
+  }, [bookingsRaw, selectedPropertyId, dataRange.startIso, dataRange.endIso]);
 
   const unassignedBookings = useMemo(() => {
     const list = bookingsRaw ?? [];
@@ -382,9 +433,9 @@ export function BoardPage() {
         b.check_in_date !== null &&
         b.check_out_date !== null &&
         b.property_id === selectedPropertyId &&
-        bookingOverlapsMonth(b, range.startIso, range.endIso)
+        bookingOverlapsMonth(b, dataRange.startIso, dataRange.endIso)
     );
-  }, [bookingsRaw, selectedPropertyId, range.startIso, range.endIso]);
+  }, [bookingsRaw, selectedPropertyId, dataRange.startIso, dataRange.endIso]);
 
   const sortedRoomTypes = useMemo(() => {
     const list = roomTypes ?? [];
@@ -641,6 +692,7 @@ export function BoardPage() {
         onMonthAnchorChange={(d) => {
           setMonthAnchor(d);
         }}
+        useWeekStepNav={useWeekStepNav}
         customFromIso={customFromIso}
         customToIso={customToIso}
         onCustomFromIsoChange={setCustomFromIso}
@@ -677,7 +729,7 @@ export function BoardPage() {
           unassignedBookings={unassignedBookings}
           sortedRoomTypes={sortedRoomTypes}
           bookingsPending={bookingsPending}
-          days={range.days}
+          days={dataRange.days}
           rooms={rooms ?? []}
           bookingsForGrid={bookingsForGrid}
           sumsByDate={sumsByDate}

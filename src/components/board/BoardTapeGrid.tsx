@@ -1,12 +1,13 @@
 import { Fragment, useMemo } from "react";
+import { useTranslation } from "react-i18next";
+
+import { boardLocaleFromI18n } from "@/utils/boardDates";
 
 import type { BoardBookingMenuApi } from "@/components/board/BookingBlock";
 import { BoardRoomRow } from "@/components/board/BoardRoomRow";
 import { cn } from "@/lib/utils";
 import type { Booking, RoomRow, RoomType } from "@/types/api";
 import { formatIsoDateLocal, type MonthDayMeta } from "@/utils/boardDates";
-
-const labelHeader = "Дата / Номер";
 
 const cellBorder = "border-b border-r border-border";
 
@@ -38,6 +39,10 @@ export function BoardTapeGrid({
   bookingMenuApi,
   onEmptyCellClick,
 }: BoardTapeGridProps) {
+  const { t, i18n } = useTranslation();
+  const labelHeader = t("board.dateRoomCol");
+  const emptyTypes = t("board.emptyRoomTypes");
+  const emptyRooms = t("board.emptyRooms");
   const colTemplate = useMemo(() => {
     const n = days.length;
     return `minmax(9rem, 12rem) repeat(${n}, minmax(3rem, 1fr))`;
@@ -48,14 +53,13 @@ export function BoardTapeGrid({
     return `repeat(${n}, minmax(3rem, 1fr))`;
   }, [days.length]);
 
-  const dayFormatter = useMemo(
-    () =>
-      new Intl.DateTimeFormat("ru-RU", {
-        weekday: "short",
-        day: "numeric",
-      }),
-    []
-  );
+  const dayFormatter = useMemo(() => {
+    const loc = boardLocaleFromI18n(i18n.language);
+    return new Intl.DateTimeFormat(loc, {
+      weekday: "short",
+      day: "numeric",
+    });
+  }, [i18n.language]);
 
   const bookingsByRoomId = useMemo(() => {
     const m = new Map<string, Booking[]>();
@@ -77,36 +81,27 @@ export function BoardTapeGrid({
       list.push(r);
       m.set(r.room_type_id, list);
     }
+    const sortLoc = boardLocaleFromI18n(i18n.language);
     for (const [, list] of m) {
       list.sort((a, b) =>
-        a.name.localeCompare(b.name, "ru", { sensitivity: "base" })
+        a.name.localeCompare(b.name, sortLoc, { sensitivity: "base" })
       );
     }
     return m;
-  }, [rooms]);
+  }, [rooms, i18n.language]);
 
   if (roomTypes.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Нет категорий номеров для выбранного отеля. Добавьте типы номеров в
-        системе.
-      </p>
-    );
+    return <p className="text-sm text-muted-foreground">{emptyTypes}</p>;
   }
 
   if (rooms.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Нет физических номеров для отеля. Добавьте комнаты, чтобы отобразить
-        строки сетки и брони.
-      </p>
-    );
+    return <p className="text-sm text-muted-foreground">{emptyRooms}</p>;
   }
 
   const totalRooms = rooms.length;
 
   return (
-    <div className="max-h-[min(70vh,calc(100vh-8rem))] overflow-auto rounded-md border border-border bg-background shadow-sm">
+    <div className="max-h-[min(70vh,calc(100vh-8rem))] overflow-auto scroll-smooth rounded-md border border-border bg-background shadow-sm sm:snap-x sm:snap-mandatory">
       <div
         className="grid min-w-max"
         style={{ gridTemplateColumns: colTemplate }}
@@ -120,7 +115,7 @@ export function BoardTapeGrid({
         >
           {labelHeader}
           <div className="mt-0.5 text-[0.6rem] text-muted-foreground">
-            ЗАНЯТОСТЬ
+            {t("board.occupancy")}
           </div>
         </div>
         {days.map((day) => {
@@ -139,7 +134,7 @@ export function BoardTapeGrid({
                 "bg-primary/10 ring-1 ring-inset ring-primary/35"
             )}
           >
-            <div className="text-xs font-medium capitalize leading-tight text-foreground md:text-sm">
+            <div className="text-xs font-medium leading-tight text-foreground md:text-sm sm:snap-start">
               {dayFormatter.format(day.date)}
             </div>
             <div className="mt-1 text-[0.65rem] tabular-nums text-muted-foreground md:text-xs">

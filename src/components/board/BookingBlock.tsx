@@ -9,6 +9,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { capitalizeGuestName } from "@/lib/capitalizeGuestName";
 import { dndBookingId, type BoardBookingDragData } from "@/lib/boardDnd";
 import { bookingStatusTileClasses } from "@/lib/i18n/domainLabels";
 import { cn } from "@/lib/utils";
@@ -60,7 +61,7 @@ const DraggableBookingTile = memo(function DraggableBookingTile({
         height: "calc(100% - 8px)",
         zIndex: 20,
       }}
-      title={`${booking.guest.last_name} ${booking.guest.first_name}`}
+      title={`${capitalizeGuestName(booking.guest.last_name)} ${capitalizeGuestName(booking.guest.first_name)}`}
       {...listeners}
       {...attributes}
       onClick={() => {
@@ -79,7 +80,7 @@ const DraggableBookingTile = memo(function DraggableBookingTile({
     >
       <span className="block truncate">
         {[
-          booking.guest.last_name,
+          capitalizeGuestName(booking.guest.last_name),
           booking.guest.first_name?.charAt(0)
             ? `${booking.guest.first_name.charAt(0).toUpperCase()}.`
             : null,

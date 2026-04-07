@@ -1,11 +1,17 @@
 import { Info } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
+import { formatMoneyAmount } from "@/lib/formatMoney";
+import { roomTypeDisplayName } from "@/lib/i18n/domainLabels";
 import { cn } from "@/lib/utils";
 import { formatApiError } from "@/lib/formatApiError";
 import type { NightlyRatesMatrixRow } from "@/hooks/useNightlyRatesMatrix";
 import type { RoomType } from "@/types/room-types";
 import type { AvailabilityCell } from "@/types/inventory";
-import type { MonthDayMeta } from "@/utils/boardDates";
+import {
+  boardLocaleFromI18n,
+  type MonthDayMeta,
+} from "@/utils/boardDates";
 
 import { availabilityOccupancyLine } from "./ratesPageHelpers";
 
@@ -25,6 +31,8 @@ export interface RatesMatrixProps {
   canWriteRates: boolean;
   selectedPropertyId: string | null;
   ratePlanId: string;
+  /** ISO 4217; when set, matrix cells show formatted money. */
+  propertyCurrency: string | null;
   onOpenCellEdit: (payload: {
     roomTypeId: string;
     roomTypeName: string;
@@ -50,8 +58,11 @@ export function RatesMatrix({
   canWriteRates,
   selectedPropertyId,
   ratePlanId,
+  propertyCurrency,
   onOpenCellEdit,
 }: RatesMatrixProps) {
+  const { t, i18n } = useTranslation();
+  const loc = boardLocaleFromI18n(i18n.language);
   return (
     <>
       {ratesError && ratesErrorObj !== null ? (
@@ -65,7 +76,7 @@ export function RatesMatrix({
           className="text-sm text-amber-700 dark:text-amber-400"
           role="status"
         >
-          Не удалось загрузить остатки номеров:{" "}
+          {t("rates.matrix.inventoryLoadFailed")}{" "}
           {formatApiError(availabilityErrorObj)}
         </p>
       ) : null}
@@ -85,10 +96,10 @@ export function RatesMatrix({
                   scope="col"
                   className="sticky left-0 z-20 min-w-[8.5rem] border-b border-r bg-muted/40 px-2 py-2 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
                 >
-                  Категория
+                  {t("rates.category")}
                 </th>
                 {rangeDays.map((d) => {
-                  const weekday = d.date.toLocaleDateString("ru-RU", {
+                  const weekday = d.date.toLocaleDateString(loc, {
                     weekday: "short",
                   });
                   return (
@@ -130,7 +141,7 @@ export function RatesMatrix({
                       scope="row"
                       className="sticky left-0 z-10 border-b border-r bg-card px-2 py-2 text-left font-medium text-foreground"
                     >
-                      {rt.name}
+                      {roomTypeDisplayName(rt.name)}
                     </th>
                     {rangeDays.map((d) => {
                       const p = priceByDate.get(d.iso);
@@ -140,9 +151,9 @@ export function RatesMatrix({
                         if (!cellEditable) return;
                         onOpenCellEdit({
                           roomTypeId: rt.id,
-                          roomTypeName: rt.name,
+                          roomTypeName: roomTypeDisplayName(rt.name),
                           dateIso: d.iso,
-                          dateLabel: d.date.toLocaleDateString("ru-RU", {
+                          dateLabel: d.date.toLocaleDateString(loc, {
                             day: "numeric",
                             month: "long",
                             year: "numeric",
@@ -157,7 +168,7 @@ export function RatesMatrix({
                           tabIndex={cellEditable ? 0 : undefined}
                           title={
                             !rowPending && p === undefined
-                              ? "Цена не задана"
+                              ? t("rates.matrix.noPriceHint")
                               : undefined
                           }
                           className={cn(
@@ -178,13 +189,27 @@ export function RatesMatrix({
                         >
                           <div className="flex min-h-[2.25rem] flex-col items-center justify-center gap-0.5 leading-tight">
                             <span className="text-sm font-semibold tabular-nums">
-                              {rowPending ? "…" : p !== undefined ? p : "—"}
+                              {rowPending
+                                ? "…"
+                                : p !== undefined
+                                  ? propertyCurrency !== null &&
+                                    propertyCurrency.trim() !== ""
+                                    ? formatMoneyAmount(
+                                        propertyCurrency,
+                                        p,
+                                        i18n.language
+                                      )
+                                    : p
+                                  : "—"}
                             </span>
                             <div
                               className="flex max-w-[4rem] items-start justify-center gap-0.5 text-[10px] leading-tight text-muted-foreground"
                               title={
                                 availCell !== undefined
-                                  ? `Занято ${String(availCell.booked_rooms)} · свободно ${String(availCell.available_rooms)}`
+                                  ? t("rates.matrix.availTitle", {
+                                      booked: availCell.booked_rooms,
+                                      free: availCell.available_rooms,
+                                    })
                                   : undefined
                               }
                             >

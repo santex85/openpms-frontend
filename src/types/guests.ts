@@ -36,6 +36,7 @@ export interface GuestRead {
   vip_status: boolean;
   created_at: string;
   updated_at: string;
+  extension_data?: Record<string, unknown> | null;
 }
 
 /** Paginated GET /guests. */
@@ -73,4 +74,6 @@ export interface GuestPatch {
   date_of_birth?: string | null;
   notes?: string | null;
   vip_status?: boolean | null;
+  /** Extension field values (JSON), TZ-10 Country Pack extensions. */
+  extension_data?: Record<string, unknown> | null;
 }

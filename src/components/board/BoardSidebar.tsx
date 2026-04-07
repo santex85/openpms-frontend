@@ -1,4 +1,5 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Trans, useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,8 @@ export interface BoardSidebarProps {
   onCustomFromIsoChange: (v: string) => void;
   onCustomToIsoChange: (v: string) => void;
   canWriteBookings: boolean;
+  /** When true + month mode, prev/next move by 7 days (mobile week strip). */
+  useWeekStepNav?: boolean;
 }
 
 export function BoardSidebar({
@@ -45,17 +48,29 @@ export function BoardSidebar({
   onCustomFromIsoChange,
   onCustomToIsoChange,
   canWriteBookings,
+  useWeekStepNav = false,
 }: BoardSidebarProps) {
+  const { t } = useTranslation();
+
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
-        <h2 className="text-lg font-semibold text-foreground">Сетка</h2>
+        <h2 className="text-lg font-semibold text-foreground">
+          {t("nav.board")}
+        </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Остатки в шапке, категории и номера слева. Период:{" "}
-          <span className="font-medium text-foreground">{rangeTitle}</span>
+          <Trans
+            i18nKey="board.subtitle"
+            values={{ period: rangeTitle }}
+            components={{
+              highlight: <span className="font-medium text-foreground" />,
+            }}
+          />
         </p>
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 border-y border-border py-2 text-[11px] text-muted-foreground md:text-xs">
-          <span className="font-medium text-foreground">Статусы броней</span>
+          <span className="font-medium text-foreground">
+            {t("board.legendTitle")}
+          </span>
           {BOARD_LEGEND_STATUSES.map((st) => (
             <span
               key={st}
@@ -84,13 +99,18 @@ export function BoardSidebar({
               }
             }}
           >
-            <SelectTrigger className="w-[168px]" aria-label="Тип периода">
+            <SelectTrigger
+              className="w-[168px]"
+              aria-label={t("board.aria.periodType")}
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="month">Месяц</SelectItem>
-              <SelectItem value="fortnight">2 недели</SelectItem>
-              <SelectItem value="custom">Свой диапазон</SelectItem>
+              <SelectItem value="month">{t("board.mode.month")}</SelectItem>
+              <SelectItem value="fortnight">
+                {t("board.mode.fortnight")}
+              </SelectItem>
+              <SelectItem value="custom">{t("board.mode.custom")}</SelectItem>
             </SelectContent>
           </Select>
           {boardRangeMode === "custom" ? (
@@ -99,7 +119,7 @@ export function BoardSidebar({
                 className="w-[150px]"
                 value={customFromIso}
                 onChange={onCustomFromIsoChange}
-                aria-label="Начало периода"
+                aria-label={t("board.aria.periodStart")}
               />
               <span className="text-muted-foreground">—</span>
               <DatePickerField
@@ -107,7 +127,7 @@ export function BoardSidebar({
                 value={customToIso}
                 onChange={onCustomToIsoChange}
                 min={customFromIso.trim() || undefined}
-                aria-label="Конец периода"
+                aria-label={t("board.aria.periodEnd")}
               />
             </>
           ) : null}
@@ -118,10 +138,16 @@ export function BoardSidebar({
             variant="outline"
             size="icon"
             disabled={boardRangeMode === "custom"}
-            aria-label="Предыдущий период"
+            aria-label={t("board.aria.prevPeriod")}
             onClick={() => {
               if (boardRangeMode === "month") {
-                onMonthAnchorChange(shiftMonthAnchor(monthAnchor, -1));
+                if (useWeekStepNav) {
+                  const d = new Date(monthAnchor);
+                  d.setDate(d.getDate() - 7);
+                  onMonthAnchorChange(d);
+                } else {
+                  onMonthAnchorChange(shiftMonthAnchor(monthAnchor, -1));
+                }
               } else if (boardRangeMode === "fortnight") {
                 const d = new Date(monthAnchor);
                 d.setDate(d.getDate() - 14);
@@ -139,17 +165,23 @@ export function BoardSidebar({
               onMonthAnchorChange(new Date());
             }}
           >
-            Сегодня
+            {t("board.today")}
           </Button>
           <Button
             type="button"
             variant="outline"
             size="icon"
             disabled={boardRangeMode === "custom"}
-            aria-label="Следующий период"
+            aria-label={t("board.aria.nextPeriod")}
             onClick={() => {
               if (boardRangeMode === "month") {
-                onMonthAnchorChange(shiftMonthAnchor(monthAnchor, 1));
+                if (useWeekStepNav) {
+                  const d = new Date(monthAnchor);
+                  d.setDate(d.getDate() + 7);
+                  onMonthAnchorChange(d);
+                } else {
+                  onMonthAnchorChange(shiftMonthAnchor(monthAnchor, 1));
+                }
               } else if (boardRangeMode === "fortnight") {
                 const d = new Date(monthAnchor);
                 d.setDate(d.getDate() + 14);
@@ -161,7 +193,7 @@ export function BoardSidebar({
           </Button>
           {canWriteBookings ? (
             <Button type="button" variant="secondary" size="sm" asChild>
-              <Link to="/bookings">Новая бронь</Link>
+              <Link to="/bookings">{t("board.newBooking")}</Link>
             </Button>
           ) : null}
         </div>

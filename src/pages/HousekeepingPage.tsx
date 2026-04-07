@@ -9,6 +9,7 @@ import {
 } from "@dnd-kit/core";
 import { ClipboardList } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ import {
 import { useHousekeepingQueries } from "@/hooks/useHousekeepingQueries";
 import { usePatchHousekeepingRoom } from "@/hooks/usePatchHousekeepingRoom";
 import { formatApiError } from "@/lib/formatApiError";
+import { housekeepingStatusLabel } from "@/lib/i18n/domainLabels";
 import { cn } from "@/lib/utils";
 import {
   HOUSEKEEPING_COLUMN_STATUSES,
@@ -37,13 +39,6 @@ import {
   type HousekeepingStatus,
 } from "@/types/housekeeping";
 import { formatIsoDateLocal } from "@/utils/boardDates";
-
-const COLUMN_META: Record<HousekeepingStatus, string> = {
-  dirty: "Грязный",
-  clean: "Чистый",
-  inspected: "Проверен",
-  out_of_service: "Не в работе",
-};
 
 function colDroppableId(status: HousekeepingStatus): string {
   return `hk-col-${status}`;
@@ -74,6 +69,7 @@ function HousekeepingDraggableCard({
   disabled: boolean;
   onSelect: () => void;
 }) {
+  const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
       id: card.id,
@@ -125,7 +121,7 @@ function HousekeepingDraggableCard({
       card.guest_name !== null &&
       card.guest_name.trim() !== "" ? (
         <p className="mt-0.5 text-xs text-foreground">
-          Гость: {card.guest_name}
+          {t("hk.guestLine", { name: card.guest_name })}
         </p>
       ) : null}
       {card.notes !== undefined &&
@@ -150,6 +146,7 @@ function HousekeepingColumn({
   onCardSelect: (card: HousekeepingRoomCard, from: HousekeepingStatus) => void;
   dragDisabled: boolean;
 }) {
+  const { t } = useTranslation();
   const { setNodeRef, isOver } = useDroppable({ id: colDroppableId(status) });
 
   return (
@@ -170,7 +167,7 @@ function HousekeepingColumn({
         {cards.length === 0 ? (
           <li className="flex min-h-[4.5rem] flex-col items-center justify-center gap-1 rounded-md border border-dashed border-border/80 px-2 py-3 text-center text-xs text-muted-foreground">
             <ClipboardList className="h-5 w-5 opacity-50" aria-hidden />
-            Перетащите сюда карточку номера
+            {t("hk.dropHere")}
           </li>
         ) : (
           cards.map((c) => (
@@ -192,6 +189,7 @@ function HousekeepingColumn({
 }
 
 export function HousekeepingPage() {
+  const { t } = useTranslation();
   const [dateInput, setDateInput] = useState(() =>
     formatIsoDateLocal(new Date())
   );
@@ -271,11 +269,11 @@ export function HousekeepingPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-lg font-semibold text-foreground">Housekeeping</h2>
+        <h2 className="text-lg font-semibold text-foreground">
+          {t("nav.housekeeping")}
+        </h2>
         <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-          <span>
-            Перетащите карточку между колонками или нажмите для выбора статуса.
-          </span>
+          <span>{t("hk.intro")}</span>
           <ApiRouteHint>GET /housekeeping</ApiRouteHint>
           <ApiRouteHint>PATCH /housekeeping/{"{"}room_id{"}"}</ApiRouteHint>
         </p>
@@ -284,13 +282,14 @@ export function HousekeepingPage() {
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1">
           <label htmlFor="hk-date" className="text-sm font-medium">
-            Дата (опционально)
+            {t("hk.dateLabel")}
           </label>
           <DatePickerField
             id="hk-date"
             className="w-auto min-w-[11.5rem]"
             value={dateIso}
             onChange={setDateInput}
+            placeholder={t("board.today")}
           />
         </div>
         <Button
@@ -301,7 +300,7 @@ export function HousekeepingPage() {
             setDateInput(formatIsoDateLocal(new Date()));
           }}
         >
-          Сегодня
+          {t("board.today")}
         </Button>
       </div>
 
@@ -313,7 +312,7 @@ export function HousekeepingPage() {
 
       {isError ? (
         <p className="text-sm text-destructive" role="alert">
-          Не удалось загрузить housekeeping.
+          {t("hk.loadError")}
         </p>
       ) : isPending ? (
         <div
@@ -327,7 +326,7 @@ export function HousekeepingPage() {
               <HousekeepingColumn
                 key={col}
                 status={col}
-                title={COLUMN_META[col]}
+                title={housekeepingStatusLabel(col)}
                 cards={byStatus.get(col) ?? []}
                 dragDisabled={dragDisabled}
                 onCardSelect={(c, from) => {
@@ -351,7 +350,7 @@ export function HousekeepingPage() {
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Статус номера</DialogTitle>
+            <DialogTitle>{t("hk.roomStatusTitle")}</DialogTitle>
           </DialogHeader>
           {statusDialog !== null ? (
             <div className="space-y-3 py-2">
@@ -370,7 +369,7 @@ export function HousekeepingPage() {
                 <SelectContent>
                   {HOUSEKEEPING_COLUMN_STATUSES.map((s) => (
                     <SelectItem key={s} value={s}>
-                      {COLUMN_META[s]}
+                      {housekeepingStatusLabel(s)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -389,7 +388,7 @@ export function HousekeepingPage() {
                 setDialogError(null);
               }}
             >
-              Отмена
+              {t("common.cancel")}
             </Button>
             <Button
               type="button"
@@ -407,7 +406,7 @@ export function HousekeepingPage() {
                 );
               }}
             >
-              Сохранить
+              {t("common.save")}
             </Button>
           </DialogFooter>
         </DialogContent>

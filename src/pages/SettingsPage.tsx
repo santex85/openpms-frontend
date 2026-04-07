@@ -1,12 +1,16 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { Loader2 } from "lucide-react";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
 import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { SettingsChangePasswordSection } from "@/components/settings/SettingsChangePasswordSection";
 import { SettingsApiKeysSection } from "@/components/settings/SettingsApiKeysSection";
 import { SettingsUsersSection } from "@/components/settings/SettingsUsersSection";
 import { SettingsRoomTypesTable } from "@/components/settings/SettingsRoomTypesTable";
+import { SettingsCountryPackSection } from "@/components/settings/SettingsCountryPackSection";
+import { SettingsCountryPackExtensionsSection } from "@/components/settings/SettingsCountryPackExtensionsSection";
 import { SettingsWebhooksSection } from "@/components/settings/SettingsWebhooksSection";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ForbiddenMessages, isAxiosForbidden } from "@/lib/forbiddenError";
+import { isAxiosForbidden } from "@/lib/forbiddenError";
 import { useCreateProperty } from "@/hooks/useCreateProperty";
 import { useCanManageProperties } from "@/hooks/useAuthz";
 import { useCreateRoomType } from "@/hooks/useRoomTypeMutations";
@@ -62,7 +66,11 @@ function apiTimeToInput(value: string): string {
   return "00:00";
 }
 
-function formatPropertyFormError(err: unknown, mode: "create" | "update"): string {
+function formatPropertyFormError(
+  err: unknown,
+  mode: "create" | "update",
+  t: TFunction
+): string {
   if (axios.isAxiosError(err) && err.response?.data !== undefined) {
     const data = err.response.data as { detail?: unknown };
     if (typeof data.detail === "string") {
@@ -82,19 +90,19 @@ function formatPropertyFormError(err: unknown, mode: "create" | "update"): strin
     }
     if (isAxiosForbidden(err)) {
       return mode === "create"
-        ? ForbiddenMessages.propertyCreate
-        : ForbiddenMessages.propertyUpdate;
+        ? t("settings.err.forbiddenPropertyCreate")
+        : t("settings.err.forbiddenPropertyUpdate");
     }
     if (err.response.status === 405 && mode === "update") {
-      return "Сервер не поддерживает PATCH для отеля (405). Нужен другой метод или версия API.";
+      return t("settings.err.propertyPatch405");
     }
   }
   return mode === "create"
-    ? "Не удалось создать отель."
-    : "Не удалось сохранить настройки отеля.";
+    ? t("settings.err.propertyCreateFailed")
+    : t("settings.err.propertyUpdateFailed");
 }
 
-function formatRoomTypeMutationError(err: unknown): string {
+function formatRoomTypeMutationError(err: unknown, t: TFunction): string {
   if (axios.isAxiosError(err) && err.response?.data !== undefined) {
     const data = err.response.data as { detail?: unknown };
     if (typeof data.detail === "string") {
@@ -113,16 +121,17 @@ function formatRoomTypeMutationError(err: unknown): string {
       }
     }
     if (isAxiosForbidden(err)) {
-      return ForbiddenMessages.roomTypeCreate;
+      return t("settings.err.forbiddenRoomTypeCreate");
     }
     if (err.response.status === 404) {
-      return "Отель не найден или не принадлежит вашей организации.";
+      return t("settings.err.propertyNotFound");
     }
   }
-  return "Не удалось создать тип номера.";
+  return t("settings.err.roomTypeCreateFailed");
 }
 
 export function SettingsPage() {
+  const { t } = useTranslation();
   const location = useLocation();
   const canManage = useCanManageProperties();
   const createMutation = useCreateProperty();
@@ -158,28 +167,28 @@ export function SettingsPage() {
     setRtFormSuccess(null);
 
     if (selectedPropertyId === null) {
-      setRtFormError("Выберите отель в шапке.");
+      setRtFormError(t("settings.err.selectPropertyHeader"));
       return;
     }
 
     const nameTrim = rtName.trim();
     if (nameTrim === "") {
-      setRtFormError("Введите название категории.");
+      setRtFormError(t("settings.err.categoryNameRequired"));
       return;
     }
 
     const base = Number.parseInt(rtBase, 10);
     const max = Number.parseInt(rtMax, 10);
     if (!Number.isFinite(base) || base < 1) {
-      setRtFormError("Базовая вместимость — целое число от 1.");
+      setRtFormError(t("settings.err.baseOccupancy"));
       return;
     }
     if (!Number.isFinite(max) || max < 1) {
-      setRtFormError("Максимальная вместимость — целое число от 1.");
+      setRtFormError(t("settings.err.maxOccupancy"));
       return;
     }
     if (max < base) {
-      setRtFormError("Максимальная вместимость не может быть меньше базовой.");
+      setRtFormError(t("settings.err.maxLtBase"));
       return;
     }
 
@@ -192,13 +201,13 @@ export function SettingsPage() {
 
     try {
       await createRoomTypeMutation.mutateAsync(body);
-      setRtFormSuccess("Тип номера создан.");
+      setRtFormSuccess(t("settings.roomTypes.created"));
       setRtName("");
       setRtBase("2");
       setRtMax("4");
       setRtDialogOpen(false);
     } catch (err) {
-      setRtFormError(formatRoomTypeMutationError(err));
+      setRtFormError(formatRoomTypeMutationError(err, t));
     }
   }
 
@@ -268,13 +277,13 @@ export function SettingsPage() {
         ? timezoneCustom.trim()
         : timezoneMode.trim();
     if (tz === "") {
-      setFormError("Укажите часовой пояс (IANA).");
+      setFormError(t("settings.err.tzRequired"));
       return;
     }
 
     const cur = currency.trim().toUpperCase();
     if (cur.length !== 3) {
-      setFormError("Валюта: ровно 3 буквы ISO 4217 (например USD, EUR).");
+      setFormError(t("settings.err.currencyInvalid"));
       return;
     }
 
@@ -287,7 +296,7 @@ export function SettingsPage() {
     };
 
     if (body.name === "") {
-      setFormError("Введите название отеля.");
+      setFormError(t("settings.err.propertyNameRequired"));
       return;
     }
 
@@ -297,10 +306,10 @@ export function SettingsPage() {
           propertyId: selectedPropertyId,
           body,
         });
-        setFormSuccess("Настройки отеля сохранены.");
+        setFormSuccess(t("settings.success.propertySaved"));
       } else {
         await createMutation.mutateAsync(body);
-        setFormSuccess("Отель создан. Он выбран в переключателе в шапке.");
+        setFormSuccess(t("settings.success.propertyCreated"));
         setName("");
         setCurrency("");
         setTimezoneCustom("");
@@ -312,19 +321,21 @@ export function SettingsPage() {
       setFormError(
         formatPropertyFormError(
           err,
-          selectedPropertyId !== null ? "update" : "create"
+          selectedPropertyId !== null ? "update" : "create",
+          t
         )
       );
     }
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold text-foreground">Настройки</h2>
+        <h2 className="text-lg font-semibold text-foreground">
+          {t("settings.title")}
+        </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Разделы ниже — поэтапное подключение к OpenPMS (пользователи, ключи,
-          вебхуки, свойства).
+          {t("settings.subtitle")}
         </p>
       </div>
       <SettingsChangePasswordSection />
@@ -333,12 +344,11 @@ export function SettingsPage() {
         className="space-y-4 rounded-lg border border-border bg-card p-4"
       >
         <h3 className="text-sm font-semibold text-foreground">
-          Свойства отеля
+          {t("settings.property.sectionTitle")}
         </h3>
         {!canManage ? (
           <p className="text-sm text-muted-foreground">
-            Создание отелей доступно ролям owner и manager. Обратитесь к
-            администратору тенанта.
+            {t("settings.property.noPermission")}
           </p>
         ) : (
           <form
@@ -346,26 +356,25 @@ export function SettingsPage() {
             onSubmit={(e) => void handlePropertyForm(e)}
           >
             <p className="text-sm text-muted-foreground">
-              Часовой пояс — имя IANA (
+              {t("settings.property.timezoneIntro")}
               <a
                 className="text-primary underline underline-offset-2"
                 href="https://en.wikipedia.org/wiki/List_of_tz_database_time_zones"
                 target="_blank"
                 rel="noreferrer"
               >
-                справочник
+                {t("settings.property.timezoneLink")}
               </a>
               ).{" "}
               {selectedPropertyId !== null ? (
                 <>
-                  Редактируете выбранный в шапке отель.{" "}
+                  {t("settings.property.editHint")}{" "}
                   <ApiRouteHint>PATCH /properties/{"{"}id{"}"}</ApiRouteHint>{" "}
                   <ApiRouteHint>GET /properties</ApiRouteHint>
                 </>
               ) : (
                 <>
-                  Новый отель создаётся через API. Выберите отель в шапке, чтобы
-                  править существующий.{" "}
+                  {t("settings.property.createHint")}{" "}
                   <ApiRouteHint>POST /properties</ApiRouteHint>
                 </>
               )}
@@ -382,7 +391,7 @@ export function SettingsPage() {
             ) : null}
             <div className="space-y-2">
               <label htmlFor="prop-name" className="text-sm font-medium">
-                Название отеля
+                {t("settings.property.nameLabel")}
               </label>
               <Input
                 id="prop-name"
@@ -395,7 +404,9 @@ export function SettingsPage() {
               />
             </div>
             <div className="space-y-2">
-              <span className="text-sm font-medium">Часовой пояс</span>
+              <span className="text-sm font-medium">
+                {t("settings.property.timezoneLabel")}
+              </span>
               <Select
                 key={selectedPropertyId ?? "new-property"}
                 value={timezoneMode}
@@ -403,8 +414,10 @@ export function SettingsPage() {
                   setTimezoneMode(v);
                 }}
               >
-                <SelectTrigger aria-label="Часовой пояс">
-                  <SelectValue placeholder="Выберите часовой пояс" />
+                <SelectTrigger aria-label={t("settings.property.timezoneAria")}>
+                  <SelectValue
+                    placeholder={t("settings.property.timezonePlaceholder")}
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {TIMEZONE_PRESETS.map((p) => (
@@ -412,7 +425,9 @@ export function SettingsPage() {
                       {p.label}
                     </SelectItem>
                   ))}
-                  <SelectItem value={CUSTOM_TZ}>Другой (вручную)</SelectItem>
+                  <SelectItem value={CUSTOM_TZ}>
+                    {t("settings.property.timezoneCustom")}
+                  </SelectItem>
                 </SelectContent>
               </Select>
               {timezoneMode === CUSTOM_TZ ? (
@@ -428,7 +443,7 @@ export function SettingsPage() {
             </div>
             <div className="space-y-2">
               <label htmlFor="prop-currency" className="text-sm font-medium">
-                Валюта (ISO 4217)
+                {t("settings.property.currencyLabel")}
               </label>
               <Input
                 id="prop-currency"
@@ -447,7 +462,7 @@ export function SettingsPage() {
                   htmlFor="prop-checkin"
                   className="text-sm font-medium"
                 >
-                  Заезд
+                  {t("settings.property.checkin")}
                 </label>
                 <Input
                   id="prop-checkin"
@@ -463,7 +478,7 @@ export function SettingsPage() {
                   htmlFor="prop-checkout"
                   className="text-sm font-medium"
                 >
-                  Выезд
+                  {t("settings.property.checkout")}
                 </label>
                 <Input
                   id="prop-checkout"
@@ -484,30 +499,32 @@ export function SettingsPage() {
               ) : null}
               {selectedPropertyId !== null
                 ? updateMutation.isPending
-                  ? "Сохраняем…"
-                  : "Сохранить"
+                  ? t("settings.property.submitSaving")
+                  : t("settings.property.submitSave")
                 : createMutation.isPending
-                  ? "Создаём…"
-                  : "Создать отель"}
+                  ? t("settings.property.submitCreating")
+                  : t("settings.property.submitCreate")}
             </Button>
           </form>
         )}
       </section>
+      <SettingsCountryPackSection />
       <section
         id="room-types-hint"
         className="space-y-4 rounded-lg border border-border bg-card p-4"
       >
         <div>
           <h3 className="text-sm font-semibold text-foreground">
-            Типы номеров
+            {t("settings.roomTypes.sectionTitle")}
             {selectedPropertyName !== null ? (
               <span className="ml-2 font-normal text-muted-foreground">
+                {" "}
                 ({selectedPropertyName})
               </span>
             ) : null}
           </h3>
           <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-            <span>Категории для физических номеров выбранного отеля.</span>
+            <span>{t("settings.roomTypes.intro")}</span>
             <ApiRouteHint>POST /room-types</ApiRouteHint>
           </p>
         </div>
@@ -520,11 +537,11 @@ export function SettingsPage() {
 
         {selectedPropertyId === null ? (
           <p className="text-sm text-muted-foreground">
-            Выберите отель в шапке, чтобы добавить или просмотреть типы номеров.
+            {t("settings.roomTypes.pickProperty")}
           </p>
         ) : !canManage ? (
           <p className="text-sm text-muted-foreground">
-            Создание типов номеров доступно ролям owner и manager.
+            {t("settings.roomTypes.noPermission")}
           </p>
         ) : (
           <>
@@ -535,12 +552,12 @@ export function SettingsPage() {
                 setRtDialogOpen(true);
               }}
             >
-              Добавить тип номера
+              {t("settings.roomTypes.addButton")}
             </Button>
 
             <div>
               <h4 className="mb-2 text-xs font-medium text-muted-foreground">
-                Уже созданные
+                {t("settings.roomTypes.existingLabel")}
               </h4>
               <SettingsRoomTypesTable
                 roomTypes={roomTypes}
@@ -555,7 +572,7 @@ export function SettingsPage() {
       <Dialog open={rtDialogOpen} onOpenChange={setRtDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Новый тип номера</DialogTitle>
+            <DialogTitle>{t("settings.roomTypes.dialogNewTitle")}</DialogTitle>
           </DialogHeader>
           <form
             className="space-y-4"
@@ -568,7 +585,7 @@ export function SettingsPage() {
             ) : null}
             <div className="space-y-2">
               <label htmlFor="rt-name" className="text-sm font-medium">
-                Название категории
+                {t("settings.roomTypes.categoryName")}
               </label>
               <Input
                 id="rt-name"
@@ -576,14 +593,14 @@ export function SettingsPage() {
                 onChange={(e) => {
                   setRtName(e.target.value);
                 }}
-                placeholder="Стандарт"
+                placeholder={t("settings.roomTypes.placeholderStandard")}
                 autoComplete="off"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <label htmlFor="rt-base" className="text-sm font-medium">
-                  Базовая вместимость
+                  {t("settings.roomTypes.baseOccupancy")}
                 </label>
                 <Input
                   id="rt-base"
@@ -597,7 +614,7 @@ export function SettingsPage() {
               </div>
               <div className="space-y-2">
                 <label htmlFor="rt-max" className="text-sm font-medium">
-                  Макс. вместимость
+                  {t("settings.roomTypes.maxOccupancy")}
                 </label>
                 <Input
                   id="rt-max"
@@ -618,7 +635,7 @@ export function SettingsPage() {
                   setRtDialogOpen(false);
                 }}
               >
-                Отмена
+                {t("common.cancel")}
               </Button>
               <Button
                 type="submit"
@@ -628,8 +645,8 @@ export function SettingsPage() {
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
                 ) : null}
                 {createRoomTypeMutation.isPending
-                  ? "Создаём…"
-                  : "Создать тип номера"}
+                  ? t("settings.roomTypes.createSubmitting")
+                  : t("settings.roomTypes.createSubmit")}
               </Button>
             </DialogFooter>
           </form>
@@ -637,37 +654,39 @@ export function SettingsPage() {
       </Dialog>
 
       <section className="space-y-3 rounded-lg border border-border bg-card p-4">
-        <h3 className="text-sm font-semibold text-foreground">Роли и права</h3>
+        <h3 className="text-sm font-semibold text-foreground">
+          {t("settings.roles.sectionTitle")}
+        </h3>
         <p className="text-sm text-muted-foreground">
-          Справочное описание модели доступа OpenPMS (настройка через приглашение
-          пользователей ниже).
+          {t("settings.roles.intro")}
         </p>
         <ul className="space-y-2 text-sm text-foreground">
           <li>
-            <span className="font-medium">Владелец</span> — полный доступ к
-            отелям, тарифам, пользователям и интеграциям.
+            <span className="font-medium">{t("role.owner")}</span> —{" "}
+            {t("settings.roles.descOwner")}
           </li>
           <li>
-            <span className="font-medium">Менеджер</span> — операционное
-            управление бронями, номерами, тарифами; без смены владельца тенанта.
+            <span className="font-medium">{t("role.manager")}</span> —{" "}
+            {t("settings.roles.descManager")}
           </li>
           <li>
-            <span className="font-medium">Рецепция</span> — брони, гости,
-            фолио, сетка размещения.
+            <span className="font-medium">{t("role.receptionist")}</span> —{" "}
+            {t("settings.roles.descReception")}
           </li>
           <li>
-            <span className="font-medium">Горничные</span> — статусы уборки и
-            канбан Housekeeping.
+            <span className="font-medium">{t("role.housekeeping")}</span> —{" "}
+            {t("settings.roles.descHousekeeping")}
           </li>
           <li>
-            <span className="font-medium">Наблюдатель</span> — только чтение
-            согласованных разделов.
+            <span className="font-medium">{t("role.viewer")}</span> —{" "}
+            {t("settings.roles.descViewer")}
           </li>
         </ul>
       </section>
       <SettingsUsersSection canManage={canManage} />
       <SettingsApiKeysSection canManage={canManage} />
       <SettingsWebhooksSection canManage={canManage} />
+      <SettingsCountryPackExtensionsSection canManage={canManage} />
     </div>
   );
 }

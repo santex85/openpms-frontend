@@ -1,7 +1,7 @@
-import { format } from "date-fns";
-import { ru } from "date-fns/locale";
+import { enUS, ru } from "date-fns/locale";
 import { CalendarIcon } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { Matcher } from "react-day-picker";
 
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,11 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { formatIsoDateLocal, parseIsoDateLocal } from "@/utils/boardDates";
+import {
+  boardLocaleFromI18n,
+  formatIsoDateLocal,
+  parseIsoDateLocal,
+} from "@/utils/boardDates";
 
 export interface DatePickerFieldProps {
   id?: string;
@@ -30,6 +34,10 @@ export interface DatePickerFieldProps {
   placeholder?: string;
 }
 
+function calendarLocale(lang: string | undefined) {
+  return boardLocaleFromI18n(lang).startsWith("ru") ? ru : enUS;
+}
+
 export function DatePickerField({
   id,
   "aria-label": ariaLabel,
@@ -39,8 +47,10 @@ export function DatePickerField({
   min,
   max,
   className,
-  placeholder = "Выберите дату",
+  placeholder,
 }: DatePickerFieldProps) {
+  const { t, i18n } = useTranslation();
+  const resolvedPlaceholder = placeholder ?? t("common.datePlaceholder");
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState<Date>(() => new Date());
   const trimmed = value.trim();
@@ -53,10 +63,15 @@ export function DatePickerField({
     }
   }, [open, trimmed]);
 
+  const localeTag = boardLocaleFromI18n(i18n.language);
   const display =
     selected !== undefined
-      ? format(selected, "dd.MM.yyyy", { locale: ru })
-      : placeholder;
+      ? new Intl.DateTimeFormat(localeTag, {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+        }).format(selected)
+      : resolvedPlaceholder;
 
   const disabledDays: Matcher[] = [];
   if (min?.trim()) {
@@ -88,6 +103,7 @@ export function DatePickerField({
       <PopoverContent className="w-auto border-border p-0" align="start">
         <Calendar
           mode="single"
+          locale={calendarLocale(i18n.language)}
           month={month}
           onMonthChange={setMonth}
           selected={selected}

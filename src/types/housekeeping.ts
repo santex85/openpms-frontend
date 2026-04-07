@@ -26,6 +26,9 @@ export function normalizeHousekeepingStatus(
   raw: string
 ): HousekeepingStatus {
   const s = raw.trim().toLowerCase();
+  if (s === "") {
+    return "clean";
+  }
   const hit = LEGACY_STATUS_MAP[s];
   if (hit !== undefined) {
     return hit;
