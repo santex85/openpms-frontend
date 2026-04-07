@@ -4,6 +4,7 @@ export const WEBHOOK_EVENT_OPTIONS = [
   "booking.updated",
   "booking.cancelled",
   "guest.created",
+  "guest.checked_in",
   "payment.received",
   "room.status_changed",
   "folio.entry_created",

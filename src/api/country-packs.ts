@@ -16,9 +16,13 @@ export async function fetchCountryPackByCode(
   return data;
 }
 
-export async function applyCountryPack(code: string): Promise<PropertyRead> {
+export async function applyCountryPack(
+  code: string,
+  propertyId: string
+): Promise<PropertyRead> {
   const { data } = await apiClient.post<PropertyRead>(
-    `/country-packs/${encodeURIComponent(code)}/apply`
+    `/country-packs/${encodeURIComponent(code)}/apply`,
+    { property_id: propertyId }
   );
   return data;
 }
