@@ -11,6 +11,7 @@ import { SettingsUsersSection } from "@/components/settings/SettingsUsersSection
 import { SettingsRoomTypesTable } from "@/components/settings/SettingsRoomTypesTable";
 import { SettingsCountryPackSection } from "@/components/settings/SettingsCountryPackSection";
 import { SettingsCountryPackExtensionsSection } from "@/components/settings/SettingsCountryPackExtensionsSection";
+import { SettingsChannexSection } from "@/components/settings/SettingsChannexSection";
 import { SettingsWebhooksSection } from "@/components/settings/SettingsWebhooksSection";
 import { Button } from "@/components/ui/button";
 import {
@@ -743,6 +744,7 @@ export function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="integrations" className="space-y-6">
+      <SettingsChannexSection canManage={canManage} />
       <SettingsApiKeysSection canManage={canManage} />
       <SettingsWebhooksSection canManage={canManage} />
         </TabsContent>
