@@ -154,6 +154,7 @@ const mockAssign =
   import.meta.env.VITE_MOCK_BOOKING_ASSIGN === "true";
 
 export interface BookingPatchBody {
+  /** Resend with date patches if the server should keep the assignment (backend must preserve lines / validate conflict). */
   room_id?: string | null;
   status?: string | null;
   check_in?: string | null;

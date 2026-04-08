@@ -84,6 +84,11 @@ import {
 } from "@/utils/boardDates";
 import { sumAvailableByDate } from "@/utils/inventoryAggregate";
 
+interface PatchBookingMutateVariables {
+  bookingId: string;
+  body: BookingPatchBody;
+}
+
 const boardCollisionDetection: CollisionDetection = (args) => {
   const byPointer = pointerWithin(args);
   if (byPointer.length > 0) {
@@ -102,6 +107,100 @@ function bookingOverlapsMonth(
     return false;
   }
   return b.check_in_date <= endIso && b.check_out_date > startIso;
+}
+
+function findBookingInBookingsCache(
+  queryClient: ReturnType<typeof useQueryClient>,
+  bookingId: string
+): Booking | undefined {
+  const cached = queryClient.getQueriesData<Booking[]>({
+    queryKey: ["bookings"],
+  });
+  for (const [, list] of cached) {
+    if (!Array.isArray(list)) {
+      continue;
+    }
+    const hit = list.find((b) => b.id === bookingId);
+    if (hit !== undefined) {
+      return hit;
+    }
+  }
+  return undefined;
+}
+
+/** Apply PATCH fields to a cached row for instant grid updates; `total_amount` stays until refetch. */
+function mergePatchBodyIntoBooking(
+  base: Booking,
+  body: BookingPatchBody
+): Booking {
+  const next: Booking = { ...base };
+  if (Object.prototype.hasOwnProperty.call(body, "check_in")) {
+    next.check_in_date = body.check_in ?? null;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "check_out")) {
+    next.check_out_date = body.check_out ?? null;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "room_id")) {
+    next.room_id = body.room_id ?? null;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "status")) {
+    if (body.status != null && body.status.trim() !== "") {
+      next.status = body.status;
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "notes")) {
+    next.notes = body.notes;
+  }
+  return next;
+}
+
+/** Merges one booking into every cached tape list (useBookings "all" queries) so the grid updates without relying only on refetch timing. */
+function syncBookingAcrossBookingsQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+  booking: Booking,
+  bookingId: string
+): void {
+  const queries = queryClient.getQueriesData<Booking[]>({
+    queryKey: ["bookings"],
+  });
+  for (const [queryKey, data] of queries) {
+    if (!Array.isArray(data)) {
+      continue;
+    }
+    const key = queryKey as readonly unknown[];
+    if (key[key.length - 1] !== "all") {
+      continue;
+    }
+    const propertyId = key[2];
+    const startIso = key[3];
+    const endIso = key[4];
+    if (
+      typeof propertyId !== "string" ||
+      typeof startIso !== "string" ||
+      typeof endIso !== "string"
+    ) {
+      continue;
+    }
+    if (booking.property_id !== propertyId) {
+      continue;
+    }
+    const inWindow = bookingOverlapsMonth(booking, startIso, endIso);
+    const idx = data.findIndex((b) => b.id === bookingId);
+    if (inWindow) {
+      if (idx === -1) {
+        queryClient.setQueryData(queryKey, [...data, booking]);
+      } else {
+        const nextArr = data.slice();
+        nextArr[idx] = booking;
+        queryClient.setQueryData(queryKey, nextArr);
+      }
+    } else if (idx !== -1) {
+      queryClient.setQueryData(
+        queryKey,
+        data.filter((b) => b.id !== bookingId)
+      );
+    }
+  }
 }
 
 function addOneDayIso(iso: string): string {
@@ -231,15 +330,32 @@ export function BoardPage() {
 
   const assignRoom = useAssignBookingRoom();
 
+  /** Tracks booking ids already processed by client auto-room logic; reset when stay dates PATCH so reschedule can re-run. */
+  const autoAssignHandledIdsRef = useRef<Set<string>>(new Set());
+  const autoAssignScopeKeyRef = useRef<string>("");
+
+  const [summaryBooking, setSummaryBooking] = useState<Booking | null>(null);
+
   const patchBookingMut = useMutation({
-    mutationFn: ({
-      bookingId,
-      body,
-    }: {
-      bookingId: string;
-      body: BookingPatchBody;
-    }) => patchBooking(bookingId, body),
+    mutationFn: ({ bookingId, body }: PatchBookingMutateVariables) =>
+      patchBooking(bookingId, body),
     onSuccess: (_data, variables) => {
+      if (bookingPatchTouchesStayDates(variables.body)) {
+        autoAssignHandledIdsRef.current.delete(variables.bookingId);
+        toastInfo(t("bookings.toastFolioAfterDateChange"));
+      }
+
+      const base = findBookingInBookingsCache(queryClient, variables.bookingId);
+      let updated: Booking | undefined;
+      if (base !== undefined) {
+        updated = mergePatchBodyIntoBooking(base, variables.body);
+        syncBookingAcrossBookingsQueries(
+          queryClient,
+          updated,
+          variables.bookingId
+        );
+      }
+
       void queryClient.invalidateQueries({ queryKey: ["bookings"] });
       void queryClient.invalidateQueries({
         queryKey: ["bookings", "folio"],
@@ -248,8 +364,11 @@ export function BoardPage() {
         queryKey: ["inventory", "availability"],
       });
       void queryClient.invalidateQueries({ queryKey: ["rooms", "assignable"] });
-      if (bookingPatchTouchesStayDates(variables.body)) {
-        toastInfo(t("bookings.toastFolioAfterDateChange"));
+
+      if (updated !== undefined) {
+        setSummaryBooking((prev) =>
+          prev?.id === variables.bookingId ? updated : prev
+        );
       }
     },
   });
@@ -297,8 +416,6 @@ export function BoardPage() {
   const [cellCreateError, setCellCreateError] = useState<string | null>(null);
   const [cellBlockError, setCellBlockError] = useState<string | null>(null);
   const [cellPickRoomId, setCellPickRoomId] = useState("");
-
-  const [summaryBooking, setSummaryBooking] = useState<Booking | null>(null);
 
   const assignableRoomsQuery = useAssignableRooms({
     propertyId: selectedPropertyId,
@@ -477,9 +594,6 @@ export function BoardPage() {
     dataRange.startIso,
     dataRange.endIso,
   ]);
-
-  const autoAssignHandledIdsRef = useRef<Set<string>>(new Set());
-  const autoAssignScopeKeyRef = useRef<string>("");
 
   useEffect(() => {
     const scopeKey = `${selectedPropertyId ?? ""}|${dataRange.startIso}|${dataRange.endIso}`;
@@ -709,27 +823,25 @@ export function BoardPage() {
     activeBookingByDndIdRef.current.clear();
   }, []);
 
-  function applyReschedule(): void {
+  /** Sends current `room_id` with dates so the API can keep assignment when stay moves. */
+  async function applyReschedule(): Promise<void> {
     if (rescheduleBooking === null) {
       return;
     }
-    patchBookingMut.mutate(
-      {
+    const rid = rescheduleBooking.room_id;
+    try {
+      await patchBookingMut.mutateAsync({
         bookingId: rescheduleBooking.id,
         body: {
           check_in: rescheduleCheckIn,
           check_out: rescheduleCheckOut,
+          ...(rid !== null && rid !== undefined ? { room_id: rid } : {}),
         },
-      },
-      {
-        onSuccess: () => {
-          setRescheduleBooking(null);
-        },
-        onError: (e) => {
-          setBoardMessage(formatApiError(e));
-        },
-      }
-    );
+      });
+      setRescheduleBooking(null);
+    } catch (e) {
+      setBoardMessage(formatApiError(e));
+    }
   }
 
   async function handleCellCreateBooking(e: FormEvent<HTMLFormElement>): Promise<void> {
