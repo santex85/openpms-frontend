@@ -4,6 +4,7 @@ import type {
   ChannexConnectBody,
   ChannexProperty,
   ChannexPropertyLink,
+  ChannexProvisionResult,
   ChannexRatePlanRow,
   ChannexRoomTypeRow,
   ChannexStatus,
@@ -18,6 +19,31 @@ export async function validateChannexKey(
   const { data } = await apiClient.post<ChannexProperty[]>(
     "/channex/validate-key",
     body
+  );
+  return data;
+}
+
+export async function createChannexProperty(
+  body: ChannexValidateKeyBody,
+  propertyId: string
+): Promise<ChannexProperty> {
+  const { data } = await apiClient.post<ChannexProperty>(
+    "/channex/create-property",
+    body,
+    {
+      params: { [PROPERTY_ID_QUERY_PARAM]: propertyId },
+    }
+  );
+  return data;
+}
+
+export async function provisionChannexFromOpenpms(
+  propertyId: string
+): Promise<ChannexProvisionResult> {
+  const { data } = await apiClient.post<ChannexProvisionResult>(
+    "/channex/provision-from-openpms",
+    {},
+    { params: { [PROPERTY_ID_QUERY_PARAM]: propertyId } }
   );
   return data;
 }
@@ -100,4 +126,15 @@ export async function disconnectChannex(propertyId: string): Promise<void> {
   await apiClient.post("/channex/disconnect", {}, {
     params: { [PROPERTY_ID_QUERY_PARAM]: propertyId },
   });
+}
+
+export async function syncChannexToBackend(propertyId: string): Promise<{ detail: string }> {
+  const { data } = await apiClient.post<{ detail: string }>(
+    "/channex/sync",
+    {},
+    {
+      params: { [PROPERTY_ID_QUERY_PARAM]: propertyId },
+    }
+  );
+  return data;
 }

@@ -136,6 +136,9 @@ export function RatesPage() {
 
   const initialBulkRange = getMonthRange(new Date());
   const [bulkPrice, setBulkPrice] = useState("");
+  const [bulkStopSell, setBulkStopSell] = useState(false);
+  const [bulkMinStay, setBulkMinStay] = useState("");
+  const [bulkMaxStay, setBulkMaxStay] = useState("");
   const [bulkStart, setBulkStart] = useState(initialBulkRange.startIso);
   const [bulkEnd, setBulkEnd] = useState(initialBulkRange.endIso);
   const [bulkMessage, setBulkMessage] = useState<string | null>(null);
@@ -164,6 +167,9 @@ export function RatesPage() {
     dateIso: string;
     dateLabel: string;
     priceDraft: string;
+    stopSell: boolean;
+    minStayArrivalDraft: string;
+    maxStayDraft: string;
   } | null>(null);
 
   const selectedRatePlanName =
@@ -256,7 +262,30 @@ export function RatesPage() {
       start_date: bulkStart,
       end_date: bulkEnd,
       price: trimmed,
+      stop_sell: bulkStopSell,
     };
+    const minTrim = bulkMinStay.trim();
+    if (minTrim !== "") {
+      const n = Number.parseInt(minTrim, 10);
+      if (!Number.isNaN(n) && n >= 1) {
+        segment.min_stay_arrival = n;
+      }
+    }
+    const maxTrim = bulkMaxStay.trim();
+    if (maxTrim !== "") {
+      const n = Number.parseInt(maxTrim, 10);
+      if (!Number.isNaN(n) && n >= 1) {
+        segment.max_stay = n;
+      }
+    }
+    if (
+      segment.min_stay_arrival != null &&
+      segment.max_stay != null &&
+      segment.max_stay < segment.min_stay_arrival
+    ) {
+      setBulkError(t("rates.err.stayOrder"));
+      return;
+    }
 
     try {
       const res = await bulkMutation.mutateAsync({ segments: [segment] });
@@ -290,7 +319,30 @@ export function RatesPage() {
       start_date: cellEdit.dateIso,
       end_date: cellEdit.dateIso,
       price: trimmed,
+      stop_sell: cellEdit.stopSell,
     };
+    const minTrim = cellEdit.minStayArrivalDraft.trim();
+    if (minTrim !== "") {
+      const n = Number.parseInt(minTrim, 10);
+      if (!Number.isNaN(n) && n >= 1) {
+        segment.min_stay_arrival = n;
+      }
+    }
+    const maxTrim = cellEdit.maxStayDraft.trim();
+    if (maxTrim !== "") {
+      const n = Number.parseInt(maxTrim, 10);
+      if (!Number.isNaN(n) && n >= 1) {
+        segment.max_stay = n;
+      }
+    }
+    if (
+      segment.min_stay_arrival != null &&
+      segment.max_stay != null &&
+      segment.max_stay < segment.min_stay_arrival
+    ) {
+      toastError(t("rates.err.stayOrder"));
+      return;
+    }
 
     try {
       await bulkMutation.mutateAsync({ segments: [segment] });
@@ -514,6 +566,12 @@ export function RatesPage() {
               onBulkEndChange={setBulkEnd}
               bulkPrice={bulkPrice}
               onBulkPriceChange={setBulkPrice}
+              bulkStopSell={bulkStopSell}
+              onBulkStopSellChange={setBulkStopSell}
+              bulkMinStay={bulkMinStay}
+              onBulkMinStayChange={setBulkMinStay}
+              bulkMaxStay={bulkMaxStay}
+              onBulkMaxStayChange={setBulkMaxStay}
               bulkError={bulkError}
               bulkMessage={bulkMessage}
               bulkMutation={bulkMutation}
@@ -561,6 +619,67 @@ export function RatesPage() {
                   );
                 }}
               />
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                id="cell-rate-stop-sell"
+                type="checkbox"
+                className="h-4 w-4 rounded border-input"
+                checked={cellEdit?.stopSell ?? false}
+                onChange={(ev) => {
+                  setCellEdit((prev) =>
+                    prev === null ? prev : { ...prev, stopSell: ev.target.checked }
+                  );
+                }}
+              />
+              <label htmlFor="cell-rate-stop-sell" className="text-sm font-medium">
+                {t("rates.restrictions.stopSell")}
+              </label>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label
+                  htmlFor="cell-min-stay"
+                  className="text-sm font-medium"
+                >
+                  {t("rates.restrictions.minStayArrival")}
+                </label>
+                <Input
+                  id="cell-min-stay"
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  placeholder="—"
+                  value={cellEdit?.minStayArrivalDraft ?? ""}
+                  onChange={(ev) => {
+                    setCellEdit((prev) =>
+                      prev === null
+                        ? prev
+                        : { ...prev, minStayArrivalDraft: ev.target.value }
+                    );
+                  }}
+                />
+              </div>
+              <div className="space-y-1">
+                <label htmlFor="cell-max-stay" className="text-sm font-medium">
+                  {t("rates.restrictions.maxStay")}
+                </label>
+                <Input
+                  id="cell-max-stay"
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  placeholder="—"
+                  value={cellEdit?.maxStayDraft ?? ""}
+                  onChange={(ev) => {
+                    setCellEdit((prev) =>
+                      prev === null
+                        ? prev
+                        : { ...prev, maxStayDraft: ev.target.value }
+                    );
+                  }}
+                />
+              </div>
             </div>
             <DialogFooter className="gap-2 sm:gap-0">
               <Button

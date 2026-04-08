@@ -28,6 +28,12 @@ export interface RatesBulkEditorProps {
   onBulkEndChange: (v: string) => void;
   bulkPrice: string;
   onBulkPriceChange: (v: string) => void;
+  bulkStopSell: boolean;
+  onBulkStopSellChange: (v: boolean) => void;
+  bulkMinStay: string;
+  onBulkMinStayChange: (v: string) => void;
+  bulkMaxStay: string;
+  onBulkMaxStayChange: (v: string) => void;
   bulkError: string | null;
   bulkMessage: string | null;
   bulkMutation: UseMutationResult<
@@ -49,6 +55,12 @@ export function RatesBulkEditor({
   onBulkEndChange,
   bulkPrice,
   onBulkPriceChange,
+  bulkStopSell,
+  onBulkStopSellChange,
+  bulkMinStay,
+  onBulkMinStayChange,
+  bulkMaxStay,
+  onBulkMaxStayChange,
   bulkError,
   bulkMessage,
   bulkMutation,
@@ -139,6 +151,52 @@ export function RatesBulkEditor({
             value={bulkPrice}
             onChange={(e) => {
               onBulkPriceChange(e.target.value);
+            }}
+          />
+        </div>
+        <div className="flex items-center gap-2 sm:col-span-2">
+          <input
+            id="bulk-stop-sell"
+            type="checkbox"
+            className="h-4 w-4 rounded border-input"
+            checked={bulkStopSell}
+            onChange={(e) => {
+              onBulkStopSellChange(e.target.checked);
+            }}
+          />
+          <label htmlFor="bulk-stop-sell" className="text-xs font-medium">
+            {t("rates.restrictions.stopSell")}
+          </label>
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="bulk-min-stay" className="text-xs font-medium">
+            {t("rates.restrictions.minStayArrival")}
+          </label>
+          <Input
+            id="bulk-min-stay"
+            type="number"
+            inputMode="numeric"
+            min={1}
+            placeholder="—"
+            value={bulkMinStay}
+            onChange={(e) => {
+              onBulkMinStayChange(e.target.value);
+            }}
+          />
+        </div>
+        <div className="space-y-1">
+          <label htmlFor="bulk-max-stay" className="text-xs font-medium">
+            {t("rates.restrictions.maxStay")}
+          </label>
+          <Input
+            id="bulk-max-stay"
+            type="number"
+            inputMode="numeric"
+            min={1}
+            placeholder="—"
+            value={bulkMaxStay}
+            onChange={(e) => {
+              onBulkMaxStayChange(e.target.value);
             }}
           />
         </div>

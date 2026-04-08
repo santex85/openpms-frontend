@@ -6,6 +6,7 @@ import { roomTypeDisplayName } from "@/lib/i18n/domainLabels";
 import { cn } from "@/lib/utils";
 import { formatApiError } from "@/lib/formatApiError";
 import type { NightlyRatesMatrixRow } from "@/hooks/useNightlyRatesMatrix";
+import type { RateRead } from "@/types/rates";
 import type { RoomType } from "@/types/room-types";
 import type { AvailabilityCell } from "@/types/inventory";
 import {
@@ -39,6 +40,9 @@ export interface RatesMatrixProps {
     dateIso: string;
     dateLabel: string;
     priceDraft: string;
+    stopSell: boolean;
+    minStayArrivalDraft: string;
+    maxStayDraft: string;
   }) => void;
 }
 
@@ -124,9 +128,11 @@ export function RatesMatrix({
               {roomTypes?.map((rt) => {
                 const row = matrixRows.find((r) => r.roomTypeId === rt.id);
                 const priceByDate = new Map<string, string>();
+                const rateRowByDate = new Map<string, RateRead>();
                 if (row?.data !== undefined) {
                   for (const rate of row.data) {
                     priceByDate.set(rate.date, rate.price);
+                    rateRowByDate.set(rate.date, rate);
                   }
                 }
                 const rowPending = row?.isPending ?? true;
@@ -149,6 +155,7 @@ export function RatesMatrix({
                       const availCell = availabilityByKey.get(availKey);
                       function openCellEditor(): void {
                         if (!cellEditable) return;
+                        const rateRow = rateRowByDate.get(d.iso);
                         onOpenCellEdit({
                           roomTypeId: rt.id,
                           roomTypeName: roomTypeDisplayName(rt.name),
@@ -159,6 +166,15 @@ export function RatesMatrix({
                             year: "numeric",
                           }),
                           priceDraft: p ?? "",
+                          stopSell: rateRow?.stop_sell ?? false,
+                          minStayArrivalDraft:
+                            rateRow?.min_stay_arrival != null
+                              ? String(rateRow.min_stay_arrival)
+                              : "",
+                          maxStayDraft:
+                            rateRow?.max_stay != null
+                              ? String(rateRow.max_stay)
+                              : "",
                         });
                       }
                       return (

@@ -15,6 +15,9 @@ export interface RateRead {
   date: string;
   /** Decimal from API as string */
   price: string;
+  stop_sell?: boolean;
+  min_stay_arrival?: number | null;
+  max_stay?: number | null;
 }
 
 export interface BulkRateSegment {
@@ -23,6 +26,9 @@ export interface BulkRateSegment {
   start_date: string;
   end_date: string;
   price: string;
+  stop_sell?: boolean;
+  min_stay_arrival?: number | null;
+  max_stay?: number | null;
 }
 
 export interface BulkRatesPutRequest {

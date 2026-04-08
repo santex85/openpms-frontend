@@ -21,9 +21,12 @@ import {
 import {
   useActivateChannex,
   useConnectChannex,
+  useCreateChannexProperty,
   useDisconnectChannex,
   useMapChannexRates,
   useMapChannexRooms,
+  useProvisionChannexFromOpenpms,
+  useSyncChannex,
   useValidateChannexKey,
 } from "@/hooks/useChannexMutations";
 import { useChannexRates, useChannexRooms, useChannexStatus } from "@/hooks/useChannex";
@@ -67,14 +70,19 @@ export function SettingsChannexSection({
     Record<string, string>
   >({});
   const [formError, setFormError] = useState<string | null>(null);
+  const [provisionNotice, setProvisionNotice] = useState<string | null>(null);
+  const [syncNotice, setSyncNotice] = useState<string | null>(null);
   const [disconnectOpen, setDisconnectOpen] = useState(false);
 
   const validateMut = useValidateChannexKey();
+  const createChannexPropMut = useCreateChannexProperty();
   const connectMut = useConnectChannex();
   const mapRoomsMut = useMapChannexRooms();
   const mapRatesMut = useMapChannexRates();
   const activateMut = useActivateChannex();
   const disconnectMut = useDisconnectChannex();
+  const provisionMut = useProvisionChannexFromOpenpms();
+  const syncMut = useSyncChannex();
 
   const status = statusQ.data;
   const link = status?.link ?? null;
@@ -98,14 +106,21 @@ export function SettingsChannexSection({
   const channexRoomsQ = useChannexRooms(roomsEnabled);
   const channexRatesQ = useChannexRates(ratesEnabled);
 
+  /** Reset wizard when switching OpenPMS property (different Channex link). */
+  useEffect(() => {
+    setWizardStep(1);
+    setValidatedProps(null);
+    setCxPropertyId("");
+    setFormError(null);
+    setProvisionNotice(null);
+  }, [selectedPropertyId]);
+
   useEffect(() => {
     if (statusQ.isPending || status === undefined) {
       return;
     }
     if (!status.connected) {
       setWizardStep(1);
-      setValidatedProps(null);
-      setCxPropertyId("");
       return;
     }
     if (link?.status === "active") {
@@ -171,9 +186,38 @@ export function SettingsChannexSection({
         env,
       });
       setValidatedProps(props);
-      if (props.length > 0 && cxPropertyId === "") {
+      if (props.length === 0) {
+        setFormError(null);
+        setCxPropertyId("");
+        return;
+      }
+      if (cxPropertyId === "") {
         setCxPropertyId(props[0]?.id ?? "");
       }
+    } catch (err) {
+      setFormError(formatApiError(err));
+    }
+  }
+
+  async function onCreateChannexProperty(): Promise<void> {
+    setFormError(null);
+    const pid = selectedPropertyId;
+    if (pid === null || pid === "") {
+      setFormError(t("channex.pickProperty"));
+      return;
+    }
+    const k = apiKey.trim();
+    if (k === "") {
+      setFormError(t("channex.errors.apiKeyRequired"));
+      return;
+    }
+    try {
+      const created = await createChannexPropMut.mutateAsync({
+        body: { api_key: k, env },
+        propertyId: pid,
+      });
+      setValidatedProps([created]);
+      setCxPropertyId(created.id);
     } catch (err) {
       setFormError(formatApiError(err));
     }
@@ -399,19 +443,54 @@ export function SettingsChannexSection({
                 })}
               </p>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              className="text-destructive"
-              onClick={() => {
-                setDisconnectOpen(true);
-              }}
-            >
-              {t("channex.disconnect")}
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={
+                  syncMut.isPending ||
+                  selectedPropertyId === null ||
+                  selectedPropertyId === ""
+                }
+                onClick={() => {
+                  if (selectedPropertyId === null || selectedPropertyId === "") {
+                    return;
+                  }
+                  setSyncNotice(null);
+                  setFormError(null);
+                  syncMut.mutate(selectedPropertyId, {
+                    onSuccess: (r) => {
+                      setSyncNotice(r.detail ?? t("channex.syncQueued"));
+                      void statusQ.refetch();
+                    },
+                    onError: (err: unknown) => {
+                      setFormError(formatApiError(err));
+                    },
+                  });
+                }}
+              >
+                {syncMut.isPending ? t("channex.syncing") : t("channex.sync")}
+              </Button>
+              <ApiRouteHint>POST /channex/sync</ApiRouteHint>
+              <Button
+                type="button"
+                variant="outline"
+                className="text-destructive"
+                onClick={() => {
+                  setDisconnectOpen(true);
+                }}
+              >
+                {t("channex.disconnect")}
+              </Button>
+            </div>
           </div>
           {link.error_message !== null && link.error_message !== "" ? (
             <p className="mt-3 text-sm text-destructive">{link.error_message}</p>
+          ) : null}
+          {formError !== null ? (
+            <p className="mt-2 text-sm text-destructive" role="alert">
+              {formError}
+            </p>
           ) : null}
         </div>
 
@@ -488,10 +567,21 @@ export function SettingsChannexSection({
           );
         })}
       </ol>
+      <p className="text-xs text-muted-foreground">{t("channex.stepper.hint")}</p>
 
       {formError !== null ? (
         <p className="text-sm text-destructive" role="alert">
           {formError}
+        </p>
+      ) : null}
+      {provisionNotice !== null ? (
+        <p className="text-sm text-foreground" role="status">
+          {provisionNotice}
+        </p>
+      ) : null}
+      {syncNotice !== null ? (
+        <p className="text-sm text-foreground" role="status">
+          {syncNotice}
         </p>
       ) : null}
 
@@ -566,6 +656,29 @@ export function SettingsChannexSection({
         </form>
       ) : null}
 
+      {wizardStep === 1 &&
+      validatedProps !== null &&
+      validatedProps.length === 0 ? (
+        <div className="max-w-xl space-y-3 rounded-md border border-border bg-muted/20 p-4">
+          <p className="text-sm text-muted-foreground">
+            {t("channex.errors.noProperties")}
+          </p>
+          <p className="text-sm text-foreground">{t("channex.createPropertyHint")}</p>
+          <Button
+            type="button"
+            disabled={createChannexPropMut.isPending || validateMut.isPending}
+            onClick={() => {
+              void onCreateChannexProperty();
+            }}
+          >
+            {createChannexPropMut.isPending
+              ? t("channex.creatingProperty")
+              : t("channex.createProperty")}
+          </Button>
+          <ApiRouteHint>POST /channex/create-property</ApiRouteHint>
+        </div>
+      ) : null}
+
       {wizardStep === 1 && validatedProps !== null && validatedProps.length > 0 ? (
         <form className="max-w-xl space-y-4 border-t border-border pt-4" onSubmit={(e) => void onConnect(e)}>
           <div className="space-y-1">
@@ -608,9 +721,50 @@ export function SettingsChannexSection({
           ) : activeRoomTypes.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t("channex.noRoomTypes")}</p>
           ) : (channexRoomsQ.data?.length ?? 0) === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {t("channex.noChannexRooms")}
-            </p>
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                {t("channex.noChannexRooms")}
+              </p>
+              <p className="text-sm text-foreground">
+                {t("channex.provisionFromOpenpmsHint")}
+              </p>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={
+                  provisionMut.isPending ||
+                  selectedPropertyId === null ||
+                  selectedPropertyId === ""
+                }
+                onClick={() => {
+                  if (selectedPropertyId === null || selectedPropertyId === "") {
+                    return;
+                  }
+                  setFormError(null);
+                  setProvisionNotice(null);
+                  provisionMut.mutate(selectedPropertyId, {
+                    onSuccess: (r) => {
+                      setProvisionNotice(
+                        t("channex.provisionDone", {
+                          rtCreated: r.room_types_created,
+                          rtSkipped: r.room_types_skipped,
+                          rpCreated: r.rate_plans_created,
+                          rpSkipped: r.rate_plans_skipped,
+                        })
+                      );
+                    },
+                    onError: (err: unknown) => {
+                      setFormError(formatApiError(err));
+                    },
+                  });
+                }}
+              >
+                {provisionMut.isPending
+                  ? t("channex.provisioning")
+                  : t("channex.provisionFromOpenpms")}
+              </Button>
+              <ApiRouteHint>POST /channex/provision-from-openpms</ApiRouteHint>
+            </div>
           ) : (
             <div className="overflow-x-auto rounded-md border">
               <table className="w-full min-w-[520px] text-left text-sm">

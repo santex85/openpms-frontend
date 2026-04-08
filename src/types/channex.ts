@@ -9,6 +9,7 @@ export interface ChannexPropertyLink {
   id: string;
   property_id: string;
   channex_property_id: string;
+  channex_webhook_id?: string | null;
   channex_env: string;
   status: string;
   connected_at: string | null;
@@ -40,6 +41,14 @@ export interface ChannexRoomTypeRow {
 export interface ChannexRatePlanRow {
   id: string;
   title: string | null;
+}
+
+/** Result of POST /channex/provision-from-openpms */
+export interface ChannexProvisionResult {
+  room_types_created: number;
+  room_types_skipped: number;
+  rate_plans_created: number;
+  rate_plans_skipped: number;
 }
 
 export interface ChannexValidateKeyBody {
