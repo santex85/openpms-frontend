@@ -78,7 +78,7 @@ function BoardRoomRowInner({
         ref={setTimelineRef}
         className={cn(
           cellBorder,
-          "relative min-h-10 overflow-hidden bg-background pointer-events-auto transition-colors",
+          "relative min-h-10 bg-background pointer-events-auto transition-colors",
           isOver && "z-[25] bg-primary/10 ring-2 ring-inset ring-primary/50"
         )}
         style={{ gridColumn: "2 / -1" }}

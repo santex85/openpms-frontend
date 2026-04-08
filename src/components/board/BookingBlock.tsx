@@ -53,7 +53,7 @@ const DraggableBookingTile = memo(function DraggableBookingTile({
     <div
       ref={setNodeRef}
       className={cn(
-        "pointer-events-auto absolute touch-none select-none rounded-sm border px-1 py-0.5 text-left text-[0.65rem] font-semibold leading-tight shadow-sm",
+        "pointer-events-auto absolute flex min-w-0 touch-none select-none items-center justify-center rounded-sm border px-1 py-0.5 text-center text-[0.65rem] font-semibold leading-tight shadow-sm",
         "cursor-grab active:cursor-grabbing",
         bookingStatusTileClasses(booking.status),
         isDragging && "opacity-40",
@@ -83,7 +83,7 @@ const DraggableBookingTile = memo(function DraggableBookingTile({
         }
       }}
     >
-      <span className="block truncate">
+      <span className="block max-w-full truncate">
         {[
           capitalizeGuestName(booking.guest.last_name),
           booking.guest.first_name?.charAt(0)

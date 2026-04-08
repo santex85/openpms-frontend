@@ -87,7 +87,7 @@ function BoardUnassignedLaneRowInner({
       <div
         className={cn(
           cellBorder,
-          "relative overflow-hidden bg-amber-50/70 dark:bg-amber-950/25",
+          "relative bg-amber-50/70 dark:bg-amber-950/25",
           minHeight
         )}
         style={{ gridColumn: "2 / -1" }}
