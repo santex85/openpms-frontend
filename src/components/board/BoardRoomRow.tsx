@@ -60,8 +60,9 @@ function BoardRoomRowInner({
         ref={setLabelRef}
         className={cn(
           cellBorder,
-          "sticky left-0 z-10 bg-background px-2 py-2 pl-4 text-xs text-muted-foreground pointer-events-auto transition-colors",
-          isOver && "z-[25] bg-primary/10 ring-2 ring-inset ring-primary/50",
+          "sticky left-0 z-[30] bg-background px-2 py-2 pl-4 text-xs text-muted-foreground pointer-events-auto transition-colors",
+          isOver &&
+            "z-[35] bg-primary/10 ring-2 ring-inset ring-primary/50",
           nameIsDuplicate &&
             "bg-destructive/10 ring-1 ring-inset ring-destructive/40"
         )}
@@ -77,7 +78,7 @@ function BoardRoomRowInner({
         ref={setTimelineRef}
         className={cn(
           cellBorder,
-          "relative min-h-10 bg-background pointer-events-auto transition-colors",
+          "relative min-h-10 overflow-hidden bg-background pointer-events-auto transition-colors",
           isOver && "z-[25] bg-primary/10 ring-2 ring-inset ring-primary/50"
         )}
         style={{ gridColumn: "2 / -1" }}
