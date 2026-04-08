@@ -9,7 +9,6 @@ import {
   useDeleteCountryPackExtension,
 } from "@/hooks/useCountryPackExtensions";
 import { formatApiError } from "@/lib/formatApiError";
-import { webhookEventLabel } from "@/lib/i18n/domainLabels";
 
 interface SettingsCountryPackExtensionsSectionProps {
   canManage: boolean;
@@ -67,13 +66,16 @@ export function SettingsCountryPackExtensionsSection({
                 <thead className="border-b bg-muted/50">
                   <tr>
                     <th className="px-3 py-2 font-medium">
+                      {t("extensions.settings.colCode")}
+                    </th>
+                    <th className="px-3 py-2 font-medium">
                       {t("extensions.settings.colName")}
                     </th>
                     <th className="px-3 py-2 font-medium">
-                      {t("extensions.settings.colUrl")}
+                      {t("extensions.settings.colCountry")}
                     </th>
                     <th className="px-3 py-2 font-medium">
-                      {t("extensions.settings.colEvents")}
+                      {t("extensions.settings.colUrl")}
                     </th>
                     <th className="px-3 py-2 font-medium">
                       {t("extensions.settings.colRequired")}
@@ -86,14 +88,15 @@ export function SettingsCountryPackExtensionsSection({
                 <tbody>
                   {(rows ?? []).map((row) => (
                     <tr key={row.id} className="border-b border-border/70">
+                      <td className="px-3 py-2 font-mono text-xs font-medium">
+                        {row.code}
+                      </td>
                       <td className="px-3 py-2 font-medium">{row.name}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
+                        {row.country_code ?? "—"}
+                      </td>
                       <td className="max-w-[200px] truncate px-3 py-2 font-mono text-xs text-muted-foreground">
                         {row.webhook_url}
-                      </td>
-                      <td className="px-3 py-2 text-xs text-muted-foreground">
-                        {row.events
-                          .map((ev) => webhookEventLabel(ev))
-                          .join(", ")}
                       </td>
                       <td className="px-3 py-2 font-mono text-xs">
                         {row.required_fields.length === 0

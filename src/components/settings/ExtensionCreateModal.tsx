@@ -10,16 +10,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { WEBHOOK_EVENT_OPTIONS } from "@/constants/webhookEvents";
 import { useCreateCountryPackExtension } from "@/hooks/useCountryPackExtensions";
 import { formatApiError } from "@/lib/formatApiError";
-import { webhookEventLabel } from "@/lib/i18n/domainLabels";
 import type { CountryPackExtensionCreate } from "@/types/country-pack";
 
 interface ExtensionCreateModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
+
+/** Matches backend `ExtensionCreate.code` (1–64 chars). */
+const CODE_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/iu;
 
 function parseSchemaJson(
   raw: string
@@ -45,32 +46,29 @@ export function ExtensionCreateModal({
 }: ExtensionCreateModalProps) {
   const { t } = useTranslation();
   const createMut = useCreateCountryPackExtension();
+  const [code, setCode] = useState("");
   const [name, setName] = useState("");
+  const [countryCode, setCountryCode] = useState("");
   const [webhookUrl, setWebhookUrl] = useState("");
-  const [events, setEvents] = useState<Set<string>>(
-    () => new Set([WEBHOOK_EVENT_OPTIONS[0]])
-  );
   const [requiredRaw, setRequiredRaw] = useState("");
   const [schemaRaw, setSchemaRaw] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
 
-  function toggleEvent(ev: string): void {
-    setEvents((prev) => {
-      const next = new Set(prev);
-      if (next.has(ev)) {
-        next.delete(ev);
-      } else {
-        next.add(ev);
-      }
-      return next;
-    });
-  }
-
   async function onSubmit(e: FormEvent): Promise<void> {
     e.preventDefault();
     setFormError(null);
+    const cd = code.trim().toLowerCase();
     const nm = name.trim();
     const url = webhookUrl.trim();
+    const ccRaw = countryCode.trim().toUpperCase();
+    if (cd === "") {
+      setFormError(t("extensions.create.err.code"));
+      return;
+    }
+    if (!CODE_RE.test(cd)) {
+      setFormError(t("extensions.create.err.codePattern"));
+      return;
+    }
     if (nm === "") {
       setFormError(t("extensions.create.err.name"));
       return;
@@ -90,9 +88,8 @@ export function ExtensionCreateModal({
       setFormError(t("extensions.create.err.urlHttps"));
       return;
     }
-    const evs = Array.from(events);
-    if (evs.length === 0) {
-      setFormError(t("extensions.create.err.events"));
+    if (ccRaw !== "" && !/^[A-Z]{2}$/u.test(ccRaw)) {
+      setFormError(t("extensions.create.err.countryCode"));
       return;
     }
     const required_fields = requiredRaw
@@ -105,17 +102,19 @@ export function ExtensionCreateModal({
       return;
     }
     const body: CountryPackExtensionCreate = {
+      code: cd,
       name: nm,
+      country_code: ccRaw === "" ? null : ccRaw,
       webhook_url: url,
-      events: evs,
       required_fields,
       ui_config_schema: sch.value,
     };
     try {
       await createMut.mutateAsync(body);
+      setCode("");
       setName("");
+      setCountryCode("");
       setWebhookUrl("");
-      setEvents(new Set([WEBHOOK_EVENT_OPTIONS[0]]));
       setRequiredRaw("");
       setSchemaRaw("");
       onOpenChange(false);
@@ -137,6 +136,21 @@ export function ExtensionCreateModal({
             </p>
           ) : null}
           <div className="space-y-2">
+            <label htmlFor="ext-code" className="text-sm font-medium">
+              {t("extensions.create.code")}
+            </label>
+            <Input
+              id="ext-code"
+              value={code}
+              onChange={(e) => {
+                setCode(e.target.value);
+              }}
+              placeholder="tm30_reporter"
+              autoComplete="off"
+              className="font-mono text-sm"
+            />
+          </div>
+          <div className="space-y-2">
             <label htmlFor="ext-name" className="text-sm font-medium">
               {t("extensions.create.name")}
             </label>
@@ -148,6 +162,25 @@ export function ExtensionCreateModal({
               }}
               autoComplete="off"
             />
+          </div>
+          <div className="space-y-2">
+            <label htmlFor="ext-country" className="text-sm font-medium">
+              {t("extensions.create.countryCode")}
+            </label>
+            <Input
+              id="ext-country"
+              value={countryCode}
+              onChange={(e) => {
+                setCountryCode(e.target.value.toUpperCase().slice(0, 2));
+              }}
+              placeholder="TH"
+              maxLength={2}
+              className="w-24 font-mono uppercase"
+              autoComplete="off"
+            />
+            <p className="text-xs text-muted-foreground">
+              {t("extensions.create.countryCodeHint")}
+            </p>
           </div>
           <div className="space-y-2">
             <label htmlFor="ext-url" className="text-sm font-medium">
@@ -164,30 +197,6 @@ export function ExtensionCreateModal({
             />
           </div>
           <div className="space-y-2">
-            <div className="text-sm font-medium">{t("extensions.create.events")}</div>
-            <div className="flex max-h-32 flex-col gap-1 overflow-y-auto rounded-md border p-2">
-              {WEBHOOK_EVENT_OPTIONS.map((ev) => (
-                <label
-                  key={ev}
-                  className="flex cursor-pointer items-center gap-2 text-sm"
-                >
-                  <input
-                    type="checkbox"
-                    checked={events.has(ev)}
-                    className="h-4 w-4 rounded border border-input"
-                    onChange={() => {
-                      toggleEvent(ev);
-                    }}
-                  />
-                  <span>{webhookEventLabel(ev)}</span>
-                  <span className="font-mono text-[10px] text-muted-foreground">
-                    {ev}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
-          <div className="space-y-2">
             <label htmlFor="ext-req" className="text-sm font-medium">
               {t("extensions.create.requiredFields")}
             </label>
@@ -197,7 +206,7 @@ export function ExtensionCreateModal({
               onChange={(e) => {
                 setRequiredRaw(e.target.value);
               }}
-              placeholder="field_one, field_two"
+              placeholder="passport_number, nationality"
               rows={3}
               className="flex min-h-[72px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />

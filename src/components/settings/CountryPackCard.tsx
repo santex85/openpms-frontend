@@ -1,10 +1,12 @@
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { formatCountryPackRateFraction } from "@/lib/countryPackTaxRules";
 import type { CountryPackDetail } from "@/types/country-pack";
 
 interface CountryPackCardProps {
   pack: CountryPackDetail;
-  /** Property timezone when pack detail omits it. */
+  /** Fallback when needed (pack always has timezone in API read). */
   propertyTimezone?: string | null;
 }
 
@@ -18,8 +20,9 @@ export function CountryPackCard({
     propertyTimezone?.trim() ||
     t("common.notAvailable");
 
-  const sortedTaxes = [...pack.tax_lines].sort(
-    (a, b) => (a.order ?? 0) - (b.order ?? 0)
+  const displayTaxes = useMemo(
+    () => [...(pack.taxes ?? [])].filter((x) => x.active !== false),
+    [pack.taxes]
   );
 
   return (
@@ -30,7 +33,7 @@ export function CountryPackCard({
             {t("countryPack.currency")}
           </span>{" "}
           <span className="text-muted-foreground">
-            {pack.currency} ({pack.symbol})
+            {pack.currency_code} ({pack.currency_symbol})
           </span>
         </p>
         <p>
@@ -39,21 +42,42 @@ export function CountryPackCard({
           </span>{" "}
           <span className="text-muted-foreground">{tz}</span>
         </p>
+        <p>
+          <span className="font-medium text-foreground">
+            {t("countryPack.dateFormat")}
+          </span>{" "}
+          <span className="text-muted-foreground">{pack.date_format}</span>
+        </p>
+        <p>
+          <span className="font-medium text-foreground">
+            {t("countryPack.defaultTimes")}
+          </span>{" "}
+          <span className="text-muted-foreground tabular-nums">
+            {pack.default_checkin_time?.slice(0, 5) ?? "—"} /{" "}
+            {pack.default_checkout_time?.slice(0, 5) ?? "—"}
+          </span>
+        </p>
       </div>
       <div>
         <p className="mb-1 font-medium text-foreground">
           {t("countryPack.taxes")}
         </p>
-        {sortedTaxes.length === 0 ? (
+        {displayTaxes.length === 0 ? (
           <p className="text-muted-foreground">{t("countryPack.noTaxLines")}</p>
         ) : (
           <ul className="space-y-1 text-muted-foreground">
-            {sortedTaxes.map((line, idx) => (
-              <li key={`${line.name}-${idx}`}>
-                {line.name}: {line.rate}
+            {displayTaxes.map((line) => (
+              <li key={line.code}>
+                {line.name}: {formatCountryPackRateFraction(Number(line.rate))}
                 {line.inclusive ? ` · ${t("countryPack.inclusive")}` : null}
-                {line.exclusive ? ` · ${t("countryPack.exclusive")}` : null}
-                {line.compound_after ? ` · ${t("countryPack.compound")}` : null}
+                {!line.inclusive ? ` · ${t("countryPack.exclusive")}` : null}
+                {line.compound_after !== null &&
+                String(line.compound_after).trim() !== "" ? (
+                  <span>
+                    {" "}
+                    · {t("countryPack.compoundAfterCode", { code: line.compound_after })}
+                  </span>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -64,7 +88,7 @@ export function CountryPackCard({
           {t("countryPack.paymentMethods")}
         </p>
         <div className="flex flex-wrap gap-1">
-          {pack.payment_methods.length === 0 ? (
+          {(pack.payment_methods ?? []).length === 0 ? (
             <span className="text-muted-foreground">—</span>
           ) : (
             pack.payment_methods.map((m) => (

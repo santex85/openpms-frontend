@@ -6,6 +6,7 @@ import { Trans, useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 
 import { TaxBreakdown } from "@/components/bookings/TaxBreakdown";
+import { taxRulesToPreviewLines } from "@/lib/countryPackTaxRules";
 import { useBookings } from "@/hooks/useBookings";
 import { useCountryPackDetail } from "@/hooks/useCountryPacks";
 import { useCreateBooking } from "@/hooks/useCreateBooking";
@@ -142,6 +143,10 @@ export function BookingsListPage() {
     return properties.find((p) => p.id === selectedPropertyId);
   }, [selectedPropertyId, properties]);
   const { data: packDetail } = useCountryPackDetail(countryPackCode);
+  const bookingTaxPreviewLines = useMemo(
+    () => taxRulesToPreviewLines(packDetail?.taxes),
+    [packDetail?.taxes]
+  );
 
   const createBookingMutation = useCreateBooking();
 
@@ -739,7 +744,7 @@ export function BookingsListPage() {
                 )}
                 <TaxBreakdown
                   baseAmount={priceSubtotal}
-                  taxLines={packDetail.tax_lines}
+                  taxLines={bookingTaxPreviewLines}
                   currencyCode={propertyRow?.currency ?? "USD"}
                 />
               </div>
