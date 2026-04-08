@@ -1,37 +1,40 @@
+/** Checklist links; labels come from i18n via `titleKey` / `descriptionKey` / `actionKey`. */
 export const ONBOARDING_STEPS = [
   {
-    title: "Отель",
-    description:
-      "Создайте первый объект: название, часовой пояс, валюта, время заезда и выезда.",
+    titleKey: "onboarding.stepHotelTitle",
+    descriptionKey: "onboarding.stepHotelDesc",
     href: "/settings#properties-hotels",
-    action: "Открыть настройки отеля",
+    actionKey: "onboarding.stepHotelAction",
   },
   {
-    title: "Типы номеров",
-    description:
-      "Добавьте хотя бы один тип номера (вместимость, название категории).",
+    titleKey: "onboarding.stepCountryTaxesTitle",
+    descriptionKey: "onboarding.stepCountryTaxesDesc",
+    href: "/settings#country-pack",
+    actionKey: "onboarding.stepCountryTaxesAction",
+  },
+  {
+    titleKey: "onboarding.stepRoomTypesTitle",
+    descriptionKey: "onboarding.stepRoomTypesDesc",
     href: "/settings#room-types-hint",
-    action: "Типы номеров в настройках",
+    actionKey: "onboarding.stepRoomTypesAction",
   },
   {
-    title: "Комнаты",
-    description: "Создайте физические номера и привяжите их к типам.",
+    titleKey: "onboarding.stepRoomsTitle",
+    descriptionKey: "onboarding.stepRoomsDesc",
     href: "/rooms",
-    action: "Открыть номера",
+    actionKey: "onboarding.stepRoomsAction",
   },
   {
-    title: "Тарифы и цены",
-    description:
-      "Добавьте тарифный план и настройте цены для типов номеров на календаре тарифов.",
+    titleKey: "onboarding.stepRatesTitle",
+    descriptionKey: "onboarding.stepRatesDesc",
     href: "/rates",
-    action: "Открыть тарифы",
+    actionKey: "onboarding.stepRatesAction",
   },
   {
-    title: "Первая бронь",
-    description:
-      "На сетке занятости кликните по ячейке, укажите даты, тариф и номер — так создаётся бронь.",
+    titleKey: "onboarding.stepFirstBookingTitle",
+    descriptionKey: "onboarding.stepFirstBookingDesc",
     href: "/board",
-    action: "Открыть сетку",
+    actionKey: "onboarding.stepFirstBookingAction",
   },
 ] as const;
 

@@ -5,6 +5,7 @@ import {
   fetchCountryPackByCode,
   fetchCountryPacks,
 } from "@/api/country-packs";
+import type { CountryPackApplyResponse } from "@/types/country-pack";
 import { authQueryKeyPart } from "@/lib/authQueryKey";
 import i18n from "@/i18n";
 import { usePropertyStore } from "@/stores/property-store";
@@ -44,12 +45,16 @@ export function useApplyCountryPack() {
       }
       return applyCountryPack(code, selectedPropertyId);
     },
-    onSuccess: (property) => {
+    onSuccess: (property: CountryPackApplyResponse) => {
       setCountryPackCode(property.country_pack_code ?? null);
       void queryClient.invalidateQueries({ queryKey: ["properties", authKey] });
       void queryClient.invalidateQueries({ queryKey: ["country-packs", authKey] });
       void queryClient.invalidateQueries({
         queryKey: ["country-pack", authKey],
+        exact: false,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["property-lock-status", authKey],
         exact: false,
       });
     },

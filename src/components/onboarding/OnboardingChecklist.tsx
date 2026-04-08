@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 
 import { ONBOARDING_STEPS } from "@/components/onboarding/onboardingSteps";
@@ -47,6 +48,7 @@ export function OnboardingChecklist({
   onStepNavigate,
   onDismiss,
 }: OnboardingChecklistProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { stepDone, allDone } = useOnboardingProgress();
 
@@ -74,11 +76,10 @@ export function OnboardingChecklist({
     variant === "page" ? (
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Первичная настройка
+          {t("onboarding.pageTitle")}
         </h1>
         <p className="text-sm text-muted-foreground">
-          Пройдите шаги по порядку. Прогресс сохраняется в браузере; мастер
-          можно снова открыть из шапки («Первичная настройка» рядом с отелем).
+          {t("onboarding.pageSubtitle")}
         </p>
       </div>
     ) : null;
@@ -97,7 +98,7 @@ export function OnboardingChecklist({
           const done = stepDone[index];
           const isActive = index === activeStep;
           return (
-            <li key={step.title}>
+            <li key={step.titleKey}>
               <button
                 type="button"
                 onClick={() => {
@@ -124,17 +125,17 @@ export function OnboardingChecklist({
                       {done ? "✓" : index + 1}
                     </span>
                     <span className="font-medium text-foreground">
-                      {step.title}
+                      {t(step.titleKey)}
                     </span>
                   </div>
                   {done ? (
                     <span className="text-xs font-medium text-muted-foreground">
-                      Готово
+                      {t("onboarding.done")}
                     </span>
                   ) : null}
                 </div>
                 <p className="text-sm text-muted-foreground pl-9">
-                  {step.description}
+                  {t(step.descriptionKey)}
                 </p>
                 <div className="pl-9">
                   <Button variant="outline" size="sm" asChild>
@@ -144,7 +145,7 @@ export function OnboardingChecklist({
                         onStepNavigate?.();
                       }}
                     >
-                      {step.action}
+                      {t(step.actionKey)}
                     </Link>
                   </Button>
                 </div>
@@ -156,11 +157,11 @@ export function OnboardingChecklist({
 
       <div className="flex flex-wrap gap-2">
         <Button type="button" variant="secondary" onClick={goNextIncomplete}>
-          {allDone ? "На дашборд" : "К следующему незавершённому"}
+          {allDone ? t("onboarding.toDashboard") : t("onboarding.nextIncomplete")}
         </Button>
         <Button type="button" variant="ghost" asChild>
           <Link to="/" onClick={handleSkipClick}>
-            Пропустить
+            {t("onboarding.skip")}
           </Link>
         </Button>
       </div>

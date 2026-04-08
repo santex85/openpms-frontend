@@ -1,8 +1,18 @@
 import { apiClient } from "@/lib/api";
+import type { PropertyLockStatus } from "@/types/country-pack";
 import type { PropertyCreate, PropertyRead } from "@/types/api";
 
 export async function fetchProperties(): Promise<PropertyRead[]> {
   const { data } = await apiClient.get<PropertyRead[]>("/properties");
+  return data;
+}
+
+export async function fetchPropertyLockStatus(
+  propertyId: string
+): Promise<PropertyLockStatus> {
+  const { data } = await apiClient.get<PropertyLockStatus>(
+    `/properties/${propertyId}/lock-status`
+  );
   return data;
 }
 

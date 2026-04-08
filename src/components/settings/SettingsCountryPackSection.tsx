@@ -1,5 +1,8 @@
+import axios from "axios";
+import { Lock } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { CountryPackCard } from "@/components/settings/CountryPackCard";
@@ -25,6 +28,8 @@ import {
   useCountryPacksList,
 } from "@/hooks/useCountryPacks";
 import { useProperties } from "@/hooks/useProperties";
+import { usePropertyLockStatus } from "@/hooks/usePropertyLockStatus";
+import { authQueryKeyPart } from "@/lib/authQueryKey";
 import { countryPackFlagEmoji } from "@/lib/countryPackFlags";
 import { formatApiError } from "@/lib/formatApiError";
 import { toastError, toastSuccess } from "@/lib/toast";
@@ -34,9 +39,12 @@ const NONE_VALUE = "__none__";
 
 export function SettingsCountryPackSection() {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const authKey = authQueryKeyPart();
   const canManage = useCanManageProperties();
   const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
   const { data: properties } = useProperties();
+  const { data: lockStatus } = usePropertyLockStatus(selectedPropertyId);
   const { data: packs, isPending: packsPending, isError: packsError } =
     useCountryPacksList();
 
@@ -73,7 +81,11 @@ export function SettingsCountryPackSection() {
   const applyMutation = useApplyCountryPack();
   const [confirmOpen, setConfirmOpen] = useState(false);
 
+  const isLocked = lockStatus?.country_pack_locked === true;
+  const bookingCount = lockStatus?.booking_count ?? 0;
+
   const canApply =
+    !isLocked &&
     canManage &&
     selectedPropertyId !== null &&
     draftCode !== null &&
@@ -89,13 +101,22 @@ export function SettingsCountryPackSection() {
       setConfirmOpen(false);
       toastSuccess(t("countryPack.toastApplied"));
     } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 409) {
+        void queryClient.invalidateQueries({
+          queryKey: ["property-lock-status", authKey],
+          exact: false,
+        });
+      }
       toastError(formatApiError(err));
     }
   }
 
   if (!canManage) {
     return (
-      <section className="space-y-2 rounded-lg border border-border bg-card p-4">
+      <section
+        id="country-pack"
+        className="space-y-2 rounded-lg border border-border bg-card p-4"
+      >
         <h3 className="text-sm font-semibold text-foreground">
           {t("countryPack.sectionTitle")}
         </h3>
@@ -108,7 +129,10 @@ export function SettingsCountryPackSection() {
 
   if (selectedPropertyId === null) {
     return (
-      <section className="space-y-2 rounded-lg border border-border bg-card p-4">
+      <section
+        id="country-pack"
+        className="space-y-2 rounded-lg border border-border bg-card p-4"
+      >
         <h3 className="text-sm font-semibold text-foreground">
           {t("countryPack.sectionTitle")}
         </h3>
@@ -120,13 +144,19 @@ export function SettingsCountryPackSection() {
   }
 
   return (
-    <section className="space-y-4 rounded-lg border border-border bg-card p-4">
+    <section
+      id="country-pack"
+      className="space-y-4 rounded-lg border border-border bg-card p-4"
+    >
       <div>
         <h3 className="text-sm font-semibold text-foreground">
           {t("countryPack.sectionTitle")}
         </h3>
         <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           <span>{t("countryPack.intro")}</span>
+          <span className="text-amber-800 dark:text-amber-200/90">
+            {t("countryPack.onboardingHint")}
+          </span>
           <ApiRouteHint>GET /country-packs</ApiRouteHint>
           <ApiRouteHint>
             POST /country-packs/{"{"}code{"}"}/apply
@@ -140,12 +170,31 @@ export function SettingsCountryPackSection() {
         <div className="h-10 animate-pulse rounded-md bg-muted" aria-hidden />
       ) : (
         <div className="max-w-md space-y-3">
+          {isLocked ? (
+            <div
+              className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-50"
+              role="status"
+            >
+              <Lock
+                className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-amber-300"
+                aria-hidden
+              />
+              <div className="space-y-1">
+                <p className="font-medium">{t("countryPack.locked.title")}</p>
+                <p>{t("countryPack.locked.description", { count: bookingCount })}</p>
+                <p className="text-amber-900/90 dark:text-amber-100/90">
+                  {t("countryPack.locked.support")}
+                </p>
+              </div>
+            </div>
+          ) : null}
           <div className="space-y-2">
             <span className="text-sm font-medium">
               {t("countryPack.selectorLabel")}
             </span>
             <Select
               value={selectValue}
+              disabled={isLocked}
               onValueChange={(v) => {
                 setDraftCode(v === NONE_VALUE ? null : v);
               }}
@@ -158,9 +207,8 @@ export function SettingsCountryPackSection() {
                   {t("countryPack.notConfigured")}
                 </SelectItem>
                 {(packs ?? []).map((p) => (
-                  <SelectItem key={p.id} value={p.code}>
-                    {countryPackFlagEmoji(p.code)} {p.name} — {p.currency} (
-                    {p.symbol})
+                  <SelectItem key={p.code} value={p.code}>
+                    {countryPackFlagEmoji(p.code)} {p.name} — {p.currency_code}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -174,15 +222,17 @@ export function SettingsCountryPackSection() {
             />
           ) : null}
 
-          <Button
-            type="button"
-            disabled={!canApply || applyMutation.isPending}
-            onClick={() => {
-              setConfirmOpen(true);
-            }}
-          >
-            {t("countryPack.apply")}
-          </Button>
+          {isLocked ? null : (
+            <Button
+              type="button"
+              disabled={!canApply || applyMutation.isPending}
+              onClick={() => {
+                setConfirmOpen(true);
+              }}
+            >
+              {t("countryPack.apply")}
+            </Button>
+          )}
         </div>
       )}
 
