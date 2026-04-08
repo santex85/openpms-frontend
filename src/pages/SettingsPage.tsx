@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { isAxiosForbidden } from "@/lib/forbiddenError";
 import { useCreateProperty } from "@/hooks/useCreateProperty";
 import { useCanManageProperties } from "@/hooks/useAuthz";
@@ -48,6 +49,8 @@ const TIMEZONE_PRESETS = [
 ] as const;
 
 const CUSTOM_TZ = "__custom__";
+
+type SettingsTab = "account" | "property" | "team" | "integrations";
 
 function timeToApi(value: string): string {
   const v = value.trim();
@@ -222,12 +225,34 @@ export function SettingsPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
 
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>("property");
+
   useEffect(() => {
-    if (location.hash === "#account-password") {
-      document
-        .getElementById("account-password")
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const raw = location.hash.replace(/^#/, "");
+    let timerId: number | undefined;
+
+    const scrollToId = (id: string) => {
+      timerId = window.setTimeout(() => {
+        document.getElementById(id)?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }, 50);
+    };
+
+    if (raw === "account-password") {
+      setSettingsTab("account");
+      scrollToId("account-password");
+    } else if (raw === "properties-hotels" || raw === "room-types-hint") {
+      setSettingsTab("property");
+      scrollToId(raw);
     }
+
+    return () => {
+      if (timerId !== undefined) {
+        window.clearTimeout(timerId);
+      }
+    };
   }, [location.hash]);
 
   useEffect(() => {
@@ -338,7 +363,34 @@ export function SettingsPage() {
           {t("settings.subtitle")}
         </p>
       </div>
-      <SettingsChangePasswordSection />
+
+      <Tabs
+        value={settingsTab}
+        onValueChange={(v) => {
+          setSettingsTab(v as SettingsTab);
+        }}
+        className="w-full"
+      >
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:inline-flex sm:h-9 sm:w-auto sm:flex-nowrap">
+          <TabsTrigger value="account" className="flex-1 sm:flex-initial">
+            {t("settings.tab.account")}
+          </TabsTrigger>
+          <TabsTrigger value="property" className="flex-1 sm:flex-initial">
+            {t("settings.tab.property")}
+          </TabsTrigger>
+          <TabsTrigger value="team" className="flex-1 sm:flex-initial">
+            {t("settings.tab.team")}
+          </TabsTrigger>
+          <TabsTrigger value="integrations" className="flex-1 sm:flex-initial">
+            {t("settings.tab.integrations")}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="account" className="space-y-6">
+          <SettingsChangePasswordSection />
+        </TabsContent>
+
+        <TabsContent value="property" className="space-y-6">
       <section
         id="properties-hotels"
         className="space-y-4 rounded-lg border border-border bg-card p-4"
@@ -653,6 +705,10 @@ export function SettingsPage() {
         </DialogContent>
       </Dialog>
 
+      <SettingsCountryPackExtensionsSection canManage={canManage} />
+        </TabsContent>
+
+        <TabsContent value="team" className="space-y-6">
       <section className="space-y-3 rounded-lg border border-border bg-card p-4">
         <h3 className="text-sm font-semibold text-foreground">
           {t("settings.roles.sectionTitle")}
@@ -684,9 +740,13 @@ export function SettingsPage() {
         </ul>
       </section>
       <SettingsUsersSection canManage={canManage} />
+        </TabsContent>
+
+        <TabsContent value="integrations" className="space-y-6">
       <SettingsApiKeysSection canManage={canManage} />
       <SettingsWebhooksSection canManage={canManage} />
-      <SettingsCountryPackExtensionsSection canManage={canManage} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

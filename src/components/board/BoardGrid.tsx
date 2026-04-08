@@ -13,7 +13,6 @@ import type { ReactElement } from "react";
 
 import { BoardTapeGrid } from "@/components/board/BoardTapeGrid";
 import type { BoardBookingMenuApi } from "@/components/board/BookingBlock";
-import { UnassignedPool } from "@/components/board/UnassignedPool";
 import { formatApiError } from "@/lib/formatApiError";
 import { cn } from "@/lib/utils";
 import type { Booking, RoomRow, RoomType } from "@/types/api";
@@ -31,9 +30,9 @@ export interface BoardGridProps {
   assignRoomErrorObj: unknown;
   patchBookingError: boolean;
   patchBookingErrorObj: unknown;
-  unassignedBookings: Booking[];
   sortedRoomTypes: RoomType[];
-  bookingsPending: boolean;
+  /** Unassigned bookings grouped by room type id for category overflow lanes. */
+  unassignedByRoomTypeId: ReadonlyMap<string, Booking[]>;
   days: MonthDayMeta[];
   rooms: RoomRow[];
   bookingsForGrid: Booking[];
@@ -59,9 +58,8 @@ export function BoardGrid({
   assignRoomErrorObj,
   patchBookingError,
   patchBookingErrorObj,
-  unassignedBookings,
   sortedRoomTypes,
-  bookingsPending,
+  unassignedByRoomTypeId,
   days,
   rooms,
   bookingsForGrid,
@@ -100,29 +98,20 @@ export function BoardGrid({
               : boardMessage}
         </div>
       )}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-        {(bookingsPending || unassignedBookings.length > 0) && (
-          <UnassignedPool
-            bookings={unassignedBookings}
-            roomTypes={sortedRoomTypes}
-            isLoading={bookingsPending}
-            className="order-first lg:max-w-[240px]"
-          />
-        )}
-        <div className="min-w-0 flex-1 overflow-x-auto lg:order-last">
-          <BoardTapeGrid
-            days={days}
-            roomTypes={sortedRoomTypes}
-            rooms={rooms}
-            bookings={bookingsForGrid}
-            sumsByDate={sumsByDate}
-            availabilityPending={showAvailabilityPending}
-            availabilityError={availabilityError}
-            duplicateRoomNameKeys={roomDuplicateKeys}
-            bookingMenuApi={bookingMenuApi}
-            onEmptyCellClick={onEmptyCellClick}
-          />
-        </div>
+      <div className="min-w-0 overflow-x-auto">
+        <BoardTapeGrid
+          days={days}
+          roomTypes={sortedRoomTypes}
+          rooms={rooms}
+          bookings={bookingsForGrid}
+          sumsByDate={sumsByDate}
+          availabilityPending={showAvailabilityPending}
+          availabilityError={availabilityError}
+          duplicateRoomNameKeys={roomDuplicateKeys}
+          bookingMenuApi={bookingMenuApi}
+          onEmptyCellClick={onEmptyCellClick}
+          unassignedByRoomTypeId={unassignedByRoomTypeId}
+        />
       </div>
       <DragOverlay dropAnimation={null} modifiers={[snapCenterToCursor]}>
         {dragOverlayBooking !== null

@@ -5,6 +5,7 @@ import { boardLocaleFromI18n } from "@/utils/boardDates";
 
 import type { BoardBookingMenuApi } from "@/components/board/BookingBlock";
 import { BoardRoomRow } from "@/components/board/BoardRoomRow";
+import { BoardUnassignedLaneRow } from "@/components/board/BoardUnassignedLaneRow";
 import { cn } from "@/lib/utils";
 import type { Booking, RoomRow, RoomType } from "@/types/api";
 import { formatIsoDateLocal, type MonthDayMeta } from "@/utils/boardDates";
@@ -24,6 +25,8 @@ interface BoardTapeGridProps {
   duplicateRoomNameKeys?: ReadonlySet<string>;
   bookingMenuApi?: BoardBookingMenuApi | null;
   onEmptyCellClick?: (payload: { room: RoomRow; nightIso: string }) => void;
+  /** Bookings without a physical room, grouped by room type id (shown in overflow lane per category). */
+  unassignedByRoomTypeId?: ReadonlyMap<string, Booking[]>;
 }
 
 export function BoardTapeGrid({
@@ -38,6 +41,7 @@ export function BoardTapeGrid({
   duplicateRoomNameKeys,
   bookingMenuApi,
   onEmptyCellClick,
+  unassignedByRoomTypeId,
 }: BoardTapeGridProps) {
   const { t, i18n } = useTranslation();
   const labelHeader = t("board.dateRoomCol");
@@ -177,6 +181,19 @@ export function BoardTapeGrid({
                 style={{ gridColumn: "2 / -1" }}
                 aria-hidden
               />
+
+              {unassignedByRoomTypeId !== undefined &&
+                (unassignedByRoomTypeId.get(rt.id)?.length ?? 0) > 0 && (
+                  <BoardUnassignedLaneRow
+                    roomTypeName={rt.name}
+                    days={days}
+                    innerColTemplate={innerColTemplate}
+                    laneBookings={unassignedByRoomTypeId.get(rt.id) ?? []}
+                    cellBorder={cellBorder}
+                    todayIso={todayIso}
+                    bookingMenuApi={bookingMenuApi}
+                  />
+                )}
 
               {roomsInType.map((room) => (
                 <BoardRoomRow

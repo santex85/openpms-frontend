@@ -29,6 +29,7 @@ import {
   type BookingPatchBody,
   patchBooking,
 } from "@/api/bookings";
+import { fetchAssignableRooms } from "@/api/rooms";
 import { putAvailabilityOverride } from "@/api/inventory";
 import { BoardBookingSummaryDialog } from "@/components/board/BoardBookingSummaryDialog";
 import { BoardGrid } from "@/components/board/BoardGrid";
@@ -213,10 +214,10 @@ export function BoardPage() {
 
   const { data: roomTypes, isPending: roomTypesPending } = useRoomTypes();
   const { data: rooms, isPending: roomsPending } = useRooms();
-  const {
-    data: bookingsRaw,
-    isPending: bookingsPending,
-  } = useBookings(dataRange.startIso, dataRange.endIso);
+  const { data: bookingsRaw } = useBookings(
+    dataRange.startIso,
+    dataRange.endIso
+  );
   const {
     data: availabilityGrid,
     isPending: availabilityPending,
@@ -436,6 +437,137 @@ export function BoardPage() {
         bookingOverlapsMonth(b, dataRange.startIso, dataRange.endIso)
     );
   }, [bookingsRaw, selectedPropertyId, dataRange.startIso, dataRange.endIso]);
+
+  const unassignedByRoomTypeId = useMemo(() => {
+    const m = new Map<string, Booking[]>();
+    for (const b of unassignedBookings) {
+      const rtId = b.room_type_id;
+      if (rtId === null || rtId === undefined) {
+        continue;
+      }
+      const list = m.get(rtId) ?? [];
+      list.push(b);
+      m.set(rtId, list);
+    }
+    return m;
+  }, [unassignedBookings]);
+
+  /** Stable key of unassigned bookings eligible for client auto-room (same filters as assignable-rooms flow). */
+  const unassignedAutoAssignCandidatesKey = useMemo(() => {
+    if (selectedPropertyId === null || bookingsRaw === undefined) {
+      return "";
+    }
+    return bookingsRaw
+      .filter(
+        (b) =>
+          b.property_id === selectedPropertyId &&
+          b.room_id === null &&
+          b.check_in_date !== null &&
+          b.check_out_date !== null &&
+          b.room_type_id !== null &&
+          b.room_type_id !== undefined &&
+          bookingOverlapsMonth(b, dataRange.startIso, dataRange.endIso)
+      )
+      .map((b) => b.id)
+      .sort()
+      .join(",");
+  }, [
+    bookingsRaw,
+    selectedPropertyId,
+    dataRange.startIso,
+    dataRange.endIso,
+  ]);
+
+  const autoAssignHandledIdsRef = useRef<Set<string>>(new Set());
+  const autoAssignScopeKeyRef = useRef<string>("");
+
+  useEffect(() => {
+    const scopeKey = `${selectedPropertyId ?? ""}|${dataRange.startIso}|${dataRange.endIso}`;
+    if (autoAssignScopeKeyRef.current !== scopeKey) {
+      autoAssignScopeKeyRef.current = scopeKey;
+      autoAssignHandledIdsRef.current = new Set();
+    }
+  }, [selectedPropertyId, dataRange.startIso, dataRange.endIso]);
+
+  useEffect(() => {
+    if (!canWriteBookings || selectedPropertyId === null) {
+      return;
+    }
+    if (bookingsRaw === undefined || unassignedAutoAssignCandidatesKey === "") {
+      return;
+    }
+
+    const candidates = bookingsRaw
+      .filter(
+        (b) =>
+          b.property_id === selectedPropertyId &&
+          b.room_id === null &&
+          b.check_in_date !== null &&
+          b.check_out_date !== null &&
+          b.room_type_id !== null &&
+          b.room_type_id !== undefined &&
+          bookingOverlapsMonth(b, dataRange.startIso, dataRange.endIso)
+      )
+      .sort((a, b) => a.id.localeCompare(b.id));
+
+    const pending = candidates.filter(
+      (b) => !autoAssignHandledIdsRef.current.has(b.id)
+    );
+    if (pending.length === 0) {
+      return;
+    }
+
+    let skipInvalidation = false;
+    const localeTag = boardLocaleFromI18n(i18n.language);
+
+    void (async () => {
+      for (const b of pending) {
+        if (autoAssignHandledIdsRef.current.has(b.id)) {
+          continue;
+        }
+        autoAssignHandledIdsRef.current.add(b.id);
+        try {
+          const assignable = await fetchAssignableRooms({
+            propertyId: selectedPropertyId,
+            roomTypeId: b.room_type_id!,
+            checkIn: b.check_in_date!,
+            checkOut: b.check_out_date!,
+          });
+          const ordered = [...assignable].sort((a, b) =>
+            a.name.localeCompare(b.name, localeTag, { sensitivity: "base" })
+          );
+          if (ordered.length === 0) {
+            continue;
+          }
+          await patchBooking(b.id, { room_id: ordered[0].id });
+          if (!skipInvalidation) {
+            void queryClient.invalidateQueries({ queryKey: ["bookings"] });
+            void queryClient.invalidateQueries({
+              queryKey: ["rooms", "assignable"],
+            });
+            void queryClient.invalidateQueries({
+              queryKey: ["inventory", "availability"],
+            });
+          }
+        } catch (err) {
+          console.error("BoardPage: auto-assign room failed", b.id, err);
+        }
+      }
+    })();
+
+    return () => {
+      skipInvalidation = true;
+    };
+  }, [
+    bookingsRaw,
+    canWriteBookings,
+    selectedPropertyId,
+    dataRange.startIso,
+    dataRange.endIso,
+    unassignedAutoAssignCandidatesKey,
+    i18n.language,
+    queryClient,
+  ]);
 
   const sortedRoomTypes = useMemo(() => {
     const list = roomTypes ?? [];
@@ -726,9 +858,8 @@ export function BoardPage() {
           assignRoomErrorObj={assignRoom.error}
           patchBookingError={patchBookingMut.isError}
           patchBookingErrorObj={patchBookingMut.error}
-          unassignedBookings={unassignedBookings}
           sortedRoomTypes={sortedRoomTypes}
-          bookingsPending={bookingsPending}
+          unassignedByRoomTypeId={unassignedByRoomTypeId}
           days={dataRange.days}
           rooms={rooms ?? []}
           bookingsForGrid={bookingsForGrid}

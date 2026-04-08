@@ -39,9 +39,14 @@ const DraggableBookingTile = memo(function DraggableBookingTile({
   layout,
   menuApi,
 }: DraggableBookingTileProps) {
+  const dragData: BoardBookingDragData =
+    booking.room_id === null
+      ? { type: "unassigned_booking", booking }
+      : { type: "assigned_booking", booking };
+
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: dndBookingId(booking.id),
-    data: { type: "assigned_booking", booking } satisfies BoardBookingDragData,
+    data: dragData,
   });
 
   const tile = (
@@ -157,8 +162,7 @@ function BookingBlockInner({ booking, days, menuApi }: BookingBlockProps) {
   const layout = useMemo(() => {
     if (
       booking.check_in_date === null ||
-      booking.check_out_date === null ||
-      booking.room_id === null
+      booking.check_out_date === null
     ) {
       return null;
     }
@@ -167,7 +171,7 @@ function BookingBlockInner({ booking, days, menuApi }: BookingBlockProps) {
       booking.check_in_date,
       booking.check_out_date
     );
-  }, [booking.check_in_date, booking.check_out_date, booking.room_id, days]);
+  }, [booking.check_in_date, booking.check_out_date, days]);
 
   if (layout === null) {
     return null;
