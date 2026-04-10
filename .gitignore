@@ -21,3 +21,6 @@ dist-ssr
 # Env
 .env
 .env.*.local
+
+# Local QA / test reports (not versioned)
+report-tests.md

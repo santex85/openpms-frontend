@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "check:api": "bash scripts/check-api-health.sh",
     "mint:jwt": "bash scripts/mint-dev-jwt.sh"
   },
   "dependencies": {

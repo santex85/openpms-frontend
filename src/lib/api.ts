@@ -11,7 +11,7 @@ const baseURL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 if (import.meta.env.DEV && baseURL === "") {
   console.error(
-    "[OpenPMS] VITE_API_BASE_URL is empty — requests hit the Vite origin and usually fail (CORS). Set it in .env (e.g. http://localhost:8000) and restart npm run dev."
+    "[OpenPMS] VITE_API_BASE_URL is empty — requests hit the Vite origin and usually fail (CORS). Set it in .env (TZ-13 + Caddy: http://127.0.0.1 ; direct uvicorn: http://localhost:8000) and restart npm run dev."
   );
 }
 
