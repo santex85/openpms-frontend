@@ -1,9 +1,9 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import { Loader2 } from "lucide-react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
-import { useLocation } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { SettingsChangePasswordSection } from "@/components/settings/SettingsChangePasswordSection";
 import { SettingsApiKeysSection } from "@/components/settings/SettingsApiKeysSection";
@@ -12,6 +12,8 @@ import { SettingsRoomTypesTable } from "@/components/settings/SettingsRoomTypesT
 import { SettingsCountryPackSection } from "@/components/settings/SettingsCountryPackSection";
 import { SettingsCountryPackExtensionsSection } from "@/components/settings/SettingsCountryPackExtensionsSection";
 import { SettingsChannexSection } from "@/components/settings/SettingsChannexSection";
+import { SettingsStripeSection } from "@/components/settings/SettingsStripeSection";
+import { TaxConfigCard } from "@/components/settings/TaxConfigCard";
 import { SettingsWebhooksSection } from "@/components/settings/SettingsWebhooksSection";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +33,9 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { isAxiosForbidden } from "@/lib/forbiddenError";
+import { toastSuccess } from "@/lib/toast";
+import { useQueryClient } from "@tanstack/react-query";
+
 import { useCreateProperty } from "@/hooks/useCreateProperty";
 import { useCanManageProperties } from "@/hooks/useAuthz";
 import { useCreateRoomType } from "@/hooks/useRoomTypeMutations";
@@ -51,7 +56,7 @@ const TIMEZONE_PRESETS = [
 
 const CUSTOM_TZ = "__custom__";
 
-type SettingsTab = "account" | "property" | "team" | "integrations";
+type SettingsTab = "account" | "property" | "billing" | "team" | "integrations";
 
 function timeToApi(value: string): string {
   const v = value.trim();
@@ -137,7 +142,27 @@ function formatRoomTypeMutationError(err: unknown, t: TFunction): string {
 export function SettingsPage() {
   const { t } = useTranslation();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
+  const stripeOauthHandled = useRef(false);
   const canManage = useCanManageProperties();
+
+  useEffect(() => {
+    if (searchParams.get("connected") !== "1") {
+      stripeOauthHandled.current = false;
+      return;
+    }
+    if (stripeOauthHandled.current) {
+      return;
+    }
+    stripeOauthHandled.current = true;
+    toastSuccess(t("stripe.oauthSuccess"));
+    void queryClient.invalidateQueries({ queryKey: ["stripe"] });
+    const next = new URLSearchParams(searchParams);
+    next.delete("connected");
+    next.delete("property_id");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, queryClient, t]);
   const createMutation = useCreateProperty();
   const updateMutation = useUpdateProperty();
   const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
@@ -372,12 +397,15 @@ export function SettingsPage() {
         }}
         className="w-full"
       >
-        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:inline-flex sm:h-9 sm:w-auto sm:flex-nowrap">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:inline-flex sm:h-9 sm:w-auto sm:flex-nowrap sm:flex-wrap">
           <TabsTrigger value="account" className="flex-1 sm:flex-initial">
             {t("settings.tab.account")}
           </TabsTrigger>
           <TabsTrigger value="property" className="flex-1 sm:flex-initial">
             {t("settings.tab.property")}
+          </TabsTrigger>
+          <TabsTrigger value="billing" className="flex-1 sm:flex-initial">
+            {t("settings.tab.billing")}
           </TabsTrigger>
           <TabsTrigger value="team" className="flex-1 sm:flex-initial">
             {t("settings.tab.team")}
@@ -709,6 +737,10 @@ export function SettingsPage() {
       <SettingsCountryPackExtensionsSection canManage={canManage} />
         </TabsContent>
 
+        <TabsContent value="billing" className="space-y-6">
+          <TaxConfigCard canManage={canManage} />
+        </TabsContent>
+
         <TabsContent value="team" className="space-y-6">
       <section className="space-y-3 rounded-lg border border-border bg-card p-4">
         <h3 className="text-sm font-semibold text-foreground">
@@ -744,6 +776,7 @@ export function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="integrations" className="space-y-6">
+      <SettingsStripeSection canManage={canManage} />
       <SettingsChannexSection canManage={canManage} />
       <SettingsApiKeysSection canManage={canManage} />
       <SettingsWebhooksSection canManage={canManage} />

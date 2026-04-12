@@ -13,6 +13,8 @@ import { Link, useParams } from "react-router-dom";
 
 import type { BookingPatchBody } from "@/api/bookings";
 import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
+import { BookingStripePaymentsSection } from "@/components/bookings/BookingStripePaymentsSection";
+import { SalesTaxReceiptLines } from "@/components/bookings/SalesTaxReceiptLines";
 import { CheckInRequirementsModal } from "@/components/bookings/CheckInRequirementsModal";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,7 +38,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useCanManageProperties, useCanWriteBookings } from "@/hooks/useAuthz";
+import {
+  useCanManageProperties,
+  useCanStripeCharge,
+  useCanWriteBookings,
+} from "@/hooks/useAuthz";
 import { useCountryPackExtensions } from "@/hooks/useCountryPackExtensions";
 import { useBooking } from "@/hooks/useBooking";
 import { useBookingFolio } from "@/hooks/useBookingFolio";
@@ -107,6 +113,7 @@ export function BookingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const bookingId = id ?? "";
   const canWriteBookings = useCanWriteBookings();
+  const canStripeCharge = useCanStripeCharge();
   const canManageProperty = useCanManageProperties();
   const { data: countryPackExtensions } =
     useCountryPackExtensions(canManageProperty);
@@ -1095,60 +1102,67 @@ export function BookingDetailPage() {
               Начисления
             </h3>
             {folioError || folioPending ? null : (
-              <div className="overflow-x-auto rounded-md border">
-                <table className="w-full min-w-[480px] text-left text-sm">
-                  <thead className="border-b bg-muted/50">
-                    <tr>
-                      <th className="px-2 py-1.5">Статья</th>
-                      <th className="px-2 py-1.5 text-right">Сумма</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-b border-border/60">
-                      <td className="px-2 py-1.5">Проживание</td>
-                      <td className="px-2 py-1.5 text-right tabular-nums">
-                        {formatMoneyAmount(
-                          propertyCurrency,
-                          String(folioTotals.roomCharges),
-                          i18n.language
-                        )}
-                      </td>
-                    </tr>
-                    <tr className="border-b border-border/60">
-                      <td className="px-2 py-1.5">
-                        {t("folio.summaryCountryPackTaxes")}
-                      </td>
-                      <td className="px-2 py-1.5 text-right tabular-nums">
-                        {formatMoneyAmount(
-                          propertyCurrency,
-                          String(folioTotals.countryPackTaxes),
-                          i18n.language
-                        )}
-                      </td>
-                    </tr>
-                    <tr className="border-b border-border/60">
-                      <td className="px-2 py-1.5">Доп. услуги</td>
-                      <td className="px-2 py-1.5 text-right tabular-nums">
-                        {formatMoneyAmount(
-                          propertyCurrency,
-                          String(folioTotals.extrasCharges),
-                          i18n.language
-                        )}
-                      </td>
-                    </tr>
-                    <tr className="bg-muted/40 font-semibold">
-                      <td className="px-2 py-1.5">Итого начислений</td>
-                      <td className="px-2 py-1.5 text-right tabular-nums">
-                        {formatMoneyAmount(
-                          propertyCurrency,
-                          String(folioTotals.chargesGross),
-                          i18n.language
-                        )}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+              <>
+                <div className="overflow-x-auto rounded-md border">
+                  <table className="w-full min-w-[480px] text-left text-sm">
+                    <thead className="border-b bg-muted/50">
+                      <tr>
+                        <th className="px-2 py-1.5">Статья</th>
+                        <th className="px-2 py-1.5 text-right">Сумма</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-b border-border/60">
+                        <td className="px-2 py-1.5">Проживание</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">
+                          {formatMoneyAmount(
+                            propertyCurrency,
+                            String(folioTotals.roomCharges),
+                            i18n.language
+                          )}
+                        </td>
+                      </tr>
+                      <tr className="border-b border-border/60">
+                        <td className="px-2 py-1.5">
+                          {t("folio.summaryCountryPackTaxes")}
+                        </td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">
+                          {formatMoneyAmount(
+                            propertyCurrency,
+                            String(folioTotals.countryPackTaxes),
+                            i18n.language
+                          )}
+                        </td>
+                      </tr>
+                      <tr className="border-b border-border/60">
+                        <td className="px-2 py-1.5">Доп. услуги</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">
+                          {formatMoneyAmount(
+                            propertyCurrency,
+                            String(folioTotals.extrasCharges),
+                            i18n.language
+                          )}
+                        </td>
+                      </tr>
+                      <tr className="bg-muted/40 font-semibold">
+                        <td className="px-2 py-1.5">Итого начислений</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">
+                          {formatMoneyAmount(
+                            propertyCurrency,
+                            String(folioTotals.chargesGross),
+                            i18n.language
+                          )}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <SalesTaxReceiptLines
+                  propertyId={booking?.property_id}
+                  chargesTotal={folioTotals.chargesGross}
+                  currencyCode={propertyCurrency}
+                />
+              </>
             )}
           </section>
 
@@ -1330,6 +1344,15 @@ export function BookingDetailPage() {
               </>
             )}
           </section>
+
+          {booking !== undefined ? (
+            <BookingStripePaymentsSection
+              bookingId={bookingId}
+              propertyId={booking.property_id}
+              propertyCurrency={propertyCurrency}
+              canStripeCharge={canStripeCharge}
+            />
+          ) : null}
 
           <details className="rounded-md border border-border bg-muted/20 p-3 text-sm print:break-inside-avoid">
             <summary className="cursor-pointer font-medium text-foreground">

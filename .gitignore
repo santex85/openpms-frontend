@@ -6,7 +6,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-
+.cursor/
 node_modules
 dist
 dist-ssr
@@ -24,3 +24,4 @@ dist-ssr
 
 # Local QA / test reports (not versioned)
 report-tests.md
+.claude/

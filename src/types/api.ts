@@ -1,3 +1,5 @@
+import type { Guest } from "./guests";
+
 /** Authenticated user from POST /auth/login or GET /auth/me. */
 export interface UserRead {
   id: string;
@@ -32,8 +34,6 @@ export interface PropertyRead {
   /** Country pack code from TZ-9; null if not configured. */
   country_pack_code?: string | null;
 }
-
-import type { Guest } from "./guests";
 
 export type {
   Guest,

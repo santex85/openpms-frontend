@@ -39,6 +39,16 @@ export function useCanWriteBookings(): boolean {
   );
 }
 
+/** Stripe charge / add card — owner и manager (matches backend) */
+export function useCanStripeCharge(): boolean {
+  const { data, isPending } = useCurrentUserQueryContext();
+  if (isPending || data === undefined) {
+    return false;
+  }
+  const r = normalizeRole(data.role);
+  return r === "owner" || r === "manager";
+}
+
 /** GET /audit-log — owner и manager */
 export function useCanViewAuditLog(): boolean {
   const { data, isPending } = useCurrentUserQueryContext();
