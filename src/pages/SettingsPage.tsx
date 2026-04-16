@@ -15,6 +15,7 @@ import { SettingsChannexSection } from "@/components/settings/SettingsChannexSec
 import { SettingsStripeSection } from "@/components/settings/SettingsStripeSection";
 import { TaxConfigCard } from "@/components/settings/TaxConfigCard";
 import { SettingsWebhooksSection } from "@/components/settings/SettingsWebhooksSection";
+import { EmailSettingsCard } from "@/components/settings/EmailSettingsCard";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -56,7 +57,13 @@ const TIMEZONE_PRESETS = [
 
 const CUSTOM_TZ = "__custom__";
 
-type SettingsTab = "account" | "property" | "billing" | "team" | "integrations";
+type SettingsTab =
+  | "account"
+  | "property"
+  | "billing"
+  | "notifications"
+  | "team"
+  | "integrations";
 
 function timeToApi(value: string): string {
   const v = value.trim();
@@ -407,6 +414,9 @@ export function SettingsPage() {
           <TabsTrigger value="billing" className="flex-1 sm:flex-initial">
             {t("settings.tab.billing")}
           </TabsTrigger>
+          <TabsTrigger value="notifications" className="flex-1 sm:flex-initial">
+            {t("settings.tab.notifications")}
+          </TabsTrigger>
           <TabsTrigger value="team" className="flex-1 sm:flex-initial">
             {t("settings.tab.team")}
           </TabsTrigger>
@@ -739,6 +749,10 @@ export function SettingsPage() {
 
         <TabsContent value="billing" className="space-y-6">
           <TaxConfigCard canManage={canManage} />
+        </TabsContent>
+
+        <TabsContent value="notifications" className="space-y-6">
+          <EmailSettingsCard canManage={canManage} />
         </TabsContent>
 
         <TabsContent value="team" className="space-y-6">

@@ -13,6 +13,7 @@ import { Link, useParams } from "react-router-dom";
 
 import type { BookingPatchBody } from "@/api/bookings";
 import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
+import { BookingEmailSection } from "@/components/bookings/BookingEmailSection";
 import { BookingStripePaymentsSection } from "@/components/bookings/BookingStripePaymentsSection";
 import { SalesTaxReceiptLines } from "@/components/bookings/SalesTaxReceiptLines";
 import { CheckInRequirementsModal } from "@/components/bookings/CheckInRequirementsModal";
@@ -1186,15 +1187,6 @@ export function BookingDetailPage() {
                       <Banknote className="mr-1.5 h-4 w-4" aria-hidden />
                       Добавить оплату
                     </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      disabled
-                      title="Скоро"
-                    >
-                      Выставить счёт
-                    </Button>
                   </>
                 ) : null}
               </div>
@@ -1344,6 +1336,13 @@ export function BookingDetailPage() {
               </>
             )}
           </section>
+
+          {booking !== undefined ? (
+            <BookingEmailSection
+              bookingId={bookingId}
+              canWriteBookings={canWriteBookings}
+            />
+          ) : null}
 
           {booking !== undefined ? (
             <BookingStripePaymentsSection
