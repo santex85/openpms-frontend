@@ -172,6 +172,10 @@ export function bookingPatchTouchesStayDates(body: BookingPatchBody): boolean {
   );
 }
 
+export async function deleteBooking(bookingId: string): Promise<void> {
+  await apiClient.delete(`/bookings/${bookingId}`);
+}
+
 export async function patchBooking(
   bookingId: string,
   body: BookingPatchBody

@@ -1,10 +1,21 @@
 import { useLayoutEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { toast } from "sonner";
 
 import { GuestProfileForm } from "@/components/guests/GuestProfileForm";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useCanWriteBookings } from "@/hooks/useAuthz";
 import { useCountryPackExtensions } from "@/hooks/useCountryPackExtensions";
+import { useDeleteGuest } from "@/hooks/useGuestMutations";
 import { useGuest } from "@/hooks/useGuest";
 import { capitalizeGuestName } from "@/lib/capitalizeGuestName";
 import {
@@ -22,12 +33,15 @@ function guestInitials(first: string, last: string): string {
 }
 
 export function GuestDetailPage() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { data: guest, isPending, isError, error } = useGuest(id);
   const { data: packExtensions } = useCountryPackExtensions(true);
   const [editingProfile, setEditingProfile] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const canWriteGuests = useCanWriteBookings();
+  const deleteGuestMut = useDeleteGuest();
 
   useLayoutEffect(() => {
     if (
@@ -160,7 +174,69 @@ export function GuestDetailPage() {
             packExtensions={packExtensions}
             editing={editingProfile}
             onEditingChange={setEditingProfile}
+            extraActions={
+              canWriteGuests ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  disabled={
+                    guest.bookings.length > 0 || deleteGuestMut.isPending
+                  }
+                  title={
+                    guest.bookings.length > 0
+                      ? t("guests.deleteDisabledHasBookings")
+                      : undefined
+                  }
+                  onClick={() => {
+                    setDeleteOpen(true);
+                  }}
+                >
+                  {t("guests.deleteButton")}
+                </Button>
+              ) : null
+            }
           />
+
+          <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>{t("guests.deleteConfirmTitle")}</DialogTitle>
+                <DialogDescription>
+                  {t("guests.deleteConfirmDescription")}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="mt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setDeleteOpen(false);
+                  }}
+                >
+                  {t("common.cancel")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={deleteGuestMut.isPending || guest.bookings.length > 0}
+                  onClick={() => {
+                    deleteGuestMut.mutate(id, {
+                      onSuccess: () => {
+                        setDeleteOpen(false);
+                        navigate("/guests");
+                      },
+                      onError: (err) => {
+                        toast.error(formatApiError(err));
+                      },
+                    });
+                  }}
+                >
+                  {t("guests.deleteButton")}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </>
       )}
     </div>

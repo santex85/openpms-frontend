@@ -60,6 +60,7 @@ import { useAssignBookingRoom } from "@/hooks/useAssignBookingRoom";
 import { useBookings } from "@/hooks/useBookings";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useCreateBooking } from "@/hooks/useCreateBooking";
+import { useDeleteBooking } from "@/hooks/useDeleteBooking";
 import { useRatePlans } from "@/hooks/useRatePlans";
 import { useRoomTypes } from "@/hooks/useRoomTypes";
 import { useRooms } from "@/hooks/useRooms";
@@ -335,6 +336,8 @@ export function BoardPage() {
   const autoAssignScopeKeyRef = useRef<string>("");
 
   const [summaryBooking, setSummaryBooking] = useState<Booking | null>(null);
+
+  const deleteBookingMut = useDeleteBooking();
 
   const patchBookingMut = useMutation({
     mutationFn: ({ bookingId, body }: PatchBookingMutateVariables) =>
@@ -1260,7 +1263,7 @@ export function BoardPage() {
         roomName={summaryRoomName}
         roomTypeName={summaryRoomTypeName}
         canWriteBookings={canWriteBookings}
-        patchIsPending={patchBookingMut.isPending}
+        patchIsPending={patchBookingMut.isPending || deleteBookingMut.isPending}
         onPatch={(bookingId, body) => {
           setBoardMessage(null);
           patchBookingMut.mutate(
@@ -1271,6 +1274,17 @@ export function BoardPage() {
               },
             }
           );
+        }}
+        onDelete={(bookingId) => {
+          setBoardMessage(null);
+          deleteBookingMut.mutate(bookingId, {
+            onSuccess: () => {
+              setSummaryBooking(null);
+            },
+            onError: (e) => {
+              setBoardMessage(formatApiError(e));
+            },
+          });
         }}
         onReschedule={(b) => {
           if (bookingMenuApi !== null) {

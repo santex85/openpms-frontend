@@ -9,7 +9,8 @@ import {
   PlusCircle,
   Printer,
 } from "lucide-react";
-import { Link, useParams } from "react-router-dom";
+import { toast } from "sonner";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
 import type { BookingPatchBody } from "@/api/bookings";
 import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
@@ -52,6 +53,7 @@ import {
   useFolioEntry,
   useFolioReverseTransaction,
 } from "@/hooks/useFolioMutations";
+import { useDeleteBooking } from "@/hooks/useDeleteBooking";
 import { usePatchBooking } from "@/hooks/usePatchBooking";
 import { useProperties } from "@/hooks/useProperties";
 import { useRatePlansForProperty } from "@/hooks/useRatePlans";
@@ -112,6 +114,7 @@ const PAYMENT_METHOD_OPTIONS = [
 
 export function BookingDetailPage() {
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const bookingId = id ?? "";
   const canWriteBookings = useCanWriteBookings();
@@ -138,6 +141,7 @@ export function BookingDetailPage() {
   const folioEntryMutation = useFolioEntry();
   const reverseTxMutation = useFolioReverseTransaction();
   const patchBookingMutation = usePatchBooking(bookingId);
+  const deleteBookingMut = useDeleteBooking();
 
   const [chargeOpen, setChargeOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
@@ -161,6 +165,7 @@ export function BookingDetailPage() {
     []
   );
   const [editGuestId, setEditGuestId] = useState<string | null>(null);
+  const [deleteBookingOpen, setDeleteBookingOpen] = useState(false);
 
   const propertyCurrency = useMemo(() => {
     if (booking === undefined || properties === undefined) {
@@ -190,6 +195,14 @@ export function BookingDetailPage() {
     const r = rooms.find((x) => x.id === booking.room_id);
     return r?.name ?? "номер";
   }, [booking, rooms]);
+
+  const canDeleteBooking = useMemo(() => {
+    if (booking === undefined) {
+      return false;
+    }
+    const s = booking.status.trim().toLowerCase();
+    return s !== "checked_in" && s !== "checked_out";
+  }, [booking]);
 
   const roomTypeLabel = useMemo(() => {
     if (
@@ -574,6 +587,19 @@ export function BookingDetailPage() {
                     onClick={openNotesDialog}
                   >
                     Редактировать
+                  </Button>
+                ) : null}
+                {canWriteBookings && canDeleteBooking ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    disabled={deleteBookingMut.isPending}
+                    onClick={() => {
+                      setDeleteBookingOpen(true);
+                    }}
+                  >
+                    {t("bookings.deleteButton")}
                   </Button>
                 ) : null}
                 <Button
@@ -1689,6 +1715,46 @@ export function BookingDetailPage() {
               }}
             >
               Подтвердить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteBookingOpen} onOpenChange={setDeleteBookingOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("bookings.deleteConfirmTitle")}</DialogTitle>
+            <DialogDescription>
+              {t("bookings.deleteConfirmDescription")}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setDeleteBookingOpen(false);
+              }}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleteBookingMut.isPending || !canDeleteBooking}
+              onClick={() => {
+                deleteBookingMut.mutate(bookingId, {
+                  onSuccess: () => {
+                    setDeleteBookingOpen(false);
+                    navigate("/bookings");
+                  },
+                  onError: (err) => {
+                    toast.error(formatApiError(err));
+                  },
+                });
+              }}
+            >
+              {t("bookings.deleteButton")}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -44,3 +44,7 @@ export async function createGuest(body: GuestCreate): Promise<GuestRead> {
   return data;
 }
 
+export async function deleteGuest(guestId: string): Promise<void> {
+  await apiClient.delete(`/guests/${guestId}`);
+}
+

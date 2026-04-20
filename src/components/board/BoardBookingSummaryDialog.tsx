@@ -69,6 +69,8 @@ export interface BoardBookingSummaryDialogProps {
   onReschedule: (booking: Booking) => void;
   /** Navigate to full booking (card / folio); caller should close dialog. */
   onGoToBooking: (bookingId: string) => void;
+  /** Hard-delete booking (allowed unless checked_in / checked_out). */
+  onDelete?: (bookingId: string) => void;
 }
 
 function dedupeGuests(items: Guest[]): Guest[] {
@@ -95,6 +97,7 @@ export function BoardBookingSummaryDialog({
   onPatch,
   onReschedule,
   onGoToBooking,
+  onDelete,
 }: BoardBookingSummaryDialogProps) {
   const { t, i18n } = useTranslation();
   const { data: properties } = useProperties();
@@ -109,6 +112,7 @@ export function BoardBookingSummaryDialog({
   const [notesExpanded, setNotesExpanded] = useState(false);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const currency = useMemo(() => {
     if (booking === null || properties === undefined) {
@@ -476,6 +480,24 @@ export function BoardBookingSummaryDialog({
                 ) : null}
 
                 <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+                  {canWriteBookings &&
+                  onDelete !== undefined &&
+                  booking !== null &&
+                  !["checked_in", "checked_out"].includes(
+                    booking.status.trim().toLowerCase()
+                  ) ? (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      disabled={patchIsPending}
+                      className="sm:mr-auto"
+                      onClick={() => {
+                        setDeleteDialogOpen(true);
+                      }}
+                    >
+                      {t("bookings.deleteButton")}
+                    </Button>
+                  ) : null}
                   <Button
                     type="button"
                     variant="outline"
@@ -520,6 +542,42 @@ export function BoardBookingSummaryDialog({
               </DialogFooter>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("bookings.deleteConfirmTitle")}</DialogTitle>
+            <DialogDescription>
+              {t("bookings.deleteConfirmDescription")}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setDeleteDialogOpen(false);
+              }}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={patchIsPending || booking === null || onDelete === undefined}
+              onClick={() => {
+                if (booking === null || onDelete === undefined) {
+                  return;
+                }
+                onDelete(booking.id);
+                setDeleteDialogOpen(false);
+              }}
+            >
+              {t("bookings.deleteButton")}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

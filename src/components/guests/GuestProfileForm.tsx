@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useId, useState } from "react";
+import { FormEvent, useEffect, useId, useState, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -22,6 +22,8 @@ export type GuestProfileFormProps =
       packExtensions: CountryPackExtensionRead[] | undefined;
       editing: boolean;
       onEditingChange: (next: boolean) => void;
+      /** e.g. delete guest — rendered beside the Edit control */
+      extraActions?: ReactNode;
     }
   | {
       variant: "dialog";
@@ -157,16 +159,19 @@ export function GuestProfileForm(props: GuestProfileFormProps) {
             </h3>
           ) : null}
           {props.variant === "page" && !props.editing ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                props.onEditingChange(true);
-              }}
-            >
-              {t("common.edit")}
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  props.onEditingChange(true);
+                }}
+              >
+                {t("common.edit")}
+              </Button>
+              {"extraActions" in props ? props.extraActions : null}
+            </div>
           ) : null}
         </div>
         {props.variant === "page" ? (

@@ -1,7 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { createGuest, patchGuest } from "@/api/guests";
+import { createGuest, deleteGuest, patchGuest } from "@/api/guests";
 import { authQueryKeyPart } from "@/lib/authQueryKey";
 import type { GuestCreate, GuestPatch } from "@/types/guests";
 
@@ -17,6 +18,27 @@ export function useCreateGuest() {
     },
     onError: () => {
       toast.error("Не удалось создать гостя.");
+    },
+  });
+}
+
+export function useDeleteGuest() {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+
+  return useMutation({
+    mutationFn: (guestId: string) => deleteGuest(guestId),
+    onSuccess: (_data, guestId) => {
+      const authKey = authQueryKeyPart();
+      void queryClient.invalidateQueries({ queryKey: ["guests", authKey] });
+      void queryClient.removeQueries({
+        queryKey: ["guest", authKey, guestId],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["bookings", authKey],
+        exact: false,
+      });
+      toast.success(t("guests.deleteSuccess"));
     },
   });
 }
