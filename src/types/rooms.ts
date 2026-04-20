@@ -22,3 +22,22 @@ export interface RoomRow {
   housekeeping_status: string;
   housekeeping_priority: string;
 }
+
+export type RoomBulkOnConflict = "skip" | "fail";
+
+export interface RoomBulkCreateItem {
+  name: string;
+  status: string;
+}
+
+/** POST /rooms/bulk body */
+export interface RoomBulkCreate {
+  room_type_id: string;
+  rooms: RoomBulkCreateItem[];
+  on_conflict: RoomBulkOnConflict;
+}
+
+export interface RoomBulkCreateResult {
+  created: RoomRow[];
+  skipped: string[];
+}

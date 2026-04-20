@@ -1,20 +1,35 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { createRoom, deleteRoom, patchRoom } from "@/api/rooms";
+import { createRoom, createRoomsBulk, deleteRoom, patchRoom } from "@/api/rooms";
 import { authQueryKeyPart } from "@/lib/authQueryKey";
 import { usePropertyStore } from "@/stores/property-store";
-import type { RoomCreate, RoomPatch } from "@/types/rooms";
+import type { RoomBulkCreate, RoomCreate, RoomPatch } from "@/types/rooms";
 
 export function useCreateRoom() {
   const queryClient = useQueryClient();
-  const authKey = authQueryKeyPart();
 
   return useMutation({
     mutationFn: (body: RoomCreate) => createRoom(body),
-    onSuccess: () => {
+    onSuccess: async () => {
       const propertyId = usePropertyStore.getState().selectedPropertyId;
-      void queryClient.invalidateQueries({
+      const authKey = authQueryKeyPart();
+      await queryClient.invalidateQueries({
+        queryKey: ["rooms", authKey, propertyId],
+      });
+    },
+  });
+}
+
+export function useCreateRoomsBulk() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: RoomBulkCreate) => createRoomsBulk(body),
+    onSuccess: async () => {
+      const propertyId = usePropertyStore.getState().selectedPropertyId;
+      const authKey = authQueryKeyPart();
+      await queryClient.invalidateQueries({
         queryKey: ["rooms", authKey, propertyId],
       });
     },
@@ -23,13 +38,13 @@ export function useCreateRoom() {
 
 export function usePatchRoom() {
   const queryClient = useQueryClient();
-  const authKey = authQueryKeyPart();
 
   return useMutation({
     mutationFn: ({ roomId, body }: { roomId: string; body: RoomPatch }) =>
       patchRoom(roomId, body),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["rooms", authKey] });
+    onSuccess: async () => {
+      const authKey = authQueryKeyPart();
+      await queryClient.invalidateQueries({ queryKey: ["rooms", authKey] });
       toast.success("Номер обновлён.");
     },
     onError: () => {
@@ -40,12 +55,12 @@ export function usePatchRoom() {
 
 export function useDeleteRoom() {
   const queryClient = useQueryClient();
-  const authKey = authQueryKeyPart();
 
   return useMutation({
     mutationFn: (roomId: string) => deleteRoom(roomId),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["rooms", authKey] });
+    onSuccess: async () => {
+      const authKey = authQueryKeyPart();
+      await queryClient.invalidateQueries({ queryKey: ["rooms", authKey] });
       toast.success("Номер удалён.");
     },
     onError: () => {

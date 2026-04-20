@@ -46,6 +46,8 @@ export type {
 } from "./guests";
 
 export type {
+  RoomBulkCreate,
+  RoomBulkCreateResult,
   RoomCreate,
   RoomPatch,
   RoomRow,

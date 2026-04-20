@@ -17,6 +17,7 @@ import { BookingEmailSection } from "@/components/bookings/BookingEmailSection";
 import { BookingStripePaymentsSection } from "@/components/bookings/BookingStripePaymentsSection";
 import { SalesTaxReceiptLines } from "@/components/bookings/SalesTaxReceiptLines";
 import { CheckInRequirementsModal } from "@/components/bookings/CheckInRequirementsModal";
+import { EditGuestDialog } from "@/components/bookings/EditGuestDialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -159,6 +160,7 @@ export function BookingDetailPage() {
   const [checkInMissingFields, setCheckInMissingFields] = useState<string[]>(
     []
   );
+  const [editGuestId, setEditGuestId] = useState<string | null>(null);
 
   const propertyCurrency = useMemo(() => {
     if (booking === undefined || properties === undefined) {
@@ -890,16 +892,29 @@ export function BookingDetailPage() {
                             </Link>
                           </td>
                           <td className="px-2 py-1.5 text-right print:hidden">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-7"
-                              disabled
-                              title="Нет API"
-                            >
-                              Редактировать
-                            </Button>
+                            {canWriteBookings ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7"
+                                onClick={() => {
+                                  setEditGuestId(g.id);
+                                }}
+                              >
+                                Редактировать
+                              </Button>
+                            ) : (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7"
+                                disabled
+                              >
+                                Редактировать
+                              </Button>
+                            )}
                             <Button
                               type="button"
                               variant="ghost"
@@ -1541,6 +1556,17 @@ export function BookingDetailPage() {
             onOpenChange={setCheckInModalOpen}
             missingFields={checkInMissingFields}
             guestId={booking.guest.id}
+          />
+
+          <EditGuestDialog
+            guestId={editGuestId}
+            bookingId={bookingId}
+            open={editGuestId !== null}
+            onOpenChange={(o) => {
+              if (!o) {
+                setEditGuestId(null);
+              }
+            }}
           />
         </>
       )}

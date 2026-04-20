@@ -47,16 +47,21 @@ export function SalesTaxReceiptLines({
 
   if (resolved.tax_mode === "inclusive") {
     return (
-      <div className="mt-2 rounded-md border border-border/60 bg-muted/15 px-3 py-2 text-sm text-muted-foreground">
-        {t("salesTax.receipt.inclusive", {
-          label,
-          rate,
-          amount: formatMoneyAmount(
-            currencyCode,
-            String(amounts.taxAmount),
-            i18n.language
-          ),
-        })}
+      <div className="mt-2 space-y-1 rounded-md border border-border/60 bg-muted/15 px-3 py-2 text-sm text-muted-foreground">
+        <p>
+          {t("salesTax.receipt.inclusive", {
+            label,
+            rate,
+            amount: formatMoneyAmount(
+              currencyCode,
+              String(amounts.taxAmount),
+              i18n.language
+            ),
+          })}
+        </p>
+        <p className="text-xs leading-relaxed">
+          {t("bookings.salesTax.inclusiveHint")}
+        </p>
       </div>
     );
   }

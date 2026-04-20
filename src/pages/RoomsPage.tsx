@@ -1,12 +1,12 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { FormEvent, useMemo, useRef, useState } from "react";
-import axios from "axios";
 import { Loader2, Trash2 } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
-import i18n from "@/i18n";
 import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
+import { BulkCreateRoomsDialog } from "@/components/rooms/BulkCreateRoomsDialog";
+import { formatRoomMutationError } from "@/components/rooms/roomFormErrors";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -24,7 +24,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { isAxiosForbidden } from "@/lib/forbiddenError";
 import { useCanManageProperties } from "@/hooks/useAuthz";
 import {
   useCreateRoom,
@@ -51,31 +50,6 @@ const ROOM_STATUS_VALUES = [
   "out_of_order",
 ] as const;
 
-function formatRoomMutationError(err: unknown): string {
-  if (axios.isAxiosError(err) && err.response?.data !== undefined) {
-    const data = err.response.data as { detail?: unknown };
-    if (typeof data.detail === "string") {
-      return data.detail;
-    }
-    if (Array.isArray(data.detail)) {
-      const parts = data.detail.map((item) => {
-        if (typeof item === "object" && item !== null && "msg" in item) {
-          return String((item as { msg: string }).msg);
-        }
-        return "";
-      });
-      const joined = parts.filter(Boolean).join("; ");
-      if (joined !== "") {
-        return joined;
-      }
-    }
-    if (isAxiosForbidden(err)) {
-      return i18n.t("rooms.forbidden403");
-    }
-  }
-  return i18n.t("rooms.err.create");
-}
-
 export function RoomsPage() {
   const { t } = useTranslation();
   const selectedPropertyId = usePropertyStore((s) => s.selectedPropertyId);
@@ -99,6 +73,7 @@ export function RoomsPage() {
   const [nameEdit, setNameEdit] = useState("");
   const [deleteRoomRow, setDeleteRoomRow] = useState<RoomRow | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   const roomTypeNameById = useMemo(() => {
     const m = new Map<string, string>();
@@ -218,6 +193,7 @@ export function RoomsPage() {
           <span>{t("rooms.hint")}</span>
           <ApiRouteHint>GET /rooms</ApiRouteHint>
           <ApiRouteHint>POST /rooms</ApiRouteHint>
+          <ApiRouteHint>POST /rooms/bulk</ApiRouteHint>
         </p>
       </div>
 
@@ -247,16 +223,29 @@ export function RoomsPage() {
             />
           </p>
         ) : (
-          <Button
-            type="button"
-            onClick={() => {
-              setFormError(null);
-              setFormSuccess(null);
-              setCreateOpen(true);
-            }}
-          >
-            {t("rooms.addRoom")}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              onClick={() => {
+                setFormError(null);
+                setFormSuccess(null);
+                setCreateOpen(true);
+              }}
+            >
+              {t("rooms.addRoom")}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setFormError(null);
+                setFormSuccess(null);
+                setBulkOpen(true);
+              }}
+            >
+              {t("rooms.bulk.addButton")}
+            </Button>
+          </div>
         )
       ) : (
         <p className="text-sm text-muted-foreground">
@@ -424,6 +413,12 @@ export function RoomsPage() {
           </div>
         )}
       </div>
+
+      <BulkCreateRoomsDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        roomTypes={roomTypes ?? []}
+      />
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-md">

@@ -23,7 +23,6 @@ export function useCreateGuest() {
 
 export function usePatchGuest() {
   const queryClient = useQueryClient();
-  const authKey = authQueryKeyPart();
 
   return useMutation({
     mutationFn: ({
@@ -32,12 +31,19 @@ export function usePatchGuest() {
     }: {
       guestId: string;
       body: GuestPatch;
+      bookingId?: string;
     }) => patchGuest(guestId, body),
-    onSuccess: (_data, { guestId }) => {
+    onSuccess: (_data, { guestId, bookingId }) => {
+      const authKey = authQueryKeyPart();
       void queryClient.invalidateQueries({ queryKey: ["guests", authKey] });
       void queryClient.invalidateQueries({
         queryKey: ["guest", authKey, guestId],
       });
+      if (bookingId !== undefined && bookingId !== "") {
+        void queryClient.invalidateQueries({
+          queryKey: ["bookings", "detail", authKey, bookingId],
+        });
+      }
       toast.success("Профиль гостя сохранён.");
     },
     onError: () => {

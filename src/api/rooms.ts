@@ -2,7 +2,13 @@ import { isAxiosError } from "axios";
 
 import { apiClient } from "@/lib/api";
 import { PROPERTY_ID_QUERY_PARAM } from "@/lib/constants";
-import type { RoomCreate, RoomPatch, RoomRow } from "@/types/rooms";
+import type {
+  RoomBulkCreate,
+  RoomBulkCreateResult,
+  RoomCreate,
+  RoomPatch,
+  RoomRow,
+} from "@/types/rooms";
 
 export async function fetchRooms(propertyId: string): Promise<RoomRow[]> {
   const { data } = await apiClient.get<RoomRow[]>("/rooms", {
@@ -130,6 +136,13 @@ export async function fetchAssignableRooms(
 
 export async function createRoom(body: RoomCreate): Promise<RoomRow> {
   const { data } = await apiClient.post<RoomRow>("/rooms", body);
+  return data;
+}
+
+export async function createRoomsBulk(
+  body: RoomBulkCreate
+): Promise<RoomBulkCreateResult> {
+  const { data } = await apiClient.post<RoomBulkCreateResult>("/rooms/bulk", body);
   return data;
 }
 

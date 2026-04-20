@@ -193,6 +193,9 @@ export function TaxConfigCard({ canManage }: TaxConfigCardProps) {
               </label>
             ))}
           </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            {t("settings.billing.scopeHint")}
+          </p>
         </fieldset>
 
         <div className="grid gap-4 sm:grid-cols-2">
