@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Banknote,
@@ -49,6 +49,7 @@ import {
 import { useCountryPackExtensions } from "@/hooks/useCountryPackExtensions";
 import { useBooking } from "@/hooks/useBooking";
 import { useBookingFolio } from "@/hooks/useBookingFolio";
+import { useFolioCategories } from "@/hooks/useFolioCategories";
 import {
   useFolioEntry,
   useFolioReverseTransaction,
@@ -70,6 +71,10 @@ import {
   folioRowAllowsManualReverse,
   stripCountryPackTaxDescription,
 } from "@/lib/folioCountryPack";
+import {
+  DEFAULT_MANUAL_CHARGE_CODE,
+  filterManualFolioChargeCategories,
+} from "@/lib/folioChargeCategory";
 import { computeFolioTotals, isRoomLikeFolioCategory } from "@/lib/folioTotals";
 import { parseCheckInMissingFields } from "@/lib/parseCheckInMissingFields";
 import {
@@ -138,6 +143,12 @@ export function BookingDetailPage() {
   const { data: folio, isPending: folioPending, isError: folioError } =
     useBookingFolio(bookingId || undefined);
 
+  const { data: folioCategoryRows } = useFolioCategories();
+  const manualChargeOptions = useMemo(
+    () => filterManualFolioChargeCategories(folioCategoryRows),
+    [folioCategoryRows]
+  );
+
   const folioEntryMutation = useFolioEntry();
   const reverseTxMutation = useFolioReverseTransaction();
   const patchBookingMutation = usePatchBooking(bookingId);
@@ -146,7 +157,19 @@ export function BookingDetailPage() {
   const [chargeOpen, setChargeOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [chargeAmount, setChargeAmount] = useState("");
-  const [chargeCategory, setChargeCategory] = useState("misc");
+  const [chargeCategory, setChargeCategory] = useState<string>(
+    DEFAULT_MANUAL_CHARGE_CODE
+  );
+
+  useEffect(() => {
+    if (manualChargeOptions.length === 0) {
+      return;
+    }
+    const codes = new Set(manualChargeOptions.map((o) => o.code));
+    if (!codes.has(chargeCategory)) {
+      setChargeCategory(manualChargeOptions[0].code);
+    }
+  }, [manualChargeOptions, chargeCategory]);
   const [chargeDescription, setChargeDescription] = useState("");
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("card");
@@ -319,11 +342,9 @@ export function BookingDetailPage() {
       setFolioFormError("Укажите сумму.");
       return;
     }
-    const cat = chargeCategory.trim();
+    const cat = chargeCategory;
     if (cat.toLowerCase() === "room" || isRoomLikeFolioCategory(cat)) {
-      setFolioFormError(
-        "Для проживания используйте категорию, отличную от «номер» (напр. misc, service)."
-      );
+      setFolioFormError(t("folio.chargeRoomCategoryError"));
       return;
     }
     try {
@@ -332,7 +353,7 @@ export function BookingDetailPage() {
         body: {
           entry_type: "charge",
           amount: amt,
-          category: cat !== "" ? cat : "misc",
+          category: cat,
           description: chargeDescription.trim() || null,
         },
       });
@@ -346,7 +367,9 @@ export function BookingDetailPage() {
 
   function openExtraChargeDialog(): void {
     setFolioFormError(null);
-    setChargeCategory("misc");
+    const first =
+      manualChargeOptions[0]?.code ?? DEFAULT_MANUAL_CHARGE_CODE;
+    setChargeCategory(first);
     setChargeDescription("");
     setChargeAmount("");
     setChargeOpen(true);
@@ -568,10 +591,7 @@ export function BookingDetailPage() {
                         variant="default"
                         disabled={patchBookingMutation.isPending}
                         onClick={() => {
-                          runPatch({
-                            status: "checked_out",
-                            check_out: formatIsoDateLocal(new Date()),
-                          });
+                          runPatch({ status: "checked_out" });
                         }}
                       >
                         Выезд
@@ -1552,10 +1572,8 @@ export function BookingDetailPage() {
                       variant="default"
                       disabled={patchBookingMutation.isPending}
                       onClick={() => {
-                        runPatch({
-                          status: "checked_out",
-                          check_out: formatIsoDateLocal(new Date()),
-                        });
+                        // Status-only: backend derives check_out; sending today's date can equal check_in → 422.
+                        runPatch({ status: "checked_out" });
                       }}
                     >
                       Выезд
@@ -1764,12 +1782,9 @@ export function BookingDetailPage() {
         <DialogContent className="sm:max-w-md">
           <form onSubmit={(e) => void submitCharge(e)}>
             <DialogHeader>
-              <DialogTitle>Начисление (доп. услуга)</DialogTitle>
+              <DialogTitle>{t("folio.chargeDialogTitle")}</DialogTitle>
               <DialogDescription className="flex flex-wrap items-center gap-2">
-                Категория не должна быть «номер» / проживание — используйте, на
-                пример, <span className="font-mono">misc</span>,{" "}
-                <span className="font-mono">service</span>,{" "}
-                <span className="font-mono">fb</span>.
+                {t("folio.chargeDialogDescription")}
                 <ApiRouteHint>POST /bookings/…/folio · charge</ApiRouteHint>
               </DialogDescription>
             </DialogHeader>
@@ -1790,16 +1805,25 @@ export function BookingDetailPage() {
               </div>
               <div className="space-y-1">
                 <label htmlFor="chg-cat" className="text-sm font-medium">
-                  Категория
+                  {t("folio.chargeCategoryLabel")}
                 </label>
-                <Input
-                  id="chg-cat"
+                <Select
                   value={chargeCategory}
-                  onChange={(e) => {
-                    setChargeCategory(e.target.value);
+                  onValueChange={(v) => {
+                    setChargeCategory(v);
                   }}
-                  placeholder="misc, service…"
-                />
+                >
+                  <SelectTrigger id="chg-cat" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {manualChargeOptions.map((o) => (
+                      <SelectItem key={o.code} value={o.code}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1">
                 <label htmlFor="chg-desc" className="text-sm font-medium">

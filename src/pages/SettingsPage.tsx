@@ -10,6 +10,7 @@ import { SettingsApiKeysSection } from "@/components/settings/SettingsApiKeysSec
 import { SettingsUsersSection } from "@/components/settings/SettingsUsersSection";
 import { SettingsRoomTypesTable } from "@/components/settings/SettingsRoomTypesTable";
 import { SettingsCountryPackSection } from "@/components/settings/SettingsCountryPackSection";
+import { SettingsFolioCategoriesSection } from "@/components/settings/SettingsFolioCategoriesSection";
 import { SettingsCountryPackExtensionsSection } from "@/components/settings/SettingsCountryPackExtensionsSection";
 import { SettingsChannexSection } from "@/components/settings/SettingsChannexSection";
 import { SettingsStripeSection } from "@/components/settings/SettingsStripeSection";
@@ -600,6 +601,7 @@ export function SettingsPage() {
         )}
       </section>
       <SettingsCountryPackSection />
+      {canManage ? <SettingsFolioCategoriesSection /> : null}
       <section
         id="room-types-hint"
         className="space-y-4 rounded-lg border border-border bg-card p-4"

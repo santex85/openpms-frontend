@@ -425,10 +425,10 @@ export function BoardBookingSummaryDialog({
                         variant="destructive"
                         disabled={patchIsPending}
                         onClick={() => {
-                          onPatch(booking.id, {
-                            status: "checked_out",
-                            check_out: formatIsoDateLocal(new Date()),
-                          });
+                          /* Do not send check_out: today — it can equal first night and
+                           * fail backend rule (exclusive check_out must be after first night).
+                           * Status-only checkout matches context menu on the board. */
+                          onPatch(booking.id, { status: "checked_out" });
                         }}
                       >
                         {patchIsPending ? (
