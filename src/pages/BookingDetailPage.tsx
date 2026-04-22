@@ -389,6 +389,7 @@ export function BookingDetailPage() {
         body: {
           entry_type: "payment",
           amount: amt,
+          category: "payment",
           payment_method: paymentMethod.trim() || "card",
           description: paymentDescription.trim() || null,
         },

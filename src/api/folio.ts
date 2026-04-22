@@ -26,6 +26,8 @@ export type FolioEntryCreate =
   | {
       entry_type: "payment";
       amount: string;
+      /** Must be `"payment"` (API requires category on all folio lines). */
+      category: "payment";
       payment_method: string;
       description?: string | null;
     };
