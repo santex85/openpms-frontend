@@ -744,6 +744,8 @@
   "settings.folioCategories.loadError": "Не удалось загрузить категории.",
   "settings.folioCategories.errRequired": "Укажите код и название.",
   "settings.folioCategories.errOrder": "Порядок должен быть числом.",
+  "settings.folioCategories.codeHint": "Строчные буквы, цифры и `_`; 1–32 символа, начинается с буквы.",
+  "settings.folioCategories.errCodeFormat": "Код должен быть в формате `a-z`, цифр и `_`, 1–32 символа, начинаться с буквы.",
   "settings.folioCategories.deleteConfirmTitle": "Удалить категорию?",
   "settings.folioCategories.deleteConfirmDescription": "Удалить пользовательскую категорию",
   "settings.folioCategories.deleteConfirmButton": "Удалить",

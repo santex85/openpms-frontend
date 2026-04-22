@@ -193,6 +193,8 @@
   "settings.folioCategories.loadError": "Could not load folio categories.",
   "settings.folioCategories.errRequired": "Code and label are required.",
   "settings.folioCategories.errOrder": "Sort order must be a number.",
+  "settings.folioCategories.codeHint": "Lowercase letters, digits and `_`; 1–32 chars, must start with a letter.",
+  "settings.folioCategories.errCodeFormat": "Code must use lowercase letters, digits and `_` (1–32 chars, starts with a letter).",
   "settings.folioCategories.deleteConfirmTitle": "Delete category?",
   "settings.folioCategories.deleteConfirmDescription": "Remove custom category",
   "settings.folioCategories.deleteConfirmButton": "Delete",

@@ -21,6 +21,9 @@ import {
 } from "@/hooks/useFolioCategoryMutations";
 import { formatApiError } from "@/lib/formatApiError";
 
+/** Matches API constraint: `^[a-z][a-z0-9_]{0,31}$` */
+const FOLIO_CODE_RE = /^[a-z][a-z0-9_]{0,31}$/;
+
 export function SettingsFolioCategoriesSection() {
   const { t } = useTranslation();
   const { data: rows, isPending, isError } = useFolioCategories();
@@ -56,6 +59,10 @@ export function SettingsFolioCategoriesSection() {
     const label = newLabel.trim();
     if (code === "" || label === "") {
       setFormError(t("settings.folioCategories.errRequired"));
+      return;
+    }
+    if (!FOLIO_CODE_RE.test(code)) {
+      setFormError(t("settings.folioCategories.errCodeFormat"));
       return;
     }
     const ord = Number.parseInt(newOrder, 10);
@@ -223,11 +230,20 @@ export function SettingsFolioCategoriesSection() {
                   id="fc-code"
                   value={newCode}
                   onChange={(e) => {
-                    setNewCode(e.target.value);
+                    setNewCode(
+                      e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "")
+                    );
                   }}
                   placeholder="laundry"
                   autoComplete="off"
+                  pattern={FOLIO_CODE_RE.source}
+                  maxLength={32}
+                  inputMode="text"
+                  spellCheck={false}
                 />
+                <p className="text-xs text-muted-foreground">
+                  {t("settings.folioCategories.codeHint")}
+                </p>
               </div>
               <div className="space-y-1">
                 <label htmlFor="fc-label" className="text-sm font-medium">
