@@ -1,4 +1,11 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import axios from "axios";
 import { Loader2 } from "lucide-react";
 import type { TFunction } from "i18next";
@@ -6,6 +13,7 @@ import { useTranslation } from "react-i18next";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { SettingsChangePasswordSection } from "@/components/settings/SettingsChangePasswordSection";
+import { SettingsProfileSection } from "@/components/settings/SettingsProfileSection";
 import { SettingsApiKeysSection } from "@/components/settings/SettingsApiKeysSection";
 import { SettingsUsersSection } from "@/components/settings/SettingsUsersSection";
 import { SettingsRoomTypesTable } from "@/components/settings/SettingsRoomTypesTable";
@@ -39,14 +47,17 @@ import { toastSuccess } from "@/lib/toast";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useCreateProperty } from "@/hooks/useCreateProperty";
-import { useCanManageProperties } from "@/hooks/useAuthz";
+import { useCanManageProperties, useCanViewAuditLog } from "@/hooks/useAuthz";
 import { useCreateRoomType } from "@/hooks/useRoomTypeMutations";
 import { useProperties } from "@/hooks/useProperties";
 import { useUpdateProperty } from "@/hooks/useUpdateProperty";
+import { usePropertyLockStatus } from "@/hooks/usePropertyLockStatus";
 import { useRoomTypes } from "@/hooks/useRoomTypes";
 import { usePropertyStore } from "@/stores/property-store";
 import type { PropertyCreate } from "@/types/api";
+import type { CountryPackApplyResponse } from "@/types/country-pack";
 import type { RoomTypeCreate } from "@/types/room-types";
+import { AuditLogPage } from "@/pages/AuditLogPage";
 
 const TIMEZONE_PRESETS = [
   { value: "Europe/Moscow", label: "Europe/Moscow" },
@@ -64,7 +75,8 @@ type SettingsTab =
   | "billing"
   | "notifications"
   | "team"
-  | "integrations";
+  | "integrations"
+  | "developer";
 
 function timeToApi(value: string): string {
   const v = value.trim();
@@ -154,6 +166,7 @@ export function SettingsPage() {
   const queryClient = useQueryClient();
   const stripeOauthHandled = useRef(false);
   const canManage = useCanManageProperties();
+  const canViewAudit = useCanViewAuditLog();
 
   useEffect(() => {
     if (searchParams.get("connected") !== "1") {
@@ -188,6 +201,28 @@ export function SettingsPage() {
     }
     return properties.find((p) => p.id === selectedPropertyId)?.name ?? null;
   }, [selectedPropertyId, properties]);
+
+  const { data: propertyLockStatus } = usePropertyLockStatus(
+    selectedPropertyId
+  );
+  const packFieldsLocked = propertyLockStatus?.country_pack_locked === true;
+
+  const handlePackApplied = useCallback((applied: CountryPackApplyResponse) => {
+    setCurrency(applied.currency.trim().toUpperCase());
+    const tz = (applied.timezone ?? "").trim();
+    const presetHit = TIMEZONE_PRESETS.find(
+      (p) => p.value.toLowerCase() === tz.toLowerCase()
+    );
+    if (presetHit !== undefined) {
+      setTimezoneMode(presetHit.value);
+      setTimezoneCustom("");
+    } else if (tz !== "") {
+      setTimezoneMode(CUSTOM_TZ);
+      setTimezoneCustom(tz);
+    }
+    setCheckinTime(apiTimeToInput(applied.checkin_time));
+    setCheckoutTime(apiTimeToInput(applied.checkout_time));
+  }, []);
 
   const [rtName, setRtName] = useState("");
   const [rtBase, setRtBase] = useState("2");
@@ -262,6 +297,12 @@ export function SettingsPage() {
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("property");
 
   useEffect(() => {
+    if (!canViewAudit && settingsTab === "developer") {
+      setSettingsTab("property");
+    }
+  }, [canViewAudit, settingsTab]);
+
+  useEffect(() => {
     const raw = location.hash.replace(/^#/, "");
     let timerId: number | undefined;
 
@@ -280,6 +321,21 @@ export function SettingsPage() {
     } else if (raw === "properties-hotels" || raw === "room-types-hint") {
       setSettingsTab("property");
       scrollToId(raw);
+    } else if (
+      canViewAudit &&
+      (raw === "developer" ||
+        raw === "developer-audit" ||
+        raw === "developer-api-keys" ||
+        raw === "developer-webhooks")
+    ) {
+      setSettingsTab("developer");
+      const anchor =
+        raw === "developer-api-keys"
+          ? "developer-api-keys"
+          : raw === "developer-webhooks"
+            ? "developer-webhooks"
+            : "developer-audit";
+      scrollToId(anchor);
     }
 
     return () => {
@@ -287,7 +343,7 @@ export function SettingsPage() {
         window.clearTimeout(timerId);
       }
     };
-  }, [location.hash]);
+  }, [location.hash, canViewAudit]);
 
   useEffect(() => {
     if (selectedPropertyId === null) {
@@ -424,9 +480,15 @@ export function SettingsPage() {
           <TabsTrigger value="integrations" className="flex-1 sm:flex-initial">
             {t("settings.tab.integrations")}
           </TabsTrigger>
+          {canViewAudit ? (
+            <TabsTrigger value="developer" className="flex-1 sm:flex-initial">
+              {t("settings.tab.developer")}
+            </TabsTrigger>
+          ) : null}
         </TabsList>
 
         <TabsContent value="account" className="space-y-6">
+          <SettingsProfileSection />
           <SettingsChangePasswordSection />
         </TabsContent>
 
@@ -481,6 +543,14 @@ export function SettingsPage() {
                 {formSuccess}
               </p>
             ) : null}
+            {packFieldsLocked ? (
+              <p
+                className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-50"
+                role="status"
+              >
+                {t("settings.property.managedByCountryPack")}
+              </p>
+            ) : null}
             <div className="space-y-2">
               <label htmlFor="prop-name" className="text-sm font-medium">
                 {t("settings.property.nameLabel")}
@@ -502,6 +572,7 @@ export function SettingsPage() {
               <Select
                 key={selectedPropertyId ?? "new-property"}
                 value={timezoneMode}
+                disabled={packFieldsLocked}
                 onValueChange={(v) => {
                   setTimezoneMode(v);
                 }}
@@ -525,6 +596,7 @@ export function SettingsPage() {
               {timezoneMode === CUSTOM_TZ ? (
                 <Input
                   value={timezoneCustom}
+                  readOnly={packFieldsLocked}
                   onChange={(e) => {
                     setTimezoneCustom(e.target.value);
                   }}
@@ -540,6 +612,7 @@ export function SettingsPage() {
               <Input
                 id="prop-currency"
                 value={currency}
+                readOnly={packFieldsLocked}
                 onChange={(e) => {
                   setCurrency(e.target.value.toUpperCase());
                 }}
@@ -560,6 +633,7 @@ export function SettingsPage() {
                   id="prop-checkin"
                   type="time"
                   value={checkinTime}
+                  readOnly={packFieldsLocked}
                   onChange={(e) => {
                     setCheckinTime(e.target.value);
                   }}
@@ -576,6 +650,7 @@ export function SettingsPage() {
                   id="prop-checkout"
                   type="time"
                   value={checkoutTime}
+                  readOnly={packFieldsLocked}
                   onChange={(e) => {
                     setCheckoutTime(e.target.value);
                   }}
@@ -600,7 +675,7 @@ export function SettingsPage() {
           </form>
         )}
       </section>
-      <SettingsCountryPackSection />
+      <SettingsCountryPackSection onPackApplied={handlePackApplied} />
       {canManage ? <SettingsFolioCategoriesSection /> : null}
       <section
         id="room-types-hint"
@@ -753,7 +828,7 @@ export function SettingsPage() {
           <TaxConfigCard canManage={canManage} />
         </TabsContent>
 
-        <TabsContent value="notifications" className="space-y-6">
+        <TabsContent id="notifications" value="notifications" className="space-y-6">
           <EmailSettingsCard canManage={canManage} />
         </TabsContent>
 
@@ -794,8 +869,18 @@ export function SettingsPage() {
         <TabsContent value="integrations" className="space-y-6">
       <SettingsStripeSection canManage={canManage} />
       <SettingsChannexSection canManage={canManage} />
-      <SettingsApiKeysSection canManage={canManage} />
-      <SettingsWebhooksSection canManage={canManage} />
+        </TabsContent>
+
+        <TabsContent value="developer" className="space-y-6">
+          <div id="developer-api-keys" className="scroll-mt-4">
+            <SettingsApiKeysSection canManage={canManage} />
+          </div>
+          <div id="developer-webhooks" className="scroll-mt-4">
+            <SettingsWebhooksSection canManage={canManage} />
+          </div>
+          <div id="developer-audit" className="scroll-mt-4">
+            <AuditLogPage />
+          </div>
         </TabsContent>
       </Tabs>
     </div>

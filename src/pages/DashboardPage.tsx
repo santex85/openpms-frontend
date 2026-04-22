@@ -14,7 +14,8 @@ import { formatMoneyAmount } from "@/lib/formatMoney";
 import { cn } from "@/lib/utils";
 import { usePropertyStore } from "@/stores/property-store";
 import { formatIsoDateLocal } from "@/utils/boardDates";
-import { occupancyRatioByDate } from "@/utils/inventoryAggregate";
+import { formatShortLocaleDate } from "@/utils/formatLocaleDate";
+import { occupancyAggByDate } from "@/utils/inventoryAggregate";
 
 function shortBookingId(id: string): string {
   return id.length > 10 ? `${id.slice(0, 8)}…` : id;
@@ -47,10 +48,29 @@ export function DashboardPage() {
     return days;
   }, []);
 
-  const occupancyByDay = useMemo(
-    () => occupancyRatioByDate(chartGrid.data?.cells ?? []),
+  const occupancyAgg = useMemo(
+    () => occupancyAggByDate(chartGrid.data?.cells ?? []),
     [chartGrid.data?.cells]
   );
+
+  const chartBarData = useMemo(() => {
+    return chartDays.map((iso) => {
+      const v = occupancyAgg.get(iso) ?? { booked: 0, total: 0 };
+      const ratio = v.total > 0 ? v.booked / v.total : 0;
+      return { iso, ratio, booked: v.booked, total: v.total };
+    });
+  }, [chartDays, occupancyAgg]);
+
+  const chartMaxRatio = useMemo(() => {
+    return Math.max(0.01, ...chartBarData.map((d) => d.ratio));
+  }, [chartBarData]);
+
+  const chartAllZero = useMemo(() => {
+    return (
+      chartBarData.length > 0 &&
+      chartBarData.every((d) => d.ratio === 0)
+    );
+  }, [chartBarData]);
 
   if (selectedPropertyId === null) {
     return (
@@ -159,28 +179,59 @@ export function DashboardPage() {
           </p>
         ) : chartGrid.isPending ? (
           <div className="mt-4 h-16 animate-pulse rounded-md bg-muted" aria-hidden />
+        ) : chartAllZero ? (
+          <p className="mt-4 rounded-md border border-dashed border-border bg-muted/30 px-3 py-6 text-center text-sm text-muted-foreground">
+            {t("dashboard.chartEmpty")}
+          </p>
         ) : (
-          <div className="mt-4 flex h-28 items-end gap-1 md:gap-1.5">
-            {chartDays.map((iso) => {
-              const r = occupancyByDay.get(iso) ?? 0;
-              const pct = Math.round(r * 100);
-              const hPx = 4 + Math.round(r * 72);
-              return (
-                <div
-                  key={iso}
-                  className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1"
-                  title={`${iso}: ${String(pct)}%`}
-                >
-                  <div
-                    className="w-full max-w-[2.5rem] rounded-t bg-primary/80"
-                    style={{ height: `${String(hPx)}px` }}
-                  />
-                  <span className="text-[10px] tabular-nums text-muted-foreground">
-                    {iso.slice(8)}
-                  </span>
-                </div>
-              );
-            })}
+          <div className="mt-4 flex gap-2">
+            <div
+              className="flex w-9 shrink-0 flex-col justify-between pb-6 text-[9px] tabular-nums leading-none text-muted-foreground"
+              aria-hidden
+            >
+              <span className="text-right">
+                {Math.round(chartMaxRatio * 100)}%
+              </span>
+              <span className="text-right">0%</span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="mb-1 text-[10px] text-muted-foreground">
+                {t("dashboard.chartAxisOccupancy")}
+              </p>
+              <div className="flex h-28 items-end gap-1 md:gap-1.5">
+                {chartBarData.map(({ iso, ratio, booked, total }) => {
+                  const pct = Math.round(ratio * 100);
+                  const hPx = 4 + Math.round((ratio / chartMaxRatio) * 88);
+                  const tip = t("dashboard.chartTooltip", {
+                    date: formatShortLocaleDate(iso, i18n.language),
+                    pct,
+                    booked,
+                    total,
+                  });
+                  return (
+                    <div
+                      key={iso}
+                      className="group relative flex min-w-0 flex-1 flex-col items-center justify-end gap-1"
+                    >
+                      <div
+                        className="pointer-events-none absolute bottom-[calc(100%-0.25rem)] left-1/2 z-10 mb-1 hidden w-max max-w-[min(12rem,calc(100vw-4rem))] -translate-x-1/2 rounded-md border border-border bg-popover px-2 py-1.5 text-left text-[10px] text-popover-foreground shadow-md group-hover:block"
+                        role="tooltip"
+                      >
+                        {tip}
+                      </div>
+                      <div
+                        className="w-full max-w-[2.5rem] rounded-t bg-primary/80"
+                        style={{ height: `${String(hPx)}px` }}
+                        title={tip}
+                      />
+                      <span className="text-[10px] tabular-nums text-muted-foreground">
+                        {iso.slice(8)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         )}
       </section>

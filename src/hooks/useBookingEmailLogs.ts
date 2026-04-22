@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   fetchBookingEmailLogs,
   postBookingSendInvoice,
+  postEmailLogRetry,
 } from "@/api/email-logs";
 import { authQueryKeyPart } from "@/lib/authQueryKey";
 import type { EmailLogRead } from "@/types/email-log";
@@ -30,6 +31,20 @@ export function useSendBookingInvoice() {
   return useMutation({
     mutationFn: (bookingId: string) => postBookingSendInvoice(bookingId),
     onSuccess: (_data, bookingId) => {
+      void queryClient.invalidateQueries({
+        queryKey: bookingEmailLogsQueryKey(bookingId, authKey),
+      });
+    },
+  });
+}
+
+export function useRetryEmailLog(bookingId: string) {
+  const queryClient = useQueryClient();
+  const authKey = authQueryKeyPart();
+
+  return useMutation({
+    mutationFn: (emailLogId: string) => postEmailLogRetry(emailLogId),
+    onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: bookingEmailLogsQueryKey(bookingId, authKey),
       });

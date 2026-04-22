@@ -44,8 +44,11 @@ import {
 import {
   useCanManageProperties,
   useCanStripeCharge,
+  useCanViewAuditLog,
   useCanWriteBookings,
 } from "@/hooks/useAuthz";
+import { useAuditLog } from "@/hooks/useAuditLog";
+import { useTenantUsers } from "@/hooks/useTenantUsers";
 import { useCountryPackExtensions } from "@/hooks/useCountryPackExtensions";
 import { useBooking } from "@/hooks/useBooking";
 import { useBookingFolio } from "@/hooks/useBookingFolio";
@@ -64,6 +67,7 @@ import { bookingDisplayHash } from "@/lib/bookingDisplay";
 import { capitalizeGuestName } from "@/lib/capitalizeGuestName";
 import { BOOKING_STATUS_TRANSITIONS } from "@/lib/bookingStatusTransitions";
 import { showApiRouteHints } from "@/lib/devUi";
+import { formatAuditNewValuesReadable } from "@/lib/auditNewValuesFormat";
 import { formatApiError } from "@/lib/formatApiError";
 import { formatMoneyAmount } from "@/lib/formatMoney";
 import {
@@ -78,6 +82,7 @@ import {
 import { computeFolioTotals, isRoomLikeFolioCategory } from "@/lib/folioTotals";
 import { parseCheckInMissingFields } from "@/lib/parseCheckInMissingFields";
 import {
+  auditActionLabel,
   bookingSourceLabel,
   bookingSummaryBadgeLabel,
   bookingSummaryStatusBadgeClass,
@@ -85,8 +90,10 @@ import {
   roomTypeDisplayName,
 } from "@/lib/i18n/domainLabels";
 import { cn } from "@/lib/utils";
+import type { AuditLogEntry } from "@/types/audit";
 import type { Booking } from "@/types/api";
 import type { Guest } from "@/types/guests";
+import type { TenantUserRead } from "@/types/tenant-admin";
 import {
   countBookingNights,
   formatBookingDateTimeRu,
@@ -94,6 +101,100 @@ import {
   formatIsoDateLocal,
   formatPropertyTimeHm,
 } from "@/utils/boardDates";
+
+function formatBookingAuditTs(iso: string, localeTag: string): string {
+  try {
+    return new Date(iso).toLocaleString(localeTag, {
+      dateStyle: "short",
+      timeStyle: "medium",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+function bookingAuditUserLabel(
+  userMap: Map<string, TenantUserRead>,
+  userId: string | null
+): string {
+  if (userId === null || userId === "") {
+    return "—";
+  }
+  const u = userMap.get(userId);
+  if (u !== undefined) {
+    const name = u.full_name.trim();
+    return name !== "" ? `${name} · ${u.email}` : u.email;
+  }
+  return userId.length > 14 ? `${userId.slice(0, 8)}…` : userId;
+}
+
+function BookingAuditList({ bookingId }: { bookingId: string }) {
+  const { t, i18n } = useTranslation();
+  const { data, isPending, isError, error } = useAuditLog(0, {
+    entity_id: bookingId,
+  });
+  const { data: tenantUsers } = useTenantUsers(true);
+  const userMap = useMemo(() => {
+    const m = new Map<string, TenantUserRead>();
+    for (const u of tenantUsers ?? []) {
+      m.set(u.id, u);
+    }
+    return m;
+  }, [tenantUsers]);
+
+  if (isPending) {
+    return (
+      <div className="space-y-2" aria-busy="true">
+        <div className="h-10 animate-pulse rounded-md bg-muted" />
+        <div className="h-10 animate-pulse rounded-md bg-muted" />
+        <div className="h-10 animate-pulse rounded-md bg-muted" />
+      </div>
+    );
+  }
+  if (isError) {
+    return (
+      <p className="text-sm text-destructive" role="alert">
+        {formatApiError(error)}
+      </p>
+    );
+  }
+  const items = data?.items ?? [];
+  if (items.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">{t("booking.logs.empty")}</p>
+    );
+  }
+  return (
+    <div className="overflow-x-auto rounded-md border">
+      <table className="w-full min-w-[520px] text-left text-sm">
+        <thead className="border-b bg-muted/50">
+          <tr>
+            <th className="px-2 py-2 font-medium">{t("audit.colTime")}</th>
+            <th className="px-2 py-2 font-medium">{t("audit.colAction")}</th>
+            <th className="px-2 py-2 font-medium">{t("audit.colUser")}</th>
+            <th className="px-2 py-2 font-medium">{t("audit.colNewValues")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((row: AuditLogEntry) => (
+            <tr key={row.id} className="border-b border-border/60 last:border-0">
+              <td className="px-2 py-2 tabular-nums text-muted-foreground">
+                {formatBookingAuditTs(row.created_at, i18n.language)}
+              </td>
+              <td className="px-2 py-2">{auditActionLabel(row.action)}</td>
+              <td className="px-2 py-2 text-xs text-muted-foreground">
+                {bookingAuditUserLabel(userMap, row.user_id)}
+              </td>
+              <td className="max-w-[min(28rem,55vw)] whitespace-pre-line break-words px-2 py-2 text-xs text-muted-foreground">
+                {formatAuditNewValuesReadable(row.new_values, t)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 function dedupeBookingGuests(booking: Booking): Guest[] {
   const primary = booking.guest;
@@ -125,6 +226,7 @@ export function BookingDetailPage() {
   const canWriteBookings = useCanWriteBookings();
   const canStripeCharge = useCanStripeCharge();
   const canManageProperty = useCanManageProperties();
+  const canViewAudit = useCanViewAuditLog();
   const { data: countryPackExtensions } =
     useCountryPackExtensions(canManageProperty);
   const { data: properties } = useProperties();
@@ -1415,22 +1517,25 @@ export function BookingDetailPage() {
             />
           ) : null}
 
-          <details className="rounded-md border border-border bg-muted/20 p-3 text-sm print:break-inside-avoid">
-            <summary className="cursor-pointer font-medium text-foreground">
-              История и аудит
-            </summary>
-            <p className="mt-2 text-muted-foreground">
-              История смен статусов на бэкенде в этой карточке не отображается
-              (нет отдельного API).{" "}
-              <Link
-                to={`/audit-log?entity_id=${bookingId}`}
-                className="font-medium text-primary underline-offset-4 hover:underline"
-              >
-                Журнал аудита
-              </Link>{" "}
-              — фильтр по сущности при наличии записей.
-            </p>
-          </details>
+          {canViewAudit ? (
+            <details className="group rounded-lg border border-border bg-card text-sm print:break-inside-avoid">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 p-3 font-medium text-foreground marker:content-none [&::-webkit-details-marker]:hidden">
+                <span>{t("booking.logs.title")}</span>
+                <Link
+                  to="/settings#developer-audit"
+                  className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                  }}
+                >
+                  {t("booking.logs.viewAll")}
+                </Link>
+              </summary>
+              <div className="border-t border-border px-3 pb-3 pt-2">
+                <BookingAuditList bookingId={bookingId} />
+              </div>
+            </details>
+          ) : null}
 
           {folioFormError !== null ? (
             <p className="text-sm text-destructive" role="alert">

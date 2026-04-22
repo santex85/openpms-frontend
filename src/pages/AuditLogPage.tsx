@@ -29,6 +29,7 @@ import {
 } from "@/constants/auditLogFilters";
 import { AUDIT_LOG_PAGE_SIZE, useAuditLog } from "@/hooks/useAuditLog";
 import { useTenantUsers } from "@/hooks/useTenantUsers";
+import { formatAuditNewValuesReadable } from "@/lib/auditNewValuesFormat";
 import { formatApiError } from "@/lib/formatApiError";
 import {
   auditActionLabel,
@@ -48,57 +49,6 @@ function formatAuditTs(iso: string, localeTag: string): string {
   } catch {
     return iso;
   }
-}
-
-const AUDIT_DIGEST_KEYS = ["status", "amount", "room_id"] as const;
-
-function shortJson(v: Record<string, unknown> | null): string {
-  if (v === null || Object.keys(v).length === 0) {
-    return "—";
-  }
-  try {
-    const s = JSON.stringify(v);
-    return s.length > 120 ? `${s.slice(0, 117)}…` : s;
-  } catch {
-    return "…";
-  }
-}
-
-function newValuesDigest(
-  v: Record<string, unknown> | null,
-  t: (key: string, opts?: Record<string, unknown>) => string
-): string {
-  if (v === null || Object.keys(v).length === 0) {
-    return "—";
-  }
-  const lines: string[] = [];
-  for (const k of AUDIT_DIGEST_KEYS) {
-    if (Object.prototype.hasOwnProperty.call(v, k)) {
-      const raw = v[k];
-      let val: string;
-      if (raw === undefined || raw === null) {
-        val = "—";
-      } else if (
-        typeof raw === "string" ||
-        typeof raw === "number" ||
-        typeof raw === "boolean"
-      ) {
-        val = String(raw);
-      } else {
-        val = JSON.stringify(raw);
-      }
-      lines.push(`${t(`audit.field.${k}`)}: ${val}`);
-    }
-  }
-  const used = new Set<string>(AUDIT_DIGEST_KEYS.filter((k) => k in v));
-  const remaining = Object.keys(v).filter((x) => !used.has(x));
-  if (lines.length === 0) {
-    return shortJson(v);
-  }
-  if (remaining.length > 0) {
-    lines.push(t("audit.diffMore", { count: remaining.length }));
-  }
-  return lines.join(" · ");
 }
 
 function prettifyJson(v: Record<string, unknown> | null): string {
@@ -290,7 +240,8 @@ export function AuditLogPage() {
   }, [filterActions.join(","), filterEntityTypes.join(",")]);
 
   useEffect(() => {
-    const id = searchParams.get("entity_id");
+    const id =
+      searchParams.get("entity_id") ?? searchParams.get("audit_entity_id");
     if (id !== null && id.trim() !== "") {
       setEntityIdQ(id.trim());
     }
@@ -541,8 +492,8 @@ export function AuditLogPage() {
                           {r.ip_address ?? "—"}
                         </div>
                         <div className="min-w-0 px-3 py-2 text-xs text-muted-foreground">
-                          <span className="block break-words">
-                            {newValuesDigest(r.new_values, t)}
+                          <span className="block whitespace-pre-line break-words">
+                            {formatAuditNewValuesReadable(r.new_values, t)}
                           </span>
                         </div>
                       </div>
@@ -640,8 +591,8 @@ export function AuditLogPage() {
                 <span className="text-xs text-muted-foreground">
                   {t("audit.newValuesJson")}
                 </span>
-                <p className="mt-1 text-sm text-foreground">
-                  {newValuesDigest(detailRow.new_values, t)}
+                <p className="mt-1 whitespace-pre-line text-sm text-foreground">
+                  {formatAuditNewValuesReadable(detailRow.new_values, t)}
                 </p>
                 <pre className="mt-2 max-h-64 overflow-auto rounded-md border bg-muted/40 p-3 font-mono text-[11px] leading-relaxed">
                   {prettifyJson(detailRow.new_values) !== ""

@@ -546,13 +546,29 @@ export function RatesPage() {
               availabilityByKey={availabilityByKey}
               allRatesStillPending={allRatesStillPending}
               skeletonMinHeightRem={
-                Math.max(4, (roomTypes?.length ?? 1) * 2.25) + 2
+                Math.max(4, (roomTypes?.length ?? 1) * 3.5) + 2
               }
               canWriteRates={canWriteRates}
               selectedPropertyId={selectedPropertyId}
               ratePlanId={ratePlanId}
               propertyCurrency={propertyCurrency}
               onOpenCellEdit={setCellEdit}
+              onMatrixBulkApply={
+                canWriteRates &&
+                selectedPropertyId !== null &&
+                ratePlanId !== ""
+                  ? async (segments) => {
+                      const res = await bulkMutation.mutateAsync({
+                        segments,
+                      });
+                      toastSuccess(
+                        t("rates.savedBulkRows", {
+                          count: res.rows_upserted,
+                        })
+                      );
+                    }
+                  : undefined
+              }
             />
 
             <RatesBulkEditor

@@ -5,6 +5,7 @@ import { NavLink, Outlet } from "react-router-dom";
 
 import { CurrentUserQueryProvider } from "@/contexts/current-user-query-provider";
 import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
+import { BrandMark } from "@/components/brand/BrandMark";
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
 import { PropertySwitcher } from "@/components/layout/PropertySwitcher";
 import { UserMenu } from "@/components/layout/UserMenu";
@@ -12,15 +13,11 @@ import { Button } from "@/components/ui/button";
 import { usePrefetchBoardData } from "@/hooks/usePrefetchBoardData";
 import { useSyncPropertyCountryPack } from "@/hooks/useSyncPropertyCountryPack";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { useCanViewAuditLog } from "@/hooks/useAuthz";
 import { cn } from "@/lib/utils";
 import { useThemeStore } from "@/stores/theme-store";
 
-function buildNavItems(
-  includeAudit: boolean,
-  t: (k: string) => string
-): { to: string; label: string }[] {
-  const items: { to: string; label: string }[] = [
+function buildNavItems(t: (k: string) => string): { to: string; label: string }[] {
+  return [
     { to: "/", label: t("nav.overview") },
     { to: "/board", label: t("nav.board") },
     { to: "/bookings", label: t("nav.bookings") },
@@ -28,12 +25,8 @@ function buildNavItems(
     { to: "/rates", label: t("nav.rates") },
     { to: "/rooms", label: t("nav.rooms") },
     { to: "/housekeeping", label: t("nav.housekeeping") },
+    { to: "/settings", label: t("nav.settings") },
   ];
-  if (includeAudit) {
-    items.push({ to: "/audit-log", label: t("nav.audit") });
-  }
-  items.push({ to: "/settings", label: t("nav.settings") });
-  return items;
 }
 
 function NavClasses(isActive: boolean): string {
@@ -71,11 +64,7 @@ function AppLayoutShell() {
   const { t } = useTranslation();
   usePrefetchBoardData();
   useSyncPropertyCountryPack();
-  const canViewAudit = useCanViewAuditLog();
-  const navItems = useMemo(
-    () => buildNavItems(canViewAudit, t),
-    [canViewAudit, t]
-  );
+  const navItems = useMemo(() => buildNavItems(t), [t]);
   const [mobileOpen, setMobileOpen] = useState(false);
   const themeMode = useThemeStore((s) => s.mode);
   const toggleTheme = useThemeStore((s) => s.toggle);
@@ -104,7 +93,8 @@ function AppLayoutShell() {
           >
             <Menu className="h-4 w-4" />
           </Button>
-          <span className="shrink-0 text-sm font-semibold tracking-tight text-foreground">
+          <span className="flex shrink-0 items-center gap-2 text-sm font-semibold tracking-tight text-foreground">
+            <BrandMark className="shrink-0" />
             {t("brand.name")}
           </span>
           <nav

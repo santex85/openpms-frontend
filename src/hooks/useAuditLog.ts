@@ -8,6 +8,8 @@ const PAGE_SIZE = 50;
 export interface AuditLogFilters {
   action?: string[];
   entity_type?: string[];
+  /** When set, sent as `?entity_id=` (server must support filtering). */
+  entity_id?: string;
 }
 
 function normalizeFilterList(list: string[] | undefined): string[] {
@@ -21,6 +23,10 @@ export function useAuditLog(page: number, filters: AuditLogFilters = {}) {
   const authKey = authQueryKeyPart();
   const action = normalizeFilterList(filters.action);
   const entity_type = normalizeFilterList(filters.entity_type);
+  const entity_id =
+    filters.entity_id !== undefined && filters.entity_id.trim() !== ""
+      ? filters.entity_id.trim()
+      : undefined;
 
   return useQuery({
     queryKey: [
@@ -30,6 +36,7 @@ export function useAuditLog(page: number, filters: AuditLogFilters = {}) {
       PAGE_SIZE,
       action,
       entity_type,
+      entity_id ?? null,
     ],
     queryFn: () =>
       fetchAuditLog({
@@ -37,6 +44,7 @@ export function useAuditLog(page: number, filters: AuditLogFilters = {}) {
         offset: page * PAGE_SIZE,
         action: action.length > 0 ? action : undefined,
         entity_type: entity_type.length > 0 ? entity_type : undefined,
+        entity_id,
       }),
     placeholderData: keepPreviousData,
   });

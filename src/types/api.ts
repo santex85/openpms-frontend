@@ -108,6 +108,8 @@ export interface BookingCreateRequest {
   guest: BookingGuestPayload;
   status?: string;
   source?: string;
+  /** Number of guests on the booking (optional; backend may default). */
+  guests_count?: number;
   /** When true, backend skips merging with existing guest profile (TZ-10). */
   force_new_guest?: boolean;
 }

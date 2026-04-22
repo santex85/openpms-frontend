@@ -4,6 +4,7 @@ import {
   useState,
 } from "react";
 import axios from "axios";
+import { useTranslation } from "react-i18next";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 
 import { loginRequest } from "@/api/auth";
@@ -39,6 +40,7 @@ function parseJwtTenantId(token: string): string | null {
 }
 
 export function LoginPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState("");
@@ -182,6 +184,14 @@ export function LoginPage() {
                 setPassword(e.target.value);
               }}
             />
+            <div className="flex justify-end">
+              <Link
+                to="/forgot-password"
+                className="text-sm font-medium text-primary underline underline-offset-2"
+              >
+                {t("auth.forgotPassword.link")}
+              </Link>
+            </div>
           </div>
           <Button type="submit" className="w-full" disabled={pending}>
             {pending ? "Входим…" : "Войти"}

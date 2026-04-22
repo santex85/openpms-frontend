@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 
 import {
@@ -10,11 +11,15 @@ import { usePaginatedQuery } from "@/hooks/usePaginatedQuery";
 import { usePropertyStore } from "@/stores/property-store";
 import type { Booking } from "@/types/api";
 
+const BOOKINGS_SEARCH_DEBOUNCE_MS = 300;
+
 export interface UseBookingsListOptions {
   /** zero-based page index */
   page: number;
   pageSize: number;
   status?: string;
+  /** Filter by guest name, email, booking id (sent as `q` when non-empty after debounce). */
+  searchInput?: string;
 }
 
 export function useBookings(
@@ -35,6 +40,24 @@ export function useBookings(
   const authKey = authQueryKeyPart();
   const isPaged = listOptions !== undefined;
 
+  const [debouncedQ, setDebouncedQ] = useState("");
+  useEffect(() => {
+    if (!isPaged) {
+      return;
+    }
+    const raw = listOptions?.searchInput?.trim() ?? "";
+    if (raw === "") {
+      setDebouncedQ("");
+      return;
+    }
+    const t = window.setTimeout(() => {
+      setDebouncedQ(raw);
+    }, BOOKINGS_SEARCH_DEBOUNCE_MS);
+    return () => {
+      window.clearTimeout(t);
+    };
+  }, [isPaged, listOptions?.searchInput]);
+
   const pagedQuery = usePaginatedQuery(
     [
       "bookings",
@@ -43,6 +66,7 @@ export function useBookings(
       startDate,
       endDate,
       listOptions?.status ?? null,
+      debouncedQ,
     ],
     ({ limit, offset }) =>
       fetchBookingsTape({
@@ -52,6 +76,7 @@ export function useBookings(
         limit,
         offset,
         status: listOptions?.status,
+        ...(debouncedQ !== "" ? { q: debouncedQ } : {}),
       }),
     listOptions?.page ?? 0,
     listOptions?.pageSize ?? 25,

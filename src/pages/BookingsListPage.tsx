@@ -43,6 +43,7 @@ import {
   bookingSummaryStatusBadgeClass,
 } from "@/lib/i18n/domainLabels";
 import { formatApiError } from "@/lib/formatApiError";
+import { formatMoneyAmount } from "@/lib/formatMoney";
 import { toastInfo } from "@/lib/toast";
 import { useCanWriteBookings } from "@/hooks/useAuthz";
 import { usePropertyStore } from "@/stores/property-store";
@@ -126,8 +127,9 @@ export function BookingsListPage() {
       page,
       pageSize: BOOKINGS_PAGE_SIZE,
       ...(statusFilter !== "" ? { status: statusFilter } : {}),
+      searchInput: localSearch,
     }),
-    [page, statusFilter]
+    [page, statusFilter, localSearch]
   );
 
   const { data: tape, isPending, isError, error: bookingsError } =
@@ -162,6 +164,8 @@ export function BookingsListPage() {
   const [guestEmail, setGuestEmail] = useState("");
   const [guestPhone, setGuestPhone] = useState("");
   const [guestPassport, setGuestPassport] = useState("");
+  const [bookingSource, setBookingSource] = useState<string>("direct");
+  const [guestsCount, setGuestsCount] = useState<string>("2");
   const [createError, setCreateError] = useState<string | null>(null);
   const [createBanner, setCreateBanner] = useState<{
     id: string;
@@ -203,32 +207,36 @@ export function BookingsListPage() {
     }
   }, [ratePlans, ratePlanId]);
 
+  const selectedRoomType = useMemo(() => {
+    if (roomTypeId === "" || roomTypes === undefined) {
+      return undefined;
+    }
+    return roomTypes.find((r) => r.id === roomTypeId);
+  }, [roomTypeId, roomTypes]);
+
+  useEffect(() => {
+    if (selectedRoomType === undefined) {
+      return;
+    }
+    const max = selectedRoomType.max_occupancy;
+    setGuestsCount((prev) => {
+      const n = Number.parseInt(prev, 10);
+      if (!Number.isFinite(n) || n < 1) {
+        return "1";
+      }
+      if (n > max) {
+        return String(max);
+      }
+      return prev;
+    });
+  }, [selectedRoomType]);
+
   const rows = useMemo<Booking[]>(() => tape?.items ?? [], [tape?.items]);
   const total = tape?.total ?? 0;
 
-  const filteredRows = useMemo(() => {
-    const q = localSearch.trim().toLowerCase();
-    if (q === "") {
-      return rows;
-    }
-    return rows.filter((b) => {
-      const guestBlob =
-        `${b.guest.first_name} ${b.guest.last_name}`.toLowerCase();
-      return (
-        guestBlob.includes(q) ||
-        b.id.toLowerCase().includes(q) ||
-        bookingDisplayHash(b.id).toLowerCase().includes(q) ||
-        b.status.toLowerCase().includes(q) ||
-        bookingSummaryBadgeLabel(b.status).toLowerCase().includes(q) ||
-        (b.check_in_date ?? "").includes(q) ||
-        (b.check_out_date ?? "").includes(q)
-      );
-    });
-  }, [rows, localSearch]);
-
   const bookingsScrollRef = useRef<HTMLDivElement>(null);
   const bookingsVirtual = useVirtualizer({
-    count: filteredRows.length,
+    count: rows.length,
     getScrollElement: () => bookingsScrollRef.current,
     estimateSize: () => 58,
     overscan: 10,
@@ -236,7 +244,7 @@ export function BookingsListPage() {
 
   useEffect(() => {
     setPage(0);
-  }, [statusFilter]);
+  }, [statusFilter, localSearch]);
 
   function resetCreateFormDefaults(): void {
     setCheckIn(formatIsoDateLocal(new Date()));
@@ -246,6 +254,8 @@ export function BookingsListPage() {
     setGuestEmail("");
     setGuestPhone("");
     setGuestPassport("");
+    setBookingSource("direct");
+    setGuestsCount("2");
     setCreateError(null);
   }
 
@@ -279,6 +289,19 @@ export function BookingsListPage() {
       return;
     }
 
+    const gc = Number.parseInt(guestsCount, 10);
+    const maxOcc = selectedRoomType?.max_occupancy ?? 99;
+    if (!Number.isFinite(gc) || gc < 1) {
+      setCreateError(t("bookings.err.guestsCount"));
+      return;
+    }
+    if (gc > maxOcc) {
+      setCreateError(
+        t("bookings.err.guestsCountMax", { max: String(maxOcc) })
+      );
+      return;
+    }
+
     const passportTrim = guestPassport.trim();
     const body: BookingCreateRequest = {
       property_id: selectedPropertyId,
@@ -294,7 +317,8 @@ export function BookingsListPage() {
         ...(passportTrim !== "" ? { passport_data: passportTrim } : {}),
       },
       status: "confirmed",
-      source: "direct",
+      source: bookingSource,
+      guests_count: gc,
     };
 
     try {
@@ -398,7 +422,7 @@ export function BookingsListPage() {
             htmlFor="bookings-local-search"
             className="text-xs font-medium text-muted-foreground"
           >
-            {t("bookings.localSearchLabel")}
+            {t("bookings.searchLabel")}
           </label>
           <Input
             id="bookings-local-search"
@@ -449,15 +473,15 @@ export function BookingsListPage() {
               className="relative"
               style={{
                 height:
-                  filteredRows.length === 0
+                  rows.length === 0
                     ? undefined
                     : `${bookingsVirtual.getTotalSize()}px`,
               }}
             >
-              {filteredRows.length === 0
+              {rows.length === 0
                 ? null
                 : bookingsVirtual.getVirtualItems().map((vi) => {
-                    const b = filteredRows[vi.index];
+                    const b = rows[vi.index];
                     return (
                       <div
                         key={b.id}
@@ -526,10 +550,6 @@ export function BookingsListPage() {
           </div>
           {rows.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground">{t("bookings.empty")}</p>
-          ) : filteredRows.length === 0 ? (
-            <p className="p-4 text-sm text-muted-foreground">
-              {t("bookings.filterEmpty")}
-            </p>
           ) : null}
         </div>
       )}
@@ -723,6 +743,47 @@ export function BookingsListPage() {
                   }}
                 />
               </div>
+              <div className="space-y-2">
+                <span className="text-sm font-medium">
+                  {t("bookings.source.label")}
+                </span>
+                <Select value={bookingSource} onValueChange={setBookingSource}>
+                  <SelectTrigger aria-label={t("bookings.source.label")}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(
+                      [
+                        "direct",
+                        "ota",
+                        "phone",
+                        "walk_in",
+                        "website",
+                        "email",
+                      ] as const
+                    ).map((key) => (
+                      <SelectItem key={key} value={key}>
+                        {t(`booking.source.${key}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="bk-guests-count" className="text-sm font-medium">
+                  {t("bookings.guestsCount.label")}
+                </label>
+                <Input
+                  id="bk-guests-count"
+                  type="number"
+                  min={1}
+                  max={selectedRoomType?.max_occupancy ?? undefined}
+                  value={guestsCount}
+                  onChange={(e) => {
+                    setGuestsCount(e.target.value);
+                  }}
+                />
+              </div>
             </div>
             {countryPackCode !== null &&
             countryPackCode.trim() !== "" &&
@@ -734,8 +795,11 @@ export function BookingsListPage() {
                 {priceSubtotal !== null ? (
                   <p className="mt-1 text-sm text-muted-foreground">
                     {t("bookings.roomSubtotal")}:{" "}
-                    {priceSubtotal.toFixed(2)}{" "}
-                    {(propertyRow?.currency ?? "").toUpperCase()}
+                    {formatMoneyAmount(
+                      propertyRow?.currency ?? "USD",
+                      priceSubtotal.toFixed(2),
+                      i18n.language
+                    )}
                   </p>
                 ) : (
                   <p className="mt-1 text-xs text-muted-foreground">

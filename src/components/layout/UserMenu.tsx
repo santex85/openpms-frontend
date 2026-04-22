@@ -58,7 +58,8 @@ export function UserMenu() {
         type="button"
         variant="outline"
         size="sm"
-        className="max-w-[200px] gap-1 pl-2 pr-1"
+        className="max-w-[200px] min-w-0 gap-1 pl-2 pr-1"
+        title={`${user.full_name}\n${user.email}`}
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => {

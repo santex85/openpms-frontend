@@ -1,6 +1,12 @@
 import { lazy, Suspense, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+  useSearchParams,
+} from "react-router-dom";
 
 import { RequireAuth } from "@/components/auth/RequireAuth";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -35,11 +41,6 @@ const RatesPage = lazy(() =>
 const RoomsPage = lazy(() =>
   import("@/pages/RoomsPage").then((m) => ({ default: m.RoomsPage }))
 );
-const AuditLogPage = lazy(() =>
-  import("@/pages/AuditLogPage").then((m) => ({
-    default: m.AuditLogPage,
-  }))
-);
 const HousekeepingPage = lazy(() =>
   import("@/pages/HousekeepingPage").then((m) => ({
     default: m.HousekeepingPage,
@@ -57,6 +58,16 @@ const LoginPage = lazy(() =>
 );
 const RegisterPage = lazy(() =>
   import("@/pages/RegisterPage").then((m) => ({ default: m.RegisterPage }))
+);
+const ForgotPasswordPage = lazy(() =>
+  import("@/pages/ForgotPasswordPage").then((m) => ({
+    default: m.ForgotPasswordPage,
+  }))
+);
+const ResetPasswordPage = lazy(() =>
+  import("@/pages/ResetPasswordPage").then((m) => ({
+    default: m.ResetPasswordPage,
+  }))
 );
 
 function FullScreenFallback() {
@@ -85,6 +96,17 @@ function LazyPage({ children }: { children: ReactNode }) {
   return <Suspense fallback={<PageFallback />}>{children}</Suspense>;
 }
 
+/** Preserves `?entity_id=` from legacy `/audit-log` links when redirecting to Settings. */
+function AuditLogRedirect() {
+  const [searchParams] = useSearchParams();
+  const entityId = searchParams.get("entity_id");
+  const q =
+    entityId !== null && entityId.trim() !== ""
+      ? `?audit_entity_id=${encodeURIComponent(entityId.trim())}`
+      : "";
+  return <Navigate to={`/settings${q}#developer-audit`} replace />;
+}
+
 export default function App() {
   return (
     <BrowserRouter
@@ -107,6 +129,22 @@ export default function App() {
           element={
             <AuthSuspense>
               <RegisterPage />
+            </AuthSuspense>
+          }
+        />
+        <Route
+          path="/forgot-password"
+          element={
+            <AuthSuspense>
+              <ForgotPasswordPage />
+            </AuthSuspense>
+          }
+        />
+        <Route
+          path="/reset-password"
+          element={
+            <AuthSuspense>
+              <ResetPasswordPage />
             </AuthSuspense>
           }
         />
@@ -189,14 +227,7 @@ export default function App() {
               </LazyPage>
             }
           />
-          <Route
-            path="audit-log"
-            element={
-              <LazyPage>
-                <AuditLogPage />
-              </LazyPage>
-            }
-          />
+          <Route path="audit-log" element={<AuditLogRedirect />} />
           <Route
             path="housekeeping"
             element={

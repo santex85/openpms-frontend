@@ -100,11 +100,17 @@ export function PropertySwitcher() {
     selectedPropertyId !== null && propertyIds.has(selectedPropertyId)
       ? selectedPropertyId
       : properties[0].id;
+  const selectedName =
+    properties.find((p) => p.id === selectValue)?.name ?? "";
 
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
       <Select value={selectValue} onValueChange={setSelectedPropertyId}>
-        <SelectTrigger className="w-[220px]" aria-label="Выбор отеля">
+        <SelectTrigger
+          className="w-[220px] min-w-0"
+          aria-label="Выбор отеля"
+          title={selectedName}
+        >
           <SelectValue placeholder="Выберите отель" />
         </SelectTrigger>
         <SelectContent>

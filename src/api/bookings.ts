@@ -26,6 +26,8 @@ export interface FetchBookingsTapeParams extends FetchBookingsDateRangeParams {
   limit?: number;
   offset?: number;
   status?: string;
+  /** Server-side search (guest name, email, booking id) when API supports `q`. */
+  q?: string;
 }
 
 const BOOKING_PAGE_CHUNK = 500;
@@ -36,6 +38,7 @@ export async function fetchBookingsTape(
   const limit = params.limit ?? 25;
   const offset = params.offset ?? 0;
   const statusTrim = params.status?.trim();
+  const qTrim = params.q?.trim();
   const { data } = await apiClient.get<BookingTapePage>("/bookings", {
     params: {
       [PROPERTY_ID_QUERY_PARAM]: params.propertyId,
@@ -46,6 +49,7 @@ export async function fetchBookingsTape(
       ...(statusTrim !== undefined && statusTrim !== ""
         ? { status: statusTrim }
         : {}),
+      ...(qTrim !== undefined && qTrim !== "" ? { q: qTrim } : {}),
     },
   });
   return data;

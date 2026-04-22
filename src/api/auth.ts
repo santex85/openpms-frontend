@@ -115,3 +115,28 @@ export async function changePassword(
     new_password: body.new_password,
   });
 }
+
+export async function patchMeProfile(body: {
+  full_name: string;
+  email: string;
+}): Promise<UserRead> {
+  const { data } = await apiClient.patch<UserRead>("/auth/me", {
+    full_name: body.full_name.trim(),
+    email: body.email.trim(),
+  });
+  return data;
+}
+
+export async function postForgotPassword(email: string): Promise<void> {
+  await authHttp.post("/auth/forgot-password", { email: email.trim() });
+}
+
+export async function postResetPassword(body: {
+  token: string;
+  password: string;
+}): Promise<void> {
+  await authHttp.post("/auth/reset-password", {
+    token: body.token.trim(),
+    password: body.password,
+  });
+}

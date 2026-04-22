@@ -1,11 +1,13 @@
 import type { TFunction } from "i18next";
-import { useTranslation } from "react-i18next";
-import { Loader2, Mail } from "lucide-react";
+import { Trans, useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
+import { Loader2, Mail, RotateCcw } from "lucide-react";
 
 import { ApiRouteHint } from "@/components/dev/ApiRouteHint";
 import { Button } from "@/components/ui/button";
 import {
   useBookingEmailLogs,
+  useRetryEmailLog,
   useSendBookingInvoice,
 } from "@/hooks/useBookingEmailLogs";
 import { showApiRouteHints } from "@/lib/devUi";
@@ -54,6 +56,7 @@ export function BookingEmailSection({
   const { t } = useTranslation();
   const logsQ = useBookingEmailLogs(bookingId);
   const sendInvMut = useSendBookingInvoice();
+  const retryMut = useRetryEmailLog(bookingId);
 
   const rows: EmailLogRead[] = logsQ.data ?? [];
 
@@ -96,9 +99,23 @@ export function BookingEmailSection({
 
       {showApiRouteHints() ? (
         <ApiRouteHint>
-          {`GET /bookings/{id}/email-logs · POST /bookings/{id}/send-invoice`}
+          {`GET /bookings/{id}/email-logs · POST /bookings/{id}/send-invoice · POST /email-logs/{id}/retry`}
         </ApiRouteHint>
       ) : null}
+
+      <p className="text-xs text-muted-foreground">
+        <Trans
+          i18nKey="booking.emails.resendHint"
+          components={{
+            a: (
+              <Link
+                to="/settings#notifications"
+                className="font-medium text-primary underline underline-offset-2"
+              />
+            ),
+          }}
+        />
+      </p>
 
       {logsQ.isError ? (
         <p className="text-sm text-destructive">
@@ -120,6 +137,9 @@ export function BookingEmailSection({
                 <th className="px-2 py-1.5">{t("booking.emails.recipient")}</th>
                 <th className="px-2 py-1.5">{t("booking.emails.subject")}</th>
                 <th className="px-2 py-1.5">{t("booking.emails.status")}</th>
+                {canWriteBookings ? (
+                  <th className="px-2 py-1.5">{t("booking.emails.actions")}</th>
+                ) : null}
               </tr>
             </thead>
             <tbody>
@@ -152,6 +172,40 @@ export function BookingEmailSection({
                       {emailStatusLabel(t, row.status)}
                     </span>
                   </td>
+                  {canWriteBookings ? (
+                    <td className="px-2 py-1.5">
+                      {row.status === "failed" ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={retryMut.isPending}
+                          onClick={() => {
+                            void (async () => {
+                              try {
+                                await retryMut.mutateAsync(row.id);
+                                toastSuccess(t("booking.emails.retryQueued"));
+                              } catch (err) {
+                                toastError(formatApiError(err));
+                              }
+                            })();
+                          }}
+                        >
+                          {retryMut.isPending ? (
+                            <Loader2
+                              className="mr-1 h-3.5 w-3.5 animate-spin"
+                              aria-hidden
+                            />
+                          ) : (
+                            <RotateCcw className="mr-1 h-3.5 w-3.5" aria-hidden />
+                          )}
+                          {t("booking.emails.retry")}
+                        </Button>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>

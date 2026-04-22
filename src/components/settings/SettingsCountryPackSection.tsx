@@ -34,10 +34,14 @@ import { countryPackFlagEmoji } from "@/lib/countryPackFlags";
 import { formatApiError } from "@/lib/formatApiError";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { usePropertyStore } from "@/stores/property-store";
+import type { CountryPackApplyResponse } from "@/types/country-pack";
 
 const NONE_VALUE = "__none__";
 
-export function SettingsCountryPackSection() {
+export function SettingsCountryPackSection(props: {
+  onPackApplied?: (applied: CountryPackApplyResponse) => void;
+}) {
+  const { onPackApplied } = props;
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const authKey = authQueryKeyPart();
@@ -97,9 +101,11 @@ export function SettingsCountryPackSection() {
       return;
     }
     try {
-      await applyMutation.mutateAsync(draftCode);
+      const applied = await applyMutation.mutateAsync(draftCode);
+      onPackApplied?.(applied);
       setConfirmOpen(false);
       toastSuccess(t("countryPack.toastApplied"));
+      toastSuccess(t("settings.property.packAppliedToast"));
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 409) {
         void queryClient.invalidateQueries({

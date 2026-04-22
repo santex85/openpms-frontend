@@ -13,6 +13,7 @@ function auditLogQueryString(params: {
   offset: number;
   action?: string[];
   entity_type?: string[];
+  entity_id?: string;
 }): string {
   const u = new URLSearchParams();
   u.set("limit", String(params.limit));
@@ -23,6 +24,9 @@ function auditLogQueryString(params: {
   for (const e of params.entity_type ?? []) {
     u.append("entity_type", e);
   }
+  if (params.entity_id !== undefined && params.entity_id.trim() !== "") {
+    u.set("entity_id", params.entity_id.trim());
+  }
   const qs = u.toString();
   return qs === "" ? "" : `?${qs}`;
 }
@@ -32,6 +36,7 @@ export async function fetchAuditLog(params: {
   offset?: number;
   action?: string[];
   entity_type?: string[];
+  entity_id?: string;
 }): Promise<AuditLogFetchResult> {
   const limit = params.limit ?? 50;
   const offset = params.offset ?? 0;
@@ -40,6 +45,7 @@ export async function fetchAuditLog(params: {
     offset,
     action: params.action,
     entity_type: params.entity_type,
+    entity_id: params.entity_id,
   });
   const { data } = await apiClient.get<
     | AuditLogEntry[]
